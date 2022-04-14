@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^6.6.96",
@@ -9,7 +9,7 @@
     "w-component-vue": "^2.2.6",
     "w-data-collector": "^1.0.13",
     "w-orm-mongodb": "^1.1.26",
-    "w-serv-hapi": "^1.0.5",
+    "w-serv-hapi": "^1.0.6",
     "w-serv-orm": "^1.0.0",
     "wsemi": "^1.6.55"
   },
@@ -66,16 +66,9 @@
     "url": "https://github.com/yuda-lyu/w-web-api"
   },
   "keywords": [
-    "lodash",
-    "color",
-    "crypto",
-    "fuzzy",
-    "xss",
-    "xlsx",
-    "tool",
-    "package ",
-    "browser",
-    "developer"
+    "web",
+    "service",
+    "api"
   ],
   "author": "yuda-lyu(semisphere)",
   "license": "MIT"

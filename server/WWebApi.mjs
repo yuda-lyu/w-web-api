@@ -201,6 +201,7 @@ async function WWebApi(url, db, WOrm, opt = {}) {
     if (fsIsFolder(npmPathStaticFiles)) {
         pathStaticFiles = npmPathStaticFiles
     }
+    // console.log('pathStaticFiles', pathStaticFiles)
 
 
     //apis
@@ -301,6 +302,7 @@ async function WWebApi(url, db, WOrm, opt = {}) {
         },
         hookBefores: null,
         hookAfters: null,
+        fnTableTags: 'tableTags-web-api.json',
     })
 
 

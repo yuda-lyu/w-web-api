@@ -1,12 +1,14 @@
-import rollupFiles from 'w-package-tools/src/rollupFiles.mjs'
+// import rollupFiles from 'w-package-tools/src/rollupFiles.mjs'
+import rollupFile from 'w-package-tools/src/rollupFile.mjs' //因只有1檔案且不需刪除dsit故改用rollupFile
 
 
 let fdSrc = './server' //'./src'
 let fdTar = './dist'
 
 
-rollupFiles({
-    fns: ['WWebApi.mjs'],
+rollupFile({
+    // fns: ['WWebApi.mjs'],
+    fn: 'WWebApi.mjs',
     fdSrc,
     fdTar,
     nameDistType: 'kebabCase',
