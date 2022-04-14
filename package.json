@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^6.6.96",
@@ -10,7 +10,7 @@
     "w-component-vue": "^2.2.6",
     "w-data-collector": "^1.0.13",
     "w-serv-hapi": "^1.0.6",
-    "w-serv-orm": "^1.0.1",
+    "w-serv-orm": "^1.0.2",
     "wsemi": "^1.6.55"
   },
   "devDependencies": {

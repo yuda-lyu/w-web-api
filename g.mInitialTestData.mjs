@@ -1,32 +1,12 @@
-// import path from 'path'
-// import fs from 'fs'
-// import _ from 'lodash'
-import w from 'wsemi'
 import ds from './src/schema/index.mjs'
 import { woItems } from './g.mOrm.mjs'
+import genTestData from 'w-serv-orm/src/genTestData.mjs'
 
 
 async function initialTestData() {
 
-    //delFiles
-    // delFiles('./histData')
-    // delFiles('./uploadFiles')
-
-    //funTest
-    await w.pmSeries(ds, async (v, k) => {
-
-        //funTestAndSave
-        let rs = await v.funTestAndSave(woItems)
-        console.log(`${k}.funTestAndSave`, rs)
-
-        // //funTest
-        // let rs = await v.funTest(woItems)
-
-        // //save
-        // await woItems[k].save(rs)
-        // console.log(`${k}.funTest and save`, rs)
-
-    })
+    //genTestData
+    await genTestData(ds, woItems)
 
 }
 
