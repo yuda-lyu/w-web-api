@@ -1,26 +1,26 @@
-# w-serv-api
+# w-web-api
 An operator for orm in server.
 
 ![language](https://img.shields.io/badge/language-JavaScript-orange.svg) 
-[![npm version](http://img.shields.io/npm/v/w-serv-api.svg?style=flat)](https://npmjs.org/package/w-serv-api) 
-[![license](https://img.shields.io/npm/l/w-serv-api.svg?style=flat)](https://npmjs.org/package/w-serv-api) 
-[![gzip file size](http://img.badgesize.io/yuda-lyu/w-serv-api/master/dist/w-serv-api-server.umd.js.svg?compression=gzip)](https://github.com/yuda-lyu/w-serv-api)
-[![npm download](https://img.shields.io/npm/dt/w-serv-api.svg)](https://npmjs.org/package/w-serv-api) 
-[![jsdelivr download](https://img.shields.io/jsdelivr/npm/hm/w-serv-api.svg)](https://www.jsdelivr.com/package/npm/w-serv-api)
+[![npm version](http://img.shields.io/npm/v/w-web-api.svg?style=flat)](https://npmjs.org/package/w-web-api) 
+[![license](https://img.shields.io/npm/l/w-web-api.svg?style=flat)](https://npmjs.org/package/w-web-api) 
+[![gzip file size](http://img.badgesize.io/yuda-lyu/w-web-api/master/dist/w-web-api-server.umd.js.svg?compression=gzip)](https://github.com/yuda-lyu/w-web-api)
+[![npm download](https://img.shields.io/npm/dt/w-web-api.svg)](https://npmjs.org/package/w-web-api) 
+[![jsdelivr download](https://img.shields.io/jsdelivr/npm/hm/w-web-api.svg)](https://www.jsdelivr.com/package/npm/w-web-api)
 
 ## Documentation
-To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-serv-api/WServApi.html).
+To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-web-api/WWebApi.html).
 
 ## Installation
 ### Using npm(ES6 module):
-> **Note:** `w-serv-api` is mainly dependent on `lodash` and `wsemi`.
+> **Note:** `w-web-api` is mainly dependent on `lodash` and `wsemi`.
 
 ```alias
-npm i w-serv-api
+npm i w-web-api
 ```
 
 #### Example for server:
-> **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-api/blob/master/srv.mjs)]
+> **Link:** [[dev source code](https://github.com/yuda-lyu/w-web-api/blob/master/srv.mjs)]
 ```alias
 import WOrm from 'w-orm-mongodb/src/WOrmMongodb.mjs' //自行選擇引用ORM, 使用Mongodb測試
 import getSettings from './server/getSettings.mjs'
