@@ -57,7 +57,7 @@ async function provideApis(url, levels, apis) {
         .catch((err) => {
             // console.log(err)
             rout = {
-                state: 'success',
+                state: 'error',
                 msg: '無法傳輸API清單',
                 res: err,
             }
