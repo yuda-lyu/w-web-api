@@ -48,7 +48,7 @@ let opt = {
 }
 
 //WWebApi
-WWebApi(url, db, WOrm, opt)
+WWebApi(WOrm, url, db, opt)
     .catch((err) => {
         console.log(err)
     })

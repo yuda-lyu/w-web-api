@@ -18,10 +18,10 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  * 基於hapi之API伺服器
  *
  * @class
+ * @param {Function} WOrm 輸入資料庫ORM函數
+ * @param {String} url 輸入資料庫連線字串，例如'mongodb://sername:password@$127.0.0.1:27017'
+ * @param {String} db 輸入資料庫名稱字串
  * @param {Object} [opt={}] 輸入設定物件，預設{}
- * @param {String} opt.url 輸入資料庫連線字串，例如'mongodb://sername:password@$127.0.0.1:27017'
- * @param {String} opt.db 輸入資料庫名稱字串
- * @param {Function} opt.WOrm 輸入資料庫ORM函數
  * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，預設11005
  * @param {Function} [opt.getUserById=null] 輸入當bCheckUser=true時依照使用者ID取得使用者資訊物件函數，預設null
  * @param {Boolean} [opt.bCheckUser=true] 輸入是否檢查使用者資訊布林值，預設true
@@ -55,13 +55,20 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  * }
  *
  * //WWebApi
- * WWebApi(url, db, WOrm, opt)
+ * WWebApi(WOrm, url, db, opt)
  *     .catch((err) => {
  *         console.log(err)
  *     })
  *
  */
-async function WWebApi(url, db, WOrm, opt = {}) {
+async function WWebApi(WOrm, url, db, opt = {}) {
+
+
+    //check WOrm
+    if (!isfun(WOrm)) {
+        console.log('invalid WOrm', WOrm)
+        throw new Error('invalid WOrm')
+    }
 
 
     //check url
@@ -78,13 +85,6 @@ async function WWebApi(url, db, WOrm, opt = {}) {
     }
 
 
-    //check WOrm
-    if (!isfun(WOrm)) {
-        console.log('invalid WOrm', WOrm)
-        throw new Error('invalid WOrm')
-    }
-
-
     //serverPort
     let serverPort = get(opt, 'serverPort')
     if (!ispint(serverPort)) {
@@ -93,12 +93,12 @@ async function WWebApi(url, db, WOrm, opt = {}) {
     serverPort = cint(serverPort)
 
 
-    //getUserById
-    let getUserById = get(opt, 'getUserById', null)
-
-
     //bCheckUser
     let bCheckUser = get(opt, 'bCheckUser', false)
+
+
+    //getUserById
+    let getUserById = get(opt, 'getUserById', null)
 
 
     //bExcludeWhenNotAdmin
@@ -111,15 +111,13 @@ async function WWebApi(url, db, WOrm, opt = {}) {
 
     //WServOrm
     let optWServOrm = {
-        url,
-        db,
-        getUserById,
         bCheckUser,
+        getUserById,
         bExcludeWhenNotAdmin,
     }
     let wp = {}
     try {
-        wp = WServOrm(ds, WOrm, optWServOrm)
+        wp = WServOrm(ds, WOrm, url, db, optWServOrm)
     }
     catch (err) {
         console.log(err)

@@ -1,6 +1,6 @@
 import WOrm from 'w-orm-mongodb/src/WOrmMongodb.mjs' //自行選擇引用ORM, 使用Mongodb測試
-import getSettings from './server/getSettings.mjs'
 import WWebApi from './server/WWebApi.mjs'
+import getSettings from './g.getSettings.mjs'
 
 
 //st
@@ -24,7 +24,7 @@ let opt = {
 }
 
 //WWebApi
-WWebApi(url, db, WOrm, opt)
+WWebApi(WOrm, url, db, opt)
     .catch((err) => {
         console.log(err)
     })
