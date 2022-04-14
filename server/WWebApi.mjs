@@ -34,7 +34,6 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  * import getSettings from './server/getSettings.mjs'
  * import WWebApi from './server/WWebApi.mjs'
  *
- *
  * //st
  * let st = getSettings()
  *
@@ -60,7 +59,6 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  *     .catch((err) => {
  *         console.log(err)
  *     })
- *
  *
  */
 async function WWebApi(url, db, WOrm, opt = {}) {
