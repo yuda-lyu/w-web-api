@@ -1,7 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.0.2",
-  "description": "",
+  "version": "1.0.3",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^6.6.96",
@@ -40,8 +39,9 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
+    "test": "mocha --parallel --timeout 60000 --experimental-modules --es-module-specifier-resolution=node",
     "lint": "vue-cli-service lint",
-    "start": "node --experimental-modules --es-module-specifier-resolution=node server/srv.mjs"
+    "deploy": "gh-pages -d docs"
   },
   "eslintConfig": {
     "root": true,
