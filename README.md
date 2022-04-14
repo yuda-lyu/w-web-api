@@ -20,7 +20,7 @@ npm i w-serv-api
 ```
 
 #### Example for server:
-> **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-api/blob/master/g.mOrm.mjs)]
+> **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-api/blob/master/srv.mjs)]
 ```alias
 import WOrm from 'w-orm-mongodb/src/WOrmMongodb.mjs' //自行選擇引用ORM, 使用Mongodb測試
 import getSettings from './server/getSettings.mjs'
