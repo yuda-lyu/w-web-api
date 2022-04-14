@@ -22,23 +22,18 @@ npm i w-serv-api
 #### Example for server:
 > **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-api/blob/master/g.mOrm.mjs)]
 ```alias
+import WOrm from 'w-orm-mongodb/src/WOrmMongodb.mjs' //自行選擇引用ORM, 使用Mongodb測試
+import getSettings from './server/getSettings.mjs'
 import WWebApi from './server/WWebApi.mjs'
 
 
 //st
-let st = {
-    'dbUsername': 'username',
-    'dbPassword': 'password',
-    'dbName': 'wapis',
-    'dbIP': 'localhost',
-    'dbPort': 27017,
-}
+let st = getSettings()
 
-
+let url = `mongodb://${st.dbUsername}:${st.dbPassword}@${st.dbIP}:${st.dbPort}` //使用Mongodb測試
+let db = st.dbName
 let opt = {
 
-    url: `mongodb://${st.dbUsername}:${st.dbPassword}@${st.dbIP}:${st.dbPort}`,
-    db: st.dbName,
     getUserById: null,
     bCheckUser: false,
     bExcludeWhenNotAdmin: false,
@@ -52,9 +47,8 @@ let opt = {
 
 }
 
-
 //WWebApi
-WWebApi(opt)
+WWebApi(url, db, WOrm, opt)
     .catch((err) => {
         console.log(err)
     })

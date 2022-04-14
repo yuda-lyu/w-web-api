@@ -1,4 +1,4 @@
-import WOrm from 'w-orm-mongodb/src/WOrmMongodb.mjs'
+import WOrm from 'w-orm-mongodb/src/WOrmMongodb.mjs' //自行選擇引用ORM, 使用Mongodb測試
 import getSettings from './server/getSettings.mjs'
 import WWebApi from './server/WWebApi.mjs'
 
@@ -6,7 +6,7 @@ import WWebApi from './server/WWebApi.mjs'
 //st
 let st = getSettings()
 
-let url = `mongodb://${st.dbUsername}:${st.dbPassword}@${st.dbIP}:${st.dbPort}`
+let url = `mongodb://${st.dbUsername}:${st.dbPassword}@${st.dbIP}:${st.dbPort}` //使用Mongodb測試
 let db = st.dbName
 let opt = {
 
