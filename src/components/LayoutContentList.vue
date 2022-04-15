@@ -91,7 +91,7 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{$t('tokens')}} |
+                                {{$t('tokens')}}
                             </div>
 
                             <div class="bk-item" style="">
