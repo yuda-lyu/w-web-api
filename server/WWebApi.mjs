@@ -109,6 +109,14 @@ async function WWebApi(WOrm, url, db, opt = {}) {
     let webName = get(opt, 'webName', {})
 
 
+    //webDescription
+    let webDescription = get(opt, 'webDescription', {})
+
+
+    //webLogo
+    let webLogo = get(opt, 'webLogo', {})
+
+
     //WServOrm
     let optWServOrm = {
         bCheckUser,
@@ -129,6 +137,8 @@ async function WWebApi(WOrm, url, db, opt = {}) {
     let getWebInfor = (userId) => {
         return {
             webName,
+            webDescription,
+            webLogo,
         }
     }
 

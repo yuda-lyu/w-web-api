@@ -41,7 +41,7 @@
                             </div>
 
                             <div>
-                                {{$s.gv(getItemByKey(props.data.text),'name')}}
+                                {{$ui.gv(getItemByKey(props.data.text),'name')}}
                             </div>
 
                         </div>
@@ -67,7 +67,7 @@
                             </div>
 
                             <div style="font-size:0.8rem;">
-                                {{$s.gv(apiSelect,'url')}}
+                                {{$ui.gv(apiSelect,'url')}}
                             </div>
 
                         </div>
@@ -77,11 +77,11 @@
                     <div style="padding:10px;">
 
                         <div style="color:#485ed5;">
-                            {{$s.gv(apiSelect,'name')}}
+                            {{$ui.gv(apiSelect,'name')}}
                         </div>
 
                         <div class="bk-title" style="">
-                            {{$s.gv(apiSelect,'description')}}
+                            {{$ui.gv(apiSelect,'description')}}
                         </div>
 
                     </div>
@@ -91,11 +91,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.tokens}}
+                                {{$t('tokens')}} |
                             </div>
 
                             <div class="bk-item" style="">
-                                {{$s.gv(apiSelect,'tokens')}}
+                                {{$ui.gv(apiSelect,'tokens')}}
                             </div>
 
                         </div>
@@ -103,11 +103,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.version}}
+                                {{$t('version')}}
                             </div>
 
                             <div class="bk-item" style="">
-                                {{$s.gv(apiSelect,'version')}}
+                                {{$ui.gv(apiSelect,'version')}}
                             </div>
 
                         </div>
@@ -115,11 +115,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.levels}}
+                                {{$t('levels')}}
                             </div>
 
                             <div class="bk-item" style="">
-                                {{$s.gv(apiSelect,'')}}
+                                {{$ui.gv(apiSelect,'')}}
                             </div>
 
                         </div>
@@ -127,11 +127,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.keywords}}
+                                {{$t('keywords')}}
                             </div>
 
                             <div class="bk-item" style="">
-                                {{$s.gv(apiSelect,'')}}
+                                {{$ui.gv(apiSelect,'')}}
                             </div>
 
                         </div>
@@ -139,11 +139,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.state}}
+                                {{$t('state')}}
                             </div>
 
                             <div class="bk-item" style="">
-                                {{$s.gv(apiSelect,'')}}
+                                {{$ui.gv(apiSelect,'')}}
                             </div>
 
                         </div>
@@ -151,11 +151,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.timeCreate}}
+                                {{$t('timeCreate')}}
                             </div>
 
                             <div class="bk-item" style="">
-                                {{getDay($s.gv(apiSelect,'timeCreate'))}}
+                                {{$ui.gv(apiSelect,'timeCreate',getDay)}}
                             </div>
 
                         </div>
@@ -163,11 +163,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.timeUpdate}}
+                                {{$t('timeUpdate')}}
                             </div>
 
                             <div class="bk-item" style="">
-                                {{getDay($s.gv(apiSelect,'timeUpdate'))}}
+                                {{$ui.gv(apiSelect,'timeUpdate',getDay)}}
                             </div>
 
                         </div>
@@ -175,11 +175,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.creator}}
+                                {{$t('creator')}}
                             </div>
 
                             <div class="bk-item" style="">
-                                {{$s.gv(apiSelect,'creator')}}
+                                {{$ui.gv(apiSelect,'creator')}}
                             </div>
 
                         </div>
@@ -187,11 +187,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.dataSource}}
+                                {{$t('dataSource')}}
                             </div>
 
                             <div class="bk-item" style="">
-                                {{$s.gv(apiSelect,'dataSource')}}
+                                {{$ui.gv(apiSelect,'dataSource')}}
                             </div>
 
                         </div>
@@ -199,11 +199,11 @@
                         <div class="bk" style="">
 
                             <div class="bk-title" style="">
-                                {{kpTexts.isActive}}
+                                {{$t('isActive')}}
                             </div>
 
                             <div class="bk-item" style="">
-                                {{$s.gv(apiSelect,'isActive')}}
+                                {{$ui.gv(apiSelect,'isActive')}}
                             </div>
 
                         </div>
@@ -213,12 +213,12 @@
                     <div style="padding:10px;">
 
                         <div class="bk-title" style="">
-                            {{kpTexts.mdInputParams}}
+                            {{$t('mdInputParams')}}
                         </div>
 
                         <div class="bk-item" style="padding:10px;">
                             <MdPanel
-                                :md="$s.gv(apiSelect,'mdInputParams')"
+                                :md="$ui.gv(apiSelect,'mdInputParams')"
                             ></MdPanel>
                         </div>
 
@@ -227,11 +227,11 @@
                     <div style="padding:10px;">
 
                         <div class="bk-title" style="">
-                            {{kpTexts.inputExample}}
+                            {{$t('inputExample')}}
                         </div>
 
                         <div class="bk-item" style="padding:10px;">
-                            {{$s.gv(apiSelect,'inputExample')}}
+                            {{$ui.gv(apiSelect,'inputExample')}}
                         </div>
 
                     </div>
@@ -239,12 +239,12 @@
                     <div style="padding:10px;">
 
                         <div class="bk-title" style="">
-                            {{kpTexts.mdOutputParams}}
+                            {{$t('mdOutputParams')}}
                         </div>
 
                         <div class="bk-item" style="padding:10px;">
                             <MdPanel
-                                :md="$s.gv(apiSelect,'mdOutputParams')"
+                                :md="$ui.gv(apiSelect,'mdOutputParams')"
                             ></MdPanel>
                         </div>
 
@@ -253,7 +253,7 @@
                     <div style="padding:10px;">
 
                         <div class="bk-title" style="">
-                            {{kpTexts.outputExample}}
+                            {{$t('outputExample')}}
                         </div>
 
                         <div style="padding-top:10px;">
@@ -302,7 +302,7 @@
                 style="padding:20px; font-size:0.9rem;"
                 v-else
             >
-                {{kpTexts.noSelectApi}}
+                {{$t('noSelectApi')}}
             </div>
 
         </div>
@@ -311,7 +311,7 @@
             style="padding:20px; font-size:0.9rem;"
             v-else
         >
-            {{kpTexts.waitingData}}
+            {{$t('waitingData')}}
         </div>
 
     </div>
@@ -376,10 +376,6 @@ export default {
     },
     computed: {
 
-        kpTexts: function() {
-            return this.$ui.getKpLang()
-        },
-
         apis: function() {
             return get(this, '$store.state.apis')
         },
@@ -399,12 +395,12 @@ export default {
             let ms = [
                 {
                     id: 'tree',
-                    text: vo.kpTexts.outputMenuTree,
+                    text: vo.$t('outputMenuTree'),
                     icon: 'mdi-vanity-light',
                 },
                 {
                     id: 'raw',
-                    text: vo.kpTexts.outputMenuRaw,
+                    text: vo.$t('outputMenuRaw'),
                     icon: 'mdi-lan',
                 },
             ]

@@ -11,24 +11,20 @@
                 v-if="false"
             ></WButtonCircle>
 
-            <WButtonCircle
-                :icon="'mdi-menu'"
-                :tooltip="'cht'"
-                :shadow="false"
-                @click="$store.commit($store.types.UpdateLang, 'cht')"
-                v-if="false"
-            ></WButtonCircle>
+            <div style="padding-left:5px; white-space:nowrap">
+                <div style="display:flex; align-items:center;">
 
-            <WButtonCircle
-                :icon="'mdi-menu'"
-                :tooltip="'eng'"
-                :shadow="false"
-                @click="$store.commit($store.types.UpdateLang, 'eng')"
-                v-if="false"
-            ></WButtonCircle>
+                    <div style="padding-right:10px; display:flex; align-items:center;" v-if="webLogo">
+                        <img style="width:36px; height:36px;" :src="webLogo" />
+                    </div>
 
-            <div style="padding-left:10px; font-size:1.2rem; color:#000; white-space:nowrap">
-                <div>{{webName}}</div>
+                    <div>
+                        <div style="font-size:1.2rem; color:#000;">{{webName}}</div>
+                        <div style="font-size:0.8rem; color:#666;">{{$t('webDescription')}}</div>
+                    </div>
+
+                </div>
+
             </div>
 
             <div style="width:100%;"></div>
@@ -54,6 +50,7 @@
 <script>
 import get from 'lodash/get'
 // import cloneDeep from 'lodash/cloneDeep'
+import isestr from 'wsemi/src/isestr.mjs'
 import WButtonCircle from 'w-component-vue/src/components/WButtonCircle.vue'
 import WTextSelect from 'w-component-vue/src/components/WTextSelect.vue'
 import LayoutContent from './LayoutContent.vue'
@@ -89,28 +86,44 @@ export default {
 
         }
     },
+    beforeMount: function() {
+        // console.log('beforeMount')
+
+        let vo = this
+
+        //setLang
+        vo.$ui.setLang(vo.tgLangSelect.id)
+
+    },
     computed: {
+
+        viewState: function() {
+            return get(this, `$store.state.viewState`)
+        },
 
         heightToolbar: function() {
             return get(this, `$store.state.heightToolbar`)
         },
 
-        kpTexts: function() {
-            return this.$ui.getKpLang()
+        webName: {
+            get() {
+                let vo = this
+                let c = vo.$t('webName')
+                // console.log('get webName1', c)
+                if (!isestr(c)) {
+                    c = vo.$t('waitingData')
+                }
+                // console.log('get webName2', c)
+                document.title = c //更換網頁title
+                return c
+            },
+            // set(value) {
+            //     return value
+            // },
         },
 
-        webName: function() {
-            let name = get(this, 'kpTexts.webName', this.kpTexts.waitingData)
-            document.title = name //更換網頁title
-            return name
-        },
-
-        lang: function() {
-            return get(this, `$store.state.lang`)
-        },
-
-        viewState: function() {
-            return get(this, `$store.state.viewState`)
+        webLogo: function() {
+            return get(this, `$store.state.webInfor.webLogo`)
         },
 
     },
@@ -120,7 +133,7 @@ export default {
             // console.log('methods changeLang', msg)
             let vo = this
             let lang = msg.id
-            vo.$store.commit(vo.$store.types.UpdateLang, lang)
+            vo.$ui.setLang(lang)
         },
 
     }

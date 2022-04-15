@@ -1,5 +1,6 @@
 export const UpdateWebInfor = 'UpdateWebInfor'
 export const UpdateLang = 'UpdateLang'
+export const UpdateKpText = 'UpdateKpText'
 export const UpdateConnState = 'UpdateConnState'
 export const UpdateSyncState = 'UpdateSyncState'
 export const UpdateLoading = 'UpdateLoading'

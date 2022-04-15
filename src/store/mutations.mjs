@@ -19,7 +19,7 @@ let state = {
 
     heightApp: 0,
     heightAppEff: 0,
-    heightToolbar: 50,
+    heightToolbar: 60,
 
     menu: {}, //初始值需為物件, 否則LayoutContent會取menu.key出錯
 
@@ -34,6 +34,10 @@ let state = {
     lang: 'cht',
     keyLangs: {
 
+        empty: {
+            eng: 'Empty',
+            cht: '無',
+        },
         noSelectApi: {
             eng: 'No Select',
             cht: '尚未選擇API',
@@ -109,6 +113,7 @@ let state = {
         },
 
     },
+    kpText: {},
 
 }
 
@@ -129,6 +134,10 @@ export let mutations = {
 
     [types.UpdateLang] (state, lang) {
         state.lang = lang
+    },
+
+    [types.UpdateKpText] (state, kpText) {
+        state.kpText = kpText
     },
 
     [types.UpdateConnState] (state, connState) {

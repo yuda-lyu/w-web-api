@@ -28,6 +28,15 @@ export default {
 
         }
     },
+    mounted: function() {
+        // console.log('mounted')
+
+        let vo = this
+
+        //setVo, 更換ui內vo, 才能使用廣播技術, 更換語系才能用廣播通知全部組件forceUpdate
+        vo.$ui.setVo(vo)
+
+    },
     methods: {
 
         resize: function(msg) {

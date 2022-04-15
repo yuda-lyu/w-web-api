@@ -11,7 +11,7 @@
             style="padding:20px; font-size:0.9rem;"
             v-else
         >
-            {{kpTexts.waitingData}}
+            {{$t('waitingData')}}
         </div>
 
     </div>
@@ -48,10 +48,6 @@ export default {
         }
     },
     computed: {
-
-        kpTexts: function() {
-            return this.$ui.getKpLang()
-        },
 
         syncState: function() {
             return get(this, '$store.state.syncState')

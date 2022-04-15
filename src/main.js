@@ -41,6 +41,7 @@ let dspt = mDataSupport(Vue.prototype)
 
 //prototype
 Vue.prototype.$ui = ui
+Vue.prototype.$t = ui.getKpText
 Vue.prototype.$s = s
 Vue.prototype.$dssm = dssm
 Vue.prototype.$dspt = dspt
@@ -67,8 +68,9 @@ WServHapiClient({
         Vue.prototype.$fapi = _fapi
         _fapi.getWebInfor() //已有fapi時優先取得web資訊
             .then((wi) => {
-                // console.log('$fapi wi', wi)
+                console.log('$fapi getWebInfor', wi)
                 Vue.prototype.$store.commit(Vue.prototype.$store.types.UpdateWebInfor, wi)
+                ui.setLang() //因更新webInfor得要重刷語系才能依照語言取得顯示文字
             })
             .catch((err) => {
                 console.log(err)

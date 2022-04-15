@@ -41,18 +41,15 @@ import arrInsert from 'wsemi/src/arrInsert.mjs'
 import replace from 'wsemi/src/replace.mjs'
 import timemsTZ2past from 'wsemi/src/timemsTZ2past.mjs'
 import convertToTree from 'wsemi/src/convertToTree.mjs'
-import html2picDyn from 'wsemi/src/html2picDyn.mjs'
-import urlParse from 'wsemi/src/urlParse.mjs'
-import domConvertToPicDyn from 'wsemi/src/domConvertToPicDyn.mjs'
-import ltdtkeysheads2mat from 'wsemi/src/ltdtkeysheads2mat.mjs'
-import downloadFileFromB64 from 'wsemi/src/downloadFileFromB64.mjs'
-import downloadExcelFileFromDataDyn from 'wsemi/src/downloadExcelFileFromDataDyn.mjs'
-import getFileAccept from 'wsemi/src/getFileAccept.mjs'
-import downloadFileFromU8Arr from 'wsemi/src/downloadFileFromU8Arr.mjs'
 // import WUiDwload from 'w-ui-dwload/src/WUiDwload.mjs'
 
 
 let vo = Vue.prototype
+
+
+function setVo(vObj) {
+    vo = vObj
+}
 
 
 function updateConnState(connState) {
@@ -70,21 +67,92 @@ function updateViewState(viewState) {
 }
 
 
+function forceUpdate() {
+    // console.log('call forceUpdate')
+
+    function broadcast(chs) {
+        each(chs, (v) => {
+            // console.log(v.$el)
+            v.$forceUpdate()
+            if (v.$children) {
+                broadcast(v.$children)
+            }
+        })
+    }
+
+    //broadcast, 注意此處需使用更換ui內vo為mounted後的vo, 也就是含元素, 才能使用廣播技術
+    broadcast(vo.$children)
+
+}
+
+
+function setLang(lang = null) {
+    // console.log('call setLang')
+
+    //check lang, 若有輸入才commit
+    if (isestr(lang)) {
+        vo.$store.commit(vo.$store.types.UpdateLang, lang)
+    }
+
+    //getKpLang, 切換lang得調用getKpLang重算kpText
+    getKpLang()
+
+    //forceUpdate
+    forceUpdate()
+
+}
+
+
 function getKpLang() {
+    // console.log('call getKpLang')
+
+    //merge keyLangs
     let keyLangs = get(vo, '$store.state.keyLangs')
     let webName = get(vo, '$store.state.webInfor.webName')
+    let webDescription = get(vo, '$store.state.webInfor.webDescription')
     let kls = {
         ...keyLangs,
         webName: {
             ...webName,
         },
+        webDescription: {
+            ...webDescription,
+        },
     }
+
+    //lang
     let lang = get(vo, '$store.state.lang')
-    let kp = {}
+
+    //kpText
+    let kpText = {}
     each(kls, (v, k) => {
-        kp[k] = v[lang]
+        kpText[k] = v[lang]
     })
-    return kp
+
+    //commit
+    vo.$store.commit(vo.$store.types.UpdateKpText, kpText)
+
+    return kpText
+}
+
+
+function getKpText(key) {
+    // console.log('call getKpText')
+    let kpText = get(vo, '$store.state.kpText')
+    return get(kpText, key, '')
+}
+
+
+function gv(o, k, cv = null) {
+    let r = get(o, k, '')
+    if (!isestr(r)) {
+        let def = getKpText('empty')
+        return def
+    }
+    if (isfun(cv)) {
+        r = cv(r)
+    }
+    return r
 }
 
 
@@ -127,10 +195,18 @@ async function waitData(t = 0) {
 
 let mUI = {
 
+    setVo,
+
     updateConnState,
     updateLoading,
     updateViewState,
+    forceUpdate,
+
+    setLang,
     getKpLang,
+    getKpText,
+
+    gv,
     syncHeight,
 
     waitData,
