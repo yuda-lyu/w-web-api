@@ -2,7 +2,7 @@ import axios from 'axios'
 import ltdtpick from 'wsemi/src/ltdtpick.mjs'
 
 
-async function provideApis(url, levels, apis) {
+async function provideApis(url, group, apis) {
     //url: 指API伺服器提供的接入網址, 例如 http://localhost:11005/replaceAPIsByLevels
 
     //ks
@@ -13,12 +13,15 @@ async function provideApis(url, levels, apis) {
         'url', //指api網址, 例如 http://localhost:11005/getDogsList
         'method', //'get'
         'version', //'v1'
+        'group', //'寵物'
         'levels', //'寵物.天竺鼠'
         'keywords', //'pets;guineapigs'
         'state', //'ok'
         'creator', //'pets-system'
         'dataSource', //'pets-data'
         'mdInputParams', //輸入方式說明, markdown格式
+        'inputExample', //輸入範例數據
+        'mdOutputParams', //輸出方式說明, markdown格式
         'outputExample', //輸出範例數據, json格式
     ]
 
@@ -27,9 +30,10 @@ async function provideApis(url, levels, apis) {
 
     //rin
     let rin = {
-        levels,
+        group,
         apis,
     }
+    // rin = JSON.stringify(rin)
 
     //axios
     let rout

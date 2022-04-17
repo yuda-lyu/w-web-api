@@ -167,7 +167,7 @@ async function WWebApi(WOrm, url, db, opt = {}) {
         if (iseobj(inp)) {
 
             //spread
-            let { levels, apis } = inp
+            let { group, apis } = inp
 
             //apis
             each(apis, (api, kapi) => {
@@ -176,8 +176,10 @@ async function WWebApi(WOrm, url, db, opt = {}) {
                     // console.log(k, v)
                     if (isestr(v)) {
                         if (strleft(v, 7) === 'base64:') {
+                            // console.log(k, 'get base64')
                             v = strdelleft(v, 7)
                             v = b642str(v)
+                            // console.log(v)
                             apis[kapi][k] = v
                         }
                     }
@@ -185,7 +187,7 @@ async function WWebApi(WOrm, url, db, opt = {}) {
             })
 
             //resave
-            inp = { levels, apis }
+            inp = { group, apis }
 
         }
         else {
@@ -201,7 +203,7 @@ async function WWebApi(WOrm, url, db, opt = {}) {
 
         //spread params
         let { apis: rsApis } = params
-        // console.log('levels', levels)
+        // console.log('group', group)
         // console.log('rsApis', rsApis)
 
         //save
@@ -215,12 +217,12 @@ async function WWebApi(WOrm, url, db, opt = {}) {
     let replaceAPIsByLevels = async (userId, params = {}) => {
 
         //spread params
-        let { levels, apis: rsApis } = params
-        // console.log('levels', levels)
+        let { group, apis: rsApis } = params
+        // console.log('group', group)
         // console.log('rsApis', rsApis)
 
-        //delAll levels
-        await woItems.apis.delAll({ levels })
+        //delAll group
+        await woItems.apis.delAll({ group })
 
         //insert
         let r = await woItems.apis.insert(rsApis)
