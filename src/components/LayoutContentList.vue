@@ -6,10 +6,14 @@
 
         <div style="display:flex; height:100%;" v-if="hasApis">
 
-            <div style="min-width:400px; height:100%; _font-size:10pt; color:#444; background:#fff; overflow-y:auto;">
+            <div
+                style="min-width:400px; height:100%; color:#444; background:#fff;"
+                v-domresize
+                @domresize="resizeTree"
+            >
 
                 <WTree
-                    :viewHeightMax="null"
+                    :viewHeightMax="heightTree"
                     :data="apisTree"
                     :iconHeight="lineHeightTree"
                     :defItemHeight="lineHeightTree"
@@ -356,6 +360,7 @@ export default {
     data: function() {
         return {
 
+            heightTree: 2,
             lineHeightTree: 38,
 
             apisTree: [],
@@ -416,6 +421,20 @@ export default {
 
     },
     methods: {
+
+        resizeTree: function(msg) {
+            // console.log('methods resizeTree', msg)
+
+            let vo = this
+
+            //h
+            let h = get(msg, 'snew.clientHeight')
+            // console.log(h)
+
+            //update
+            vo.heightTree = h
+
+        },
 
         genTree: function () {
             let vo = this
@@ -514,6 +533,7 @@ export default {
         getOutputJsonObj: function(item) {
             // let vo = this
             let j = this.getOutputJson(item)
+            // console.log(j)
             let o = j2o(j)
             return o
         },

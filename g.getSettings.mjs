@@ -7,7 +7,7 @@ function getSettings() {
     return {
         'dbUsername': 'username',
         'dbPassword': 'password',
-        'dbName': 'wapis',
+        'dbName': 'rddmanager_api', //wapis
         'dbIP': 'localhost',
         'dbPort': 27017,
     }

@@ -1,5 +1,4 @@
 import axios from 'axios'
-import map from 'lodash/map'
 import ltdtpick from 'wsemi/src/ltdtpick.mjs'
 
 
@@ -25,12 +24,6 @@ async function provideApis(url, levels, apis) {
 
     //ltdtpick
     apis = ltdtpick(apis, ks)
-
-    //update levels
-    apis = map(apis, (v) => {
-        v.levels = levels
-        return v
-    })
 
     //rin
     let rin = {

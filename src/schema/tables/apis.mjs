@@ -1,12 +1,13 @@
 import map from 'lodash/map'
 import keys from 'lodash/keys'
-import get from 'lodash/get'
+// import get from 'lodash/get'
 import genID from 'wsemi/src/genID.mjs'
 import dtmapping from 'wsemi/src/dtmapping.mjs'
 import dtpick from 'wsemi/src/dtpick.mjs'
 import nowms2str from 'wsemi/src/nowms2str.mjs'
 import now2strp from 'wsemi/src/now2strp.mjs'
 import isestr from 'wsemi/src/isestr'
+import filePathToCode from '../../../server/filePathToCode.mjs'
 
 
 let keyTable = 'apis'
@@ -129,7 +130,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -137,6 +138,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -145,21 +147,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -185,7 +190,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -193,6 +198,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -201,21 +207,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -241,7 +250,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -249,6 +258,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -257,21 +267,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -297,7 +310,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -305,6 +318,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -313,21 +327,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -353,7 +370,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -361,6 +378,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -369,21 +387,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -409,7 +430,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -417,6 +438,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -425,21 +447,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -465,7 +490,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -473,6 +498,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -481,21 +507,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -521,7 +550,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -529,6 +558,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -537,21 +567,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -577,7 +610,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -585,6 +618,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -593,21 +627,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -633,7 +670,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -641,6 +678,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -649,21 +687,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -689,7 +730,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -697,6 +738,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -705,21 +747,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -745,7 +790,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -753,6 +798,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -761,21 +807,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -801,7 +850,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -809,6 +858,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -817,21 +867,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,
@@ -857,7 +910,7 @@ let funTest = () => {
 | paramB | DOUBLE | 123.456 |
             `,
             'inputExample': `http://localhost:11005/getAPIsList?token={token}&id={id}&paramA=123&paramB=123.456`,
-            'mdOutputParams': `### 回傳數據結構: Array of objects
+            'mdOutputParams': `### 回傳數據欄位: Array of objects
 | 參數 | 型別 | 範例 |
 | -- | -- | -- |
 | id | STRING | id-for-test |
@@ -865,6 +918,7 @@ let funTest = () => {
 | color | STRING | #f26 |
 | paramA | INTEGER | 321 |
 | paramB | DOUBLE | 654.321 |
+| paramC | STRING | ${filePathToCode('C:\\\\pj\\abc\\filename.pdf')} |
             `,
             'outputExample': `
 [
@@ -873,21 +927,24 @@ let funTest = () => {
         "weight": 12.3,
         "color": "#f26",
         "paramA": 101,
-        "paramB": 0.01
+        "paramB": 0.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename1.pdf"
     },
     {
         "id": "id-for-test-2",
         "weight": 22.3,
         "color": "#2f6",
         "paramA": 102,
-        "paramB": 1.01
+        "paramB": 1.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename2.pdf"
     },
     {
         "id": "id-for-test-3",
         "weight": 32.3,
         "color": "#26f",
         "paramA": 103,
-        "paramB": 2.01
+        "paramB": 2.01,
+        "paramC": "C:\\\\\\\\pj\\\\abc\\\\filename3.pdf"
     }
 ]
             `,

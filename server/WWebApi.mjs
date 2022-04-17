@@ -1,14 +1,18 @@
 import get from 'lodash/get'
-import map from 'lodash/map'
+// import map from 'lodash/map'
+import each from 'lodash/each'
 import keys from 'lodash/keys'
-import cloneDeep from 'lodash/cloneDeep'
+// import cloneDeep from 'lodash/cloneDeep'
 import j2o from 'wsemi/src/j2o.mjs'
 import iseobj from 'wsemi/src/iseobj'
 import isestr from 'wsemi/src/isestr'
 import ispint from 'wsemi/src/ispint'
 import isfun from 'wsemi/src/isfun'
-import fsIsFolder from 'wsemi/src/fsIsFolder'
 import cint from 'wsemi/src/cint'
+import strleft from 'wsemi/src/strleft'
+import strdelleft from 'wsemi/src/strdelleft'
+import b642str from 'wsemi/src/b642str'
+import fsIsFolder from 'wsemi/src/fsIsFolder'
 import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
 import ds from '../src/schema/index.mjs'
 import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
@@ -153,12 +157,44 @@ async function WWebApi(WOrm, url, db, opt = {}) {
     //parsePayload
     let parsePayload = (req) => {
         let inp = get(req, 'payload')
+
+        //to obj
         if (isestr(inp)) {
             inp = j2o(inp)
         }
-        if (!iseobj(inp)) {
+
+        //cv apis for base64
+        if (iseobj(inp)) {
+
+            //spread
+            let { levels, apis } = inp
+
+            //apis
+            each(apis, (api, kapi) => {
+                console.log(kapi, api.name)
+                each(api, (v, k) => {
+                    console.log(k, v)
+                    if (isestr(v)) {
+                        console.log('b1')
+                        if (strleft(v, 7) === 'base64:') {
+                            console.log('b2')
+                            v = strdelleft(v, 7)
+                            v = b642str(v)
+                            console.log('bbb inv base64', v)
+                            apis[kapi][k] = v
+                        }
+                    }
+                })
+            })
+
+            //resave
+            inp = { levels, apis }
+
+        }
+        else {
             inp = null
         }
+
         return inp
     }
 
@@ -189,15 +225,8 @@ async function WWebApi(WOrm, url, db, opt = {}) {
         //delAll levels
         await woItems.apis.delAll({ levels })
 
-        //rsApisTemp
-        let rsApisTemp = cloneDeep(rsApis)
-        rsApisTemp = map(rsApisTemp, (v) => {
-            v.levels = levels
-            return v
-        })
-
         //insert
-        let r = await woItems.apis.insert(rsApisTemp)
+        let r = await woItems.apis.insert(rsApis)
 
         return r
     }
