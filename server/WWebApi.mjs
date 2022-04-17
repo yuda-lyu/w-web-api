@@ -171,16 +171,13 @@ async function WWebApi(WOrm, url, db, opt = {}) {
 
             //apis
             each(apis, (api, kapi) => {
-                console.log(kapi, api.name)
+                // console.log(kapi, api.name)
                 each(api, (v, k) => {
-                    console.log(k, v)
+                    // console.log(k, v)
                     if (isestr(v)) {
-                        console.log('b1')
                         if (strleft(v, 7) === 'base64:') {
-                            console.log('b2')
                             v = strdelleft(v, 7)
                             v = b642str(v)
-                            console.log('bbb inv base64', v)
                             apis[kapi][k] = v
                         }
                     }
