@@ -1,9 +1,13 @@
 import axios from 'axios'
 import ltdtpick from 'wsemi/src/ltdtpick.mjs'
+import genPm from 'wsemi/src/genPm.mjs'
 
 
 async function provideApis(url, group, apis) {
     //url: 指API伺服器提供的接入網址, 例如 http://localhost:11005/replaceAPIsByLevels
+
+    //pm
+    let pm = genPm()
 
     //ks
     let ks = [
@@ -36,7 +40,6 @@ async function provideApis(url, group, apis) {
     // rin = JSON.stringify(rin)
 
     //axios
-    let rout
     await axios({
         method: 'post',
         url,
@@ -45,22 +48,22 @@ async function provideApis(url, group, apis) {
     })
         .then((res) => {
             // console.log(res)
-            rout = {
-                state: 'success',
+            let r = {
                 msg: '成功傳輸API清單',
                 res,
             }
+            pm.resolve(r)
         })
         .catch((err) => {
             // console.log(err)
-            rout = {
-                state: 'error',
+            let r = {
                 msg: '無法傳輸API清單',
                 res: err,
             }
+            pm.reject(r)
         })
 
-    return rout
+    return pm
 }
 
 
