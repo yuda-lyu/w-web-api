@@ -5,6 +5,7 @@ import genPm from 'wsemi/src/genPm.mjs'
 
 async function provideApis(url, group, apis) {
     //url: 指API伺服器提供的接入網址, 例如 http://localhost:11005/replaceAPIsByLevels
+    //group: 指API所屬群組, 主要呼叫replaceAPIsByLevels為主
 
     //pm
     let pm = genPm()
