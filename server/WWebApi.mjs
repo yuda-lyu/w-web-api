@@ -59,13 +59,14 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  * }
  *
  * //WWebApi
- * WWebApi(WOrm, url, db, opt)
- *     .catch((err) => {
- *         console.log(err)
- *     })
+ * let instWWebApi = WWebApi(WOrm, url, db, opt)
+ *
+ * instWWebApi.on('error', (err) => {
+ *     console.log(err)
+ * })
  *
  */
-async function WWebApi(WOrm, url, db, opt = {}) {
+function WWebApi(WOrm, url, db, opt = {}) {
     let instWServHapiServer = null
 
 
@@ -319,7 +320,7 @@ async function WWebApi(WOrm, url, db, opt = {}) {
 
 
     //WServHapiServer
-    instWServHapiServer = WServHapiServer({
+    instWServHapiServer = new WServHapiServer({
         port: opt.serverPort,
         pathStaticFiles,
         apis,
