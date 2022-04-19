@@ -66,6 +66,7 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  *
  */
 async function WWebApi(WOrm, url, db, opt = {}) {
+    let instWServHapiServer = null
 
 
     //check WOrm
@@ -318,7 +319,7 @@ async function WWebApi(WOrm, url, db, opt = {}) {
 
 
     //WServHapiServer
-    let wshs = WServHapiServer({
+    instWServHapiServer = WServHapiServer({
         port: opt.serverPort,
         pathStaticFiles,
         apis,
@@ -342,7 +343,7 @@ async function WWebApi(WOrm, url, db, opt = {}) {
     })
 
 
-    return wshs
+    return instWServHapiServer
 }
 
 

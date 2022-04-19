@@ -7,7 +7,7 @@
                 :icon="'mdi-menu'"
                 :tooltip="'左側選單'"
                 :shadow="false"
-                @click="drawer = !drawer"
+                @click="drawer=!drawer"
                 v-if="false"
             ></WButtonCircle>
 
