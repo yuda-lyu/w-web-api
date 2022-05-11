@@ -11,5 +11,5 @@ module.exports = {
         }
     },
     // transpileDependencies: ['vuetify'],
-    publicPath: process.env.NODE_ENV === 'production' ? '/mapi/' : '/',
+    publicPath: process.env.NODE_ENV === 'production' ? '/mapi/' : '/', //預先編譯至mapi子目錄下, 待啟動後取代
 }

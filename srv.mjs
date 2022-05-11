@@ -15,6 +15,7 @@ let opt = {
     bExcludeWhenNotAdmin: false,
 
     serverPort: 11005,
+    subfolder: '', //mpai
 
     webName: {
         'eng': 'API Service',

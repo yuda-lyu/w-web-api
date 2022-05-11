@@ -1,18 +1,23 @@
+import path from 'path'
+import fs from 'fs'
 import get from 'lodash/get'
 // import map from 'lodash/map'
 import each from 'lodash/each'
 import keys from 'lodash/keys'
 // import cloneDeep from 'lodash/cloneDeep'
 import j2o from 'wsemi/src/j2o.mjs'
-import iseobj from 'wsemi/src/iseobj'
-import isestr from 'wsemi/src/isestr'
-import ispint from 'wsemi/src/ispint'
-import isfun from 'wsemi/src/isfun'
-import cint from 'wsemi/src/cint'
-import strleft from 'wsemi/src/strleft'
-import strdelleft from 'wsemi/src/strdelleft'
-import b642str from 'wsemi/src/b642str'
-import fsIsFolder from 'wsemi/src/fsIsFolder'
+import iseobj from 'wsemi/src/iseobj.mjs'
+import isestr from 'wsemi/src/isestr.mjs'
+import ispint from 'wsemi/src/ispint.mjs'
+import isfun from 'wsemi/src/isfun.mjs'
+import cint from 'wsemi/src/cint.mjs'
+import strleft from 'wsemi/src/strleft.mjs'
+import strdelleft from 'wsemi/src/strdelleft.mjs'
+import strright from 'wsemi/src/strright.mjs'
+import strdelright from 'wsemi/src/strdelright.mjs'
+import b642str from 'wsemi/src/b642str.mjs'
+import fsIsFolder from 'wsemi/src/fsIsFolder.mjs'
+import replace from 'wsemi/src/replace.mjs'
 import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
 import ds from '../src/schema/index.mjs'
 import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
@@ -31,6 +36,9 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  * @param {Boolean} [opt.bCheckUser=true] 輸入是否檢查使用者資訊布林值，預設true
  * @param {Boolean} [opt.bExcludeWhenNotAdmin=true] 輸入使用ORM的select方法時是否自動刪除數據內isActive欄位之布林值，預設true
  * @param {Object} [opt.webName={}] 輸入站台名稱物件，至少包含語系eng與cht鍵的名稱，預設{}
+ * @param {Object} [opt.webDescription={}] 輸入站台描述物件，至少包含語系eng與cht鍵的名稱，預設{}
+ * @param {String} [opt.webLogo=''] 輸入站台logo字串，採base64格式，預設''
+ * @param {String} [opt.subfolder=''] 輸入站台所在子目錄字串，提供站台位於內網採反向代理進行服務時，故需支援位於子目錄情形，預設''
  * @returns {Object} 回傳物件，其內server為hapi伺服器實體，wsrv為w-converhp的伺服器事件物件，wsds為w-serv-webdata的伺服器事件物件，可監聽error事件
  * @example
  *
@@ -50,6 +58,7 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  *     bExcludeWhenNotAdmin: false,
  *
  *     serverPort: 11005,
+ *     subfolder: '', //mpai
  *
  *     webName: {
  *         'eng': 'API Service',
@@ -120,7 +129,19 @@ function WWebApi(WOrm, url, db, opt = {}) {
 
 
     //webLogo
-    let webLogo = get(opt, 'webLogo', {})
+    let webLogo = get(opt, 'webLogo', '')
+
+
+    //subfolder
+    let subfolder = get(opt, 'subfolder', '')
+    if (isestr(subfolder)) {
+        if (strright(subfolder, 1) === '/') { //右邊不需要給「/」
+            subfolder = strdelright(subfolder, 1)
+        }
+        if (strleft(subfolder, 1) !== '/') { //左邊需要給「/」
+            subfolder = `/${subfolder}`
+        }
+    }
 
 
     //WServOrm
@@ -240,6 +261,16 @@ function WWebApi(WOrm, url, db, opt = {}) {
         pathStaticFiles = npmPathStaticFiles
     }
     // console.log('pathStaticFiles', pathStaticFiles)
+
+
+    //subfolder
+    let fnEntryIn = 'index.tmp'
+    let fnEntryOut = 'index.html'
+    let fpEntryIn = path.resolve(pathStaticFiles, fnEntryIn)
+    let fpEntryOut = path.resolve(pathStaticFiles, fnEntryOut)
+    let c = fs.readFileSync(fpEntryIn, 'utf8')
+    c = replace(c, '{sfd}', subfolder)
+    fs.writeFileSync(fpEntryOut, c, 'utf8')
 
 
     //apis
