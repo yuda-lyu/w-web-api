@@ -11,5 +11,5 @@ module.exports = {
         }
     },
     // transpileDependencies: ['vuetify'],
-    //publicPath: process.env.NODE_ENV === 'production' ? '/apimgr/' : '/',
+    publicPath: process.env.NODE_ENV === 'production' ? '/mapi/' : '/',
 }

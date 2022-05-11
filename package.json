@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^6.6.96",
