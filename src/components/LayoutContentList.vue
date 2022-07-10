@@ -18,8 +18,8 @@
                     :iconHeight="lineHeightTree"
                     :defItemHeight="lineHeightTree"
                     :activable="true"
-                    :activeItem="apiActive"
-                    :fun-active="funActive"
+                    :itemActive="apiActive"
+                    :funActive="funActive"
                     :itemTextColorActive="'#000'"
                     :itemBackgroundColorActive ="'rgba(100,100,100,0.15)'"
                 >
