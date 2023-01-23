@@ -1,23 +1,22 @@
 {
   "name": "w-web-api",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
-    "@mdi/js": "^6.9.96",
-    "axios": "^0.27.2",
+    "@mdi/js": "^7.1.96",
+    "axios": "^1.2.3",
     "lodash": "^4.17.21",
-    "showdown": "^2.0.3",
-    "w-component-vue": "^2.2.29",
-    "w-data-collector": "^1.0.13",
-    "w-serv-hapi": "^1.0.9",
-    "w-serv-orm": "^1.0.2",
-    "wsemi": "^1.6.69"
+    "showdown": "^2.1.0",
+    "w-component-vue": "^2.2.64",
+    "w-data-collector": "^1.0.15",
+    "w-serv-hapi": "^1.0.10",
+    "w-serv-orm": "^1.0.4",
+    "wsemi": "^1.6.89"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^4.5.13",
     "@vue/cli-plugin-eslint": "^4.5.13",
     "@vue/cli-service": "^4.5.13",
-    "cheerio": "^1.0.0-rc.10",
     "eslint": "^7.26.0",
     "eslint-config-standard": "^16.0.2",
     "eslint-friendly-formatter": "^4.0.1",
@@ -34,8 +33,8 @@
     "vuetify": "^2.6.4",
     "vuetify-loader": "^1.7.3",
     "vuex": "^3.6.2",
-    "w-orm-mongodb": "^1.1.26",
-    "w-package-tools": "^1.0.65"
+    "w-orm-mongodb": "^1.1.27",
+    "w-package-tools": "^1.0.66"
   },
   "scripts": {
     "serve": "vue-cli-service serve",
