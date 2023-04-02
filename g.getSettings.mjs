@@ -8,7 +8,7 @@ function getSettings() {
         'dbUsername': 'username',
         'dbPassword': 'password',
         'dbName': 'wapis',
-        'dbIP': 'localhost',
+        'dbIP': '127.0.0.1',
         'dbPort': 27017,
     }
 }

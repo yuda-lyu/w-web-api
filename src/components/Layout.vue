@@ -31,6 +31,7 @@
 
             <div style="padding-right:10px; white-space:nowrap">
                 <WTextSelect
+                    style="width:100px;"
                     :items="tgLangs"
                     v-model="tgLangSelect"
                     @input="changeLang"
