@@ -13,8 +13,6 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Installation
 ### Using npm(ES6 module):
-> **Note:** `w-web-api` is mainly dependent on `lodash` and `wsemi`.
-
 ```alias
 npm i w-web-api
 ```
@@ -34,8 +32,8 @@ let url = `mongodb://${st.dbUsername}:${st.dbPassword}@${st.dbIP}:${st.dbPort}` 
 let db = st.dbName
 let opt = {
 
-    getUserById: null,
     bCheckUser: false,
+    getUserById: null,
     bExcludeWhenNotAdmin: false,
 
     serverPort: 11005,
@@ -53,8 +51,27 @@ let opt = {
 
 }
 
+let getUserByToken = (token) => {
+    console.log('getUserByToken token', token)
+    // return {} //測試無法登入條件
+    if (token !== 'sys') {
+        return {}
+    }
+    return {
+        id: 'id-for-admin',
+        name: '測試者',
+        email: 'admin@example.com',
+        isAdmin: 'y',
+    }
+}
+
+let verifyUser = (user) => {
+    return user.isAdmin === 'y'
+}
+
+
 //WWebApi
-let instWWebApi = WWebApi(WOrm, url, db, opt)
+let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt)
 
 instWWebApi.on('error', (err) => {
     console.log(err)

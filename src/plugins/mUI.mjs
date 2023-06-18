@@ -67,6 +67,16 @@ function updateViewState(viewState) {
 }
 
 
+function updateUserToken(userToken) {
+    vo.$store.commit(vo.$store.types.UpdateUserToken, userToken)
+}
+
+
+function updateUserSelf(userSelf) {
+    vo.$store.commit(vo.$store.types.UpdateUserSelf, userSelf)
+}
+
+
 function forceUpdate() {
     // console.log('call forceUpdate')
 
@@ -200,6 +210,8 @@ let mUI = {
     updateConnState,
     updateLoading,
     updateViewState,
+    updateUserToken,
+    updateUserSelf,
     forceUpdate,
 
     setLang,

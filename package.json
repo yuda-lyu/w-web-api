@@ -1,17 +1,18 @@
 {
   "name": "w-web-api",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^7.2.96",
     "axios": "^1.3.4",
     "lodash": "^4.17.21",
     "showdown": "^2.1.0",
-    "w-component-vue": "^2.2.76",
+    "w-component-vue": "^2.3.0",
     "w-data-collector": "^1.0.19",
     "w-serv-hapi": "^1.0.11",
-    "w-serv-orm": "^1.0.6",
-    "wsemi": "^1.7.2"
+    "w-serv-orm": "^1.0.7",
+    "w-ui-loginout": "^1.0.1",
+    "wsemi": "^1.7.12"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^5.0.8",
