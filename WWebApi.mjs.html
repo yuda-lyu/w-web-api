@@ -57,17 +57,19 @@ import iseobj from 'wsemi/src/iseobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import ispint from 'wsemi/src/ispint.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
+import ispm from 'wsemi/src/ispm.mjs'
 import cint from 'wsemi/src/cint.mjs'
 import strleft from 'wsemi/src/strleft.mjs'
 import strdelleft from 'wsemi/src/strdelleft.mjs'
 import strright from 'wsemi/src/strright.mjs'
 import strdelright from 'wsemi/src/strdelright.mjs'
+import pm2resolve from 'wsemi/src/pm2resolve.mjs'
 import b642str from 'wsemi/src/b642str.mjs'
 import fsIsFolder from 'wsemi/src/fsIsFolder.mjs'
 import replace from 'wsemi/src/replace.mjs'
 import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
-import ds from '../src/schema/index.mjs'
 import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
+import ds from '../src/schema/index.mjs'
 
 
 /**
@@ -77,11 +79,13 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  * @param {Function} WOrm 輸入資料庫ORM函數
  * @param {String} url 輸入資料庫連線字串，例如'mongodb://sername:password@$127.0.0.1:27017'
  * @param {String} db 輸入資料庫名稱字串
+ * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'，且輸入'y'時會複寫權限系統該使用者之'isAdmin'欄位值
+ * @param {Function} verifyUser 輸入處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
  * @param {Object} [opt={}] 輸入設定物件，預設{}
  * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，預設11005
+ * @param {Boolean} [opt.bCheckUser=false] 輸入是否檢查使用者資訊布林值，預設false
  * @param {Function} [opt.getUserById=null] 輸入當bCheckUser=true時依照使用者ID取得使用者資訊物件函數，預設null
- * @param {Boolean} [opt.bCheckUser=true] 輸入是否檢查使用者資訊布林值，預設true
- * @param {Boolean} [opt.bExcludeWhenNotAdmin=true] 輸入使用ORM的select方法時是否自動刪除數據內isActive欄位之布林值，預設true
+ * @param {Boolean} [opt.bExcludeWhenNotAdmin=false] 輸入使用ORM的select方法時是否自動刪除數據內isActive欄位之布林值，預設false
  * @param {Object} [opt.webName={}] 輸入站台名稱物件，至少包含語系eng與cht鍵的名稱，預設{}
  * @param {Object} [opt.webDescription={}] 輸入站台描述物件，至少包含語系eng與cht鍵的名稱，預設{}
  * @param {String} [opt.webLogo=''] 輸入站台logo字串，採base64格式，預設''
@@ -122,7 +126,7 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
  * })
  *
  */
-function WWebApi(WOrm, url, db, opt = {}) {
+function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
     let instWServHapiServer = null
 
 
@@ -144,6 +148,20 @@ function WWebApi(WOrm, url, db, opt = {}) {
     if (!isestr(db)) {
         console.log('invalid db', db)
         throw new Error('invalid db')
+    }
+
+
+    //check getUserByToken
+    if (!isfun(getUserByToken)) {
+        console.log('invalid getUserByToken', getUserByToken)
+        throw new Error('invalid getUserByToken')
+    }
+
+
+    //check verifyUser
+    if (!isfun(verifyUser)) {
+        console.log('invalid verifyUser', verifyUser)
+        throw new Error('invalid verifyUser')
     }
 
 
@@ -217,9 +235,35 @@ function WWebApi(WOrm, url, db, opt = {}) {
     }
 
 
+    //verifyUserByToken
+    let verifyUserByToken = async (token) => {
+
+        //getUserByToken
+        let user = getUserByToken(token)
+        if (ispm(user)) {
+            user = await user
+        }
+        if (!iseobj(user)) {
+            return Promise.reject(`token does not have permission`)
+        }
+
+        //verifyUser
+        let b = verifyUser(user)
+        if (ispm(b)) {
+            b = await b
+        }
+
+        //check
+        if (!b) {
+            return Promise.reject(`user does not have permission`)
+        }
+
+        return user
+    }
+
     //getAPIsList
-    let getAPIsList = async (userId, token) => {
-        let rs = await woItems.apis.select()
+    let getAPIsList = async (query = {}) => {
+        let rs = await woItems.apis.select(query)
         return rs
     }
 
@@ -269,7 +313,7 @@ function WWebApi(WOrm, url, db, opt = {}) {
 
 
     //updateAPIs
-    let updateAPIs = async (userId, params = {}) => {
+    let updateAPIs = async (params = {}) => {
 
         //spread params
         let { apis: rsApis } = params
@@ -284,7 +328,7 @@ function WWebApi(WOrm, url, db, opt = {}) {
 
 
     //replaceAPIsByLevels
-    let replaceAPIsByLevels = async (userId, params = {}) => {
+    let replaceAPIsByLevels = async (params = {}) => {
 
         //spread params
         let { group, apis: rsApis } = params
@@ -313,11 +357,17 @@ function WWebApi(WOrm, url, db, opt = {}) {
     //subfolder
     let fnEntryIn = 'index.tmp'
     let fnEntryOut = 'index.html'
-    let fpEntryIn = path.resolve(pathStaticFiles, fnEntryIn)
-    let fpEntryOut = path.resolve(pathStaticFiles, fnEntryOut)
-    let c = fs.readFileSync(fpEntryIn, 'utf8')
-    c = replace(c, '{sfd}', subfolder)
-    fs.writeFileSync(fpEntryOut, c, 'utf8')
+    try {
+        let fpEntryIn = path.resolve(pathStaticFiles, fnEntryIn)
+        let fpEntryOut = path.resolve(pathStaticFiles, fnEntryOut)
+        let c = fs.readFileSync(fpEntryIn, 'utf8')
+        c = replace(c, '{sfd}', subfolder)
+        fs.writeFileSync(fpEntryOut, c, 'utf8')
+    }
+    catch (err) {
+        console.log(err)
+        console.log(`can not generate ${fnEntryOut}`)
+    }
 
 
     //apis
@@ -342,14 +392,51 @@ function WWebApi(WOrm, url, db, opt = {}) {
         },
         {
             method: 'GET',
+            path: '/api/getUserByToken', //未登入界面需先檢測token是否為系統管理員, 確認後回傳為系統管理員資訊物件
+            handler: async function (req, res) {
+                // console.log('getUserByToken', req)
+
+                async function core() {
+
+                    //token
+                    let token = get(req, 'query.token', '')
+
+                    //verifyUserByToken
+                    let user = await verifyUserByToken(token)
+
+                    return user
+                }
+
+                //pm2resolve core
+                let r = await pm2resolve(core)()
+                // console.log('verifyIdentity', r)
+
+                return r
+            },
+        },
+        {
+            method: 'GET',
             path: '/getAPIsList',
             handler: async function (req, res) {
+                // console.log('getAPIsList', req)
 
-                //token
-                let token = get(req, 'query.token', '')
+                async function core() {
 
-                //getAPIsList
-                let r = await getAPIsList('', token)
+                    //token
+                    let token = get(req, 'query.token', '')
+
+                    //verifyUserByToken
+                    await verifyUserByToken(token)
+
+                    //getAPIsList
+                    let r = await getAPIsList({ isActive: 'y' })
+
+                    return r
+                }
+
+                //pm2resolve core
+                let r = await pm2resolve(core)()
+                // console.log('verifyIdentity', r)
 
                 return r
             },
@@ -358,14 +445,29 @@ function WWebApi(WOrm, url, db, opt = {}) {
             method: 'POST',
             path: '/updateAPIs',
             handler: async function (req, res) {
-                // console.log(req, res)
+                // console.log('updateAPIs', req)
                 // console.log('payload', req.payload)
 
-                //parsePayload
-                let inp = parsePayload(req)
+                async function core() {
 
-                //updateAPIs
-                let r = await updateAPIs('', inp)
+                    //token
+                    let token = get(req, 'query.token', '')
+
+                    //verifyUserByToken
+                    await verifyUserByToken(token)
+
+                    //parsePayload
+                    let inp = parsePayload(req)
+
+                    //updateAPIs
+                    let r = await updateAPIs(inp)
+
+                    return r
+                }
+
+                //pm2resolve core
+                let r = await pm2resolve(core)()
+                // console.log('verifyIdentity', r)
 
                 return r
             },
@@ -374,14 +476,29 @@ function WWebApi(WOrm, url, db, opt = {}) {
             method: 'POST',
             path: '/replaceAPIsByLevels',
             handler: async function (req, res) {
-                // console.log(req, res)
+                // console.log('replaceAPIsByLevels', req)
                 // console.log('payload', req.payload)
 
-                //parsePayload
-                let inp = parsePayload(req)
+                async function core() {
 
-                //replaceAPIsByLevels
-                let r = await replaceAPIsByLevels('', inp)
+                    //token
+                    let token = get(req, 'query.token', '')
+
+                    //verifyUserByToken
+                    await verifyUserByToken(token)
+
+                    //parsePayload
+                    let inp = parsePayload(req)
+
+                    //replaceAPIsByLevels
+                    let r = await replaceAPIsByLevels(inp)
+
+                    return r
+                }
+
+                //pm2resolve core
+                let r = await pm2resolve(core)()
+                // console.log('verifyIdentity', r)
 
                 return r
             },
@@ -403,7 +520,7 @@ function WWebApi(WOrm, url, db, opt = {}) {
         pathStaticFiles,
         apis,
         getUserIDFromToken: async (token) => { //可使用async或sync函數
-            return 'id-for-admin'
+            return ''
         },
         useDbORM: true,
         dbORMs: woItems,
@@ -413,7 +530,9 @@ function WWebApi(WOrm, url, db, opt = {}) {
         tableNamesSync,
         extFuncs: { //接收參數第1個為userId, 之後才是前端給予參數
             getWebInfor,
-            getAPIsList,
+            getAPIsList: (userId, query = {}) => {
+                return getAPIsList(query)
+            },
             //...
         },
         hookBefores: null,
@@ -441,7 +560,7 @@ export default WWebApi
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.2</a> on Sun Apr 02 2023 18:21:09 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.2</a> on Sun Jun 18 2023 18:26:06 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
