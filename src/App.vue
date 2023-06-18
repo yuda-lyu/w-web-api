@@ -39,23 +39,6 @@ export default {
         //setVo, 更換ui內vo, 才能使用廣播技術, 更換語系才能用廣播通知全部組件forceUpdate
         vo.$ui.setVo(vo)
 
-        function afterGetUser(u) {
-            // console.log('afterGetUser', u)
-
-            //isAdmin
-            let isAdmin = get(u, 'isAdmin', 'n')
-
-            //check
-            if (isAdmin !== 'y') {
-                let errTemp = {
-                    text: '非系統管理員',
-                    msg: 'user is not an administrator',
-                }
-                return Promise.reject(errTemp)
-            }
-
-        }
-
         function loginSuccess(data) {
             console.log('login success', cloneDeep(data.user))
             vo.$ui.updateConnState('已連線')
@@ -74,7 +57,7 @@ export default {
         console.log('login...')
         let ll = wui('wperm')
         ll.login({
-            afterGetUser,
+            afterGetUser: null,
             afterLogin: null,
             loginSuccess,
             loginError,
