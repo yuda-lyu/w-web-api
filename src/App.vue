@@ -28,12 +28,7 @@ export default {
     },
     data: function() {
         return {
-
-            // ready: true,
-            msg: '',
-
             ll: null,
-
         }
     },
     beforeMount: function() {
