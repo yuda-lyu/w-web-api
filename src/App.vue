@@ -55,7 +55,9 @@ export default {
 
         //login
         console.log('login...')
-        let ll = wui('wperm')
+        let ll = wui('wperm', {
+            timeWaitAnimation: 2000,
+        })
         ll.login({
             afterGetUser: null,
             afterLogin: null,
