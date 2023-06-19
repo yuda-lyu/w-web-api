@@ -1,7 +1,8 @@
 <template>
     <div style="height:100vh; background:#f5f5f5;">
 
-        <div :style="`height:${heightToolbar}px; padding:0px 10px; display:flex; align-items:center; background:#fff; border-bottom:1px solid #ccc;`">
+        <!-- menu top, 因窄版導致名稱換行故須使用overflow-y:hidden -->
+        <div :style="`height:${heightToolbar}px; overflow-y:hidden; padding:0px 10px; background:#fff; border-bottom:1px solid #ccc; display:flex; align-items:center;`">
 
             <WButtonCircle
                 :icon="'mdi-menu'"
@@ -24,7 +25,6 @@
                     </div>
 
                 </div>
-
             </div>
 
             <div style="width:100%;"></div>

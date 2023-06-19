@@ -41,6 +41,15 @@ let state = {
     lang: 'cht',
     keyLangs: {
 
+        menuTreeShow: {
+            eng: 'Show API list',
+            cht: '顯示API清單',
+        },
+        menuTreeHide: {
+            eng: 'Hide API list',
+            cht: '隱藏API清單',
+        },
+
         empty: {
             eng: 'Empty',
             cht: '無',
@@ -56,6 +65,10 @@ let state = {
         tokens: {
             eng: 'Tokens',
             cht: '授權金鑰',
+        },
+        apiUrl: {
+            eng: 'API url',
+            cht: 'API網址',
         },
         version: {
             eng: 'Version',
