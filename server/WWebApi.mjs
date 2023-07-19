@@ -62,7 +62,7 @@ import ds from '../src/schema/index.mjs'
  *     bExcludeWhenNotAdmin: false,
  *
  *     serverPort: 11005,
- *     subfolder: '', //mpai
+ *     subfolder: '', //mapi
  *
  *     webName: {
  *         'eng': 'API Service',
