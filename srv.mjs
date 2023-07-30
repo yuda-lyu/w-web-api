@@ -47,7 +47,6 @@ let verifyUser = (user) => {
     return user.isAdmin === 'y'
 }
 
-
 //WWebApi
 let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt)
 
