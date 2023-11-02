@@ -10,6 +10,6 @@ module.exports = {
             },
         }
     },
-    // transpileDependencies: ['vuetify'],
+    // transpileDependencies: [''],
     publicPath: process.env.NODE_ENV === 'production' ? '/mapi/' : '/', //預先編譯至mapi子目錄下, 待轉成模板, 並於伺服器啟動後依照設定檔取代
 }

@@ -110,14 +110,6 @@ button {
     font-family: inherit;
 }
 
-.v-application, .v-application--wrap {
-    font-family: inherit;
-}
-
-.v-chip {
-    cursor: inherit;
-}
-
 .fade-enter-active {
   animation: go 1s;
 }

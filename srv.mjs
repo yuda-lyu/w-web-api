@@ -30,21 +30,31 @@ let opt = {
 }
 
 let getUserByToken = (token) => {
-    console.log('getUserByToken token', token)
-    // return {} //測試無法登入條件
-    if (token !== 'sys') {
-        return {}
+    // return {} //測試無法登入
+    if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者
+        return {
+            id: 'id-for-application',
+            name: 'application',
+            email: 'admin@example.com',
+            isAdmin: 'y',
+        }
     }
-    return {
-        id: 'id-for-admin',
-        name: '測試者',
-        email: 'admin@example.com',
-        isAdmin: 'y',
+    if (token === 'sys') { //開發階段w-ui-loginout自動給予browser使用者(且位於localhost)的token為sys
+        return {
+            id: 'id-for-admin',
+            name: '測試者',
+            email: 'admin@example.com',
+            isAdmin: 'y',
+        }
     }
+    console.log('invalid token', token)
+    console.log('於生產環境時得加入SSO等驗證token機制')
+    return {}
 }
 
 let verifyUser = (user) => {
-    return user.isAdmin === 'y'
+    console.log('於生產環境時得加入驗證user機制')
+    return user.isAdmin === 'y' //測試僅系統管理者使用
 }
 
 //WWebApi

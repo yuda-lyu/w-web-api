@@ -8,21 +8,20 @@
 
         <template v-if="syncState">
 
-            <!-- menu left, 使用opacity:0.999讓WDrawer使用浮動模式時不會遮蔽vuetify彈窗, 僅由Layout處設定即可, 其內dom皆受影響 -->
             <WDrawer
-                :style="`height:${panelHeight}px; width:100%; opacity:0.999;`"
+                :style="`height:${panelHeight}px; width:100%;`"
                 v-model="drawer"
                 :drawerWidth.sync="drawerWidth"
                 :drawerWidthMin="drawerWidthMin"
                 :drawerWidthMax="drawerWidthMax"
                 :mode="'from-left'"
-                :afloat="drawerAfloat"
                 :dragDrawerWidth="true"
+                :autoSwitch="true"
+                :switchWidth="drawerWidth*2.3"
             >
 
                 <template v-slot:drawer="props">
-
-                    <div :style="`height:${props.height}px; background:${drawerAfloat?'#fff':'transparent'}; position:relative;`">
+                    <div :style="`height:${props.height}px; background:#fff; position:relative;`">
 
                         <WTree
                             :style="`height:${props.height}px;`"
@@ -87,7 +86,6 @@
                         </div>
 
                     </div>
-
                 </template>
 
                 <template v-slot:content="props">
@@ -327,7 +325,10 @@
 
                                             <div style="border:1px solid #ddd; background:#fff">
 
-                                                <div style="" v-if="optputMenuItemSelectId==='tree'">
+                                                <div
+                                                    style="padding:10px 15px;"
+                                                    v-if="optputMenuItemSelectId==='tree'"
+                                                >
                                                     <WJsonView
                                                         style="width:100%;"
                                                         :viewHeightMax="null"
@@ -335,8 +336,11 @@
                                                     ></WJsonView>
                                                 </div>
 
-                                                <div style="padding:10px; color:#555; font-size:0.85rem;" v-if="optputMenuItemSelectId==='raw'">
-                                                    <pre>{{getOutputJson(apiSelect)}}</pre>
+                                                <div
+                                                    style="padding:15px; color:#555; font-size:0.85rem;"
+                                                    v-if="optputMenuItemSelectId==='raw'
+                                                ">
+                                                    <pre style="margin:0px; padding:0px;">{{getOutputJson(apiSelect)}}</pre>
                                                 </div>
 
                                             </div>
@@ -430,11 +434,9 @@ export default {
         return {
 
             panelWidth: 0,
-            panelWidthTemp: 0,
             panelHeight: 0,
 
             drawer: true,
-            drawerAfloat: false,
             drawerWidth: 320,
             drawerWidthMin: 200,
             drawerWidthMax: 700,
@@ -512,30 +514,6 @@ export default {
             vo.panelHeight = msg.snew.clientHeight
             // console.log('vo.panelHeight', vo.panelHeight)
 
-            //modeResize
-            let modeResize = '' //寬度可能相同故得有預設空字串的種類
-            if (vo.panelWidth > vo.panelWidthTemp) {
-                modeResize = 'toLarge'
-            }
-            else if (vo.panelWidth < vo.panelWidthTemp) {
-                modeResize = 'toSmall'
-            }
-            // console.log('modeResize', modeResize, vo.panelWidth, vo.panelWidthTemp)
-
-            //drawer
-            if (vo.drawer && modeResize === 'toSmall' && vo.panelWidth < 1.7 * vo.drawerWidthMax) { //已開啟抽屜且為變窄時才偵測
-                vo.drawer = false
-            }
-            else if (!vo.drawer && modeResize === 'toLarge' && vo.panelWidth >= 1.7 * vo.drawerWidthMax) { //已隱藏抽屜且為變寬時才偵測
-                vo.drawer = true
-            }
-
-            //drawerAfloat
-            vo.drawerAfloat = vo.panelWidth < 1.7 * vo.drawerWidthMax
-
-            //save
-            vo.panelWidthTemp = vo.panelWidth
-
         },
 
         genTree: function () {
@@ -573,6 +551,8 @@ export default {
             //convertToTree, 由預處理tree物件轉成tree物件
             let tree = convertToTree(tr, { bindRoot: '全部' })
             // console.log('tree', cloneDeep(tree))
+
+            //filepathToTree
 
             //apiSelect, 預先選定api項目, 非tree選單active物件, 因id由convertToTree轉換提供, 故不能直接算得active選單物件id
             let apiSelect = get(apis, 0, null)

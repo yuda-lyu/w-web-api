@@ -8,6 +8,7 @@ import keys from 'lodash/keys'
 import j2o from 'wsemi/src/j2o.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
+import isearr from 'wsemi/src/isearr.mjs'
 import ispint from 'wsemi/src/ispint.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
 import ispm from 'wsemi/src/ispm.mjs'
@@ -26,7 +27,7 @@ import ds from '../src/schema/index.mjs'
 
 
 /**
- * 基於hapi之API伺服器
+ * API伺服器
  *
  * @class
  * @param {Function} WOrm 輸入資料庫ORM函數
@@ -45,10 +46,9 @@ import ds from '../src/schema/index.mjs'
  * @param {String} [opt.subfolder=''] 輸入站台所在子目錄字串，提供站台位於內網採反向代理進行服務時，故需支援位於子目錄情形，預設''
  * @returns {Object} 回傳物件，其內server為hapi伺服器實體，wsrv為w-converhp的伺服器事件物件，wsds為w-serv-webdata的伺服器事件物件，可監聽error事件
  * @example
- *
  * import WOrm from 'w-orm-mongodb/src/WOrmMongodb.mjs' //自行選擇引用ORM, 使用Mongodb測試
- * import getSettings from './server/getSettings.mjs'
  * import WWebApi from './server/WWebApi.mjs'
+ * import getSettings from './g.getSettings.mjs'
  *
  * //st
  * let st = getSettings()
@@ -57,8 +57,8 @@ import ds from '../src/schema/index.mjs'
  * let db = st.dbName
  * let opt = {
  *
- *     getUserById: null,
  *     bCheckUser: false,
+ *     getUserById: null,
  *     bExcludeWhenNotAdmin: false,
  *
  *     serverPort: 11005,
@@ -66,13 +66,46 @@ import ds from '../src/schema/index.mjs'
  *
  *     webName: {
  *         'eng': 'API Service',
- *         'cht': 'API管理系統'
+ *         'cht': 'API管理系統',
  *     },
+ *     webDescription: {
+ *         'eng': 'A web service package as methods to send requests to and receive responses from an API.',
+ *         'cht': 'A web service package as methods to send requests to and receive responses from an API.',
+ *     },
+ *     webLogo: 'data:image/svg+xml;base64,...',
  *
  * }
  *
+ * let getUserByToken = (token) => {
+ *     // return {} //測試無法登入
+ *     if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者
+ *         return {
+ *             id: 'id-for-application',
+ *             name: 'application',
+ *             email: 'admin@example.com',
+ *             isAdmin: 'y',
+ *         }
+ *     }
+ *     if (token === 'sys') { //開發階段w-ui-loginout自動給予browser使用者(且位於localhost)的token為sys
+ *         return {
+ *             id: 'id-for-admin',
+ *             name: '測試者',
+ *             email: 'admin@example.com',
+ *             isAdmin: 'y',
+ *         }
+ *     }
+ *     console.log('invalid token', token)
+ *     console.log('於生產環境時得加入SSO等驗證token機制')
+ *     return {}
+ * }
+ *
+ * let verifyUser = (user) => {
+ *     console.log('於生產環境時得加入驗證user機制')
+ *     return user.isAdmin === 'y' //測試僅系統管理者使用
+ * }
+ *
  * //WWebApi
- * let instWWebApi = WWebApi(WOrm, url, db, opt)
+ * let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt)
  *
  * instWWebApi.on('error', (err) => {
  *     console.log(err)
@@ -188,31 +221,36 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
     }
 
 
-    //verifyUserByToken
-    let verifyUserByToken = async (token) => {
+    //getTokenUserForSelf
+    let getTokenUserForSelf = async (token) => {
 
         //getUserByToken
-        let user = getUserByToken(token)
-        if (ispm(user)) {
-            user = await user
+        let userSelf = getUserByToken(token)
+        if (ispm(userSelf)) {
+            userSelf = await userSelf
         }
-        if (!iseobj(user)) {
-            return Promise.reject(`token does not have permission`)
+
+        //check
+        if (!iseobj(userSelf)) {
+            console.log(`can not find the user from token`, token)
+            return Promise.reject(`can not find the user from token`)
         }
 
         //verifyUser
-        let b = verifyUser(user)
+        let b = verifyUser(userSelf)
         if (ispm(b)) {
             b = await b
         }
 
         //check
         if (!b) {
+            console.log('userSelf', userSelf)
             return Promise.reject(`user does not have permission`)
         }
 
-        return user
+        return userSelf
     }
+
 
     //getAPIsList
     let getAPIsList = async (query = {}) => {
@@ -222,7 +260,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
 
 
     //parsePayload
-    let parsePayload = (req) => {
+    let parsePayload = async (req) => {
         let inp = get(req, 'payload')
 
         //to obj
@@ -230,36 +268,56 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
             inp = j2o(inp)
         }
 
-        //cv apis for base64
-        if (iseobj(inp)) {
+        //check
+        if (!iseobj(inp)) {
+            console.log('inp', inp)
+            return Promise.reject(`invalid inp from req`)
+        }
 
-            //spread
-            let { group, apis } = inp
+        //group
+        let group = get(inp, 'group', '')
 
-            //apis
-            each(apis, (api, kapi) => {
-                // console.log(kapi, api.name)
-                each(api, (v, k) => {
-                    // console.log(k, v)
-                    if (isestr(v)) {
-                        if (strleft(v, 7) === 'base64:') {
-                            // console.log(k, 'get base64')
-                            v = strdelleft(v, 7)
-                            v = b642str(v)
-                            // console.log(v)
-                            apis[kapi][k] = v
-                        }
+        //check
+        if (!isestr(group)) {
+            console.log('inp', inp)
+            console.log('group', group)
+            return Promise.reject(`invalid group from inp`)
+        }
+
+        //apis
+        let apis = get(inp, 'apis', [])
+
+        //check
+        if (!isearr(apis)) {
+            console.log('inp', inp)
+            console.log('apis', apis)
+            return Promise.reject(`invalid apis from inp`)
+        }
+
+        //偵測b64自動恢復
+        each(apis, (api, kapi) => {
+            // console.log(kapi, api.name)
+            each(api, (v, k) => {
+                // console.log(k, v)
+                if (isestr(v)) {
+                    if (strleft(v, 7) === 'base64:') {
+                        // console.log(k, 'get base64')
+                        v = strdelleft(v, 7)
+                        v = b642str(v)
+                        // console.log(v)
+                        apis[kapi][k] = v
                     }
-                })
+                }
             })
+        })
 
-            //resave
-            inp = { group, apis }
+        //save group
+        each(apis, (api, kapi) => {
+            apis[kapi].group = group
+        })
 
-        }
-        else {
-            inp = null
-        }
+        //resave
+        inp = { group, apis }
 
         return inp
     }
@@ -280,19 +338,36 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
     }
 
 
-    //replaceAPIsByLevels
-    let replaceAPIsByLevels = async (params = {}) => {
+    //syncAndReplaceApis
+    let syncAndReplaceApis = async (params) => {
 
-        //spread params
-        let { group, apis: rsApis } = params
+        //group
+        let group = get(params, 'group', '')
         // console.log('group', group)
-        // console.log('rsApis', rsApis)
+
+        //check
+        if (!isestr(group)) {
+            console.log('params', params)
+            console.log('group', group)
+            return Promise.reject(`invalid group`)
+        }
+
+        //apis
+        let apis = get(params, 'apis', [])
+        // console.log('apis', apis)
+
+        //check
+        if (!isearr(apis)) {
+            console.log('params', params)
+            console.log('apis', apis)
+            return Promise.reject(`invalid apis`)
+        }
 
         //delAll group
         await woItems.apis.delAll({ group })
 
         //insert
-        let r = await woItems.apis.insert(rsApis)
+        let r = await woItems.apis.insert(apis)
 
         return r
     }
@@ -354,8 +429,15 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //verifyUserByToken
-                    let user = await verifyUserByToken(token)
+                    //getTokenUserForSelf
+                    let user = await getTokenUserForSelf(token)
+
+                    //check
+                    if (!iseobj(user)) {
+                        console.log('token', token)
+                        console.log('[API]getUserByToken/check user: invalid user')
+                        return Promise.reject(`token does not have permission`)
+                    }
 
                     return user
                 }
@@ -378,8 +460,15 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //verifyUserByToken
-                    await verifyUserByToken(token)
+                    //getTokenUserForSelf
+                    let user = await getTokenUserForSelf(token)
+
+                    //check
+                    if (!iseobj(user)) {
+                        console.log('token', token)
+                        console.log('[API]getAPIsList/check user: invalid user')
+                        return Promise.reject(`token does not have permission`)
+                    }
 
                     //getAPIsList
                     let r = await getAPIsList({ isActive: 'y' })
@@ -406,11 +495,18 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //verifyUserByToken
-                    await verifyUserByToken(token)
+                    //getTokenUserForSelf
+                    let user = await getTokenUserForSelf(token)
+
+                    //check
+                    if (!iseobj(user)) {
+                        console.log('token', token)
+                        console.log('[API]updateAPIs/check user: invalid user')
+                        return Promise.reject(`token does not have permission`)
+                    }
 
                     //parsePayload
-                    let inp = parsePayload(req)
+                    let inp = await parsePayload(req)
 
                     //updateAPIs
                     let r = await updateAPIs(inp)
@@ -427,9 +523,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
         },
         {
             method: 'POST',
-            path: '/replaceAPIsByLevels',
+            path: '/syncAndReplaceApis',
             handler: async function (req, res) {
-                // console.log('replaceAPIsByLevels', req)
+                // console.log('syncAndReplaceApis', req)
                 // console.log('payload', req.payload)
 
                 async function core() {
@@ -437,14 +533,21 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //verifyUserByToken
-                    await verifyUserByToken(token)
+                    //getTokenUserForSelf
+                    let user = await getTokenUserForSelf(token)
+
+                    //check
+                    if (!iseobj(user)) {
+                        console.log('token', token)
+                        console.log('[API]syncAndReplaceApis/check user: invalid user')
+                        return Promise.reject(`token does not have permission`)
+                    }
 
                     //parsePayload
-                    let inp = parsePayload(req)
+                    let inp = await parsePayload(req)
 
-                    //replaceAPIsByLevels
-                    let r = await replaceAPIsByLevels(inp)
+                    //syncAndReplaceApis
+                    let r = await syncAndReplaceApis(inp)
 
                     return r
                 }
