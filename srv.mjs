@@ -30,7 +30,7 @@ let opt = {
 
 }
 
-let getUserByToken = (token) => {
+let getUserByToken = async (token) => {
     // return {} //測試無法登入
     if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者
         return {
