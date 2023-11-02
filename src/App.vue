@@ -16,6 +16,8 @@
 <script>
 import get from 'lodash/get'
 import cloneDeep from 'lodash/cloneDeep'
+import isestr from 'wsemi/src/isestr.mjs'
+import isDev from 'wsemi/src/isDev.mjs'
 import wui from 'w-ui-loginout/src/WUiLoginout.mjs'
 import Layout from './components/Layout.vue'
 import LayoutState from './components/LayoutState.vue'
@@ -50,12 +52,25 @@ export default {
             console.log('login error', cloneDeep(data))
             vo.$ui.updateConnState(data.text)
             vo.$ui.updateUserToken('')
-            vo.$ui.updateUserSelf(get(vo, `$store.state.userDef`))
+            let urlRedirect = get(window, '___pmwapi___.urlRedirect', '')
+            if (!isestr(urlRedirect)) {
+                console.log('urlRedirect', urlRedirect)
+                throw new Error(`invalid urlRedirect`)
+            }
+            if (isDev()) {
+                console.log('60s redirect to:', urlRedirect)
+                setTimeout(() => {
+                    window.location.href = urlRedirect
+                }, 60 * 1000)
+            }
+            else {
+                window.location.href = urlRedirect
+            }
         }
 
         //login
         console.log('login...')
-        let ll = wui('wperm', {
+        let ll = wui('wapi', {
             timeWaitAnimation: 2000,
             params: {},
         })

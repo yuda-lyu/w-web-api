@@ -1,19 +1,8 @@
 import each from 'lodash/each'
 import set from 'lodash/set'
-import cloneDeep from 'lodash/cloneDeep'
 import * as types from './types.mjs'
 import ds from '../schema/index.mjs'
 
-
-//userDef
-let userDef = {
-    id: '', //id-for-admin
-    name: '', //測試者
-    email: '', //id-for-admin@gmail.com
-    // isVirtual: 'n',
-    isAdmin: 'n',
-    // isActive: 'n',
-}
 
 //state, 全域狀態
 let state = {
@@ -35,8 +24,12 @@ let state = {
     menu: {}, //初始值需為物件, 否則LayoutContent會取menu.key出錯
 
     userToken: '',
-    userDef: cloneDeep(userDef),
-    userSelf: cloneDeep(userDef),
+    user: {
+        id: '', //id-for-admin
+        name: '', //測試者
+        email: '', //admin@example.com
+        isAdmin: 'n',
+    },
 
     lang: 'cht',
     keyLangs: {
