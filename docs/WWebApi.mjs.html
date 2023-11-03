@@ -80,7 +80,8 @@ import ds from '../src/schema/index.mjs'
  * @param {String} url 輸入資料庫連線字串，例如'mongodb://sername:password@$127.0.0.1:27017'
  * @param {String} db 輸入資料庫名稱字串
  * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'，且輸入'y'時會複寫權限系統該使用者之'isAdmin'欄位值
- * @param {Function} verifyUser 輸入處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
+ * @param {Function} verifyBrowserUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
+ * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
  * @param {Object} [opt={}] 輸入設定物件，預設{}
  * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，預設11005
  * @param {Boolean} [opt.bCheckUser=false] 輸入是否檢查使用者資訊布林值，預設false
@@ -93,9 +94,11 @@ import ds from '../src/schema/index.mjs'
  * @param {String} [opt.urlRedirect=''] 輸入錯誤時自動轉址字串，提供站台例如無法登入或驗證失敗時須自動轉址，預設''
  * @returns {Object} 回傳物件，其內server為hapi伺服器實體，wsrv為w-converhp的伺服器事件物件，wsds為w-serv-webdata的伺服器事件物件，可監聽error事件
  * @example
+ *
  * import WOrm from 'w-orm-mongodb/src/WOrmMongodb.mjs' //自行選擇引用ORM, 使用Mongodb測試
  * import WWebApi from './server/WWebApi.mjs'
  * import getSettings from './g.getSettings.mjs'
+ *
  *
  * //st
  * let st = getSettings()
@@ -110,6 +113,7 @@ import ds from '../src/schema/index.mjs'
  *
  *     serverPort: 11005,
  *     subfolder: '', //mapi
+ *     urlRedirect: 'https://www.google.com/', //本機測試時得先編譯, 再瀏覽: http://localhost:11005/
  *
  *     webName: {
  *         'eng': 'API Service',
@@ -123,13 +127,13 @@ import ds from '../src/schema/index.mjs'
  *
  * }
  *
- * let getUserByToken = (token) => {
+ * let getUserByToken = async (token) => {
  *     // return {} //測試無法登入
  *     if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者
  *         return {
  *             id: 'id-for-application',
  *             name: 'application',
- *             email: 'admin@example.com',
+ *             email: 'application@example.com',
  *             isAdmin: 'y',
  *         }
  *     }
@@ -146,20 +150,29 @@ import ds from '../src/schema/index.mjs'
  *     return {}
  * }
  *
- * let verifyUser = (user) => {
- *     console.log('於生產環境時得加入驗證user機制')
+ * let verifyBrowserUser = (user, caller) => {
+ *     console.log('verifyBrowserUser/user', user)
+ *     // return false //測試無法登入
+ *     console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
+ *     return user.isAdmin === 'y' //測試僅系統管理者使用
+ * }
+ *
+ * let verifyAppUser = (user, caller) => {
+ *     console.log('verifyAppUser/user', user)
+ *     // return false //測試無法登入
+ *     console.log('於生產環境時得加入限制應用程式使用者身份機制')
  *     return user.isAdmin === 'y' //測試僅系統管理者使用
  * }
  *
  * //WWebApi
- * let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt)
+ * let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser, opt)
  *
  * instWWebApi.on('error', (err) => {
  *     console.log(err)
  * })
  *
  */
-function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
+function WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser, opt = {}) {
     let instWServHapiServer = null
 
 
@@ -191,10 +204,17 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
     }
 
 
-    //check verifyUser
-    if (!isfun(verifyUser)) {
-        console.log('invalid verifyUser', verifyUser)
-        throw new Error('invalid verifyUser')
+    //check verifyBrowserUser
+    if (!isfun(verifyBrowserUser)) {
+        console.log('invalid verifyBrowserUser', verifyBrowserUser)
+        throw new Error('invalid verifyBrowserUser')
+    }
+
+
+    //check verifyAppUser
+    if (!isfun(verifyAppUser)) {
+        console.log('invalid verifyAppUser', verifyAppUser)
+        throw new Error('invalid verifyAppUser')
     }
 
 
@@ -272,8 +292,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
     }
 
 
-    //getTokenUserForSelf
-    let getTokenUserForSelf = async (token) => {
+    //getTokenUser
+    let getTokenUser = async (token) => {
 
         //getUserByToken
         let userSelf = getUserByToken(token)
@@ -288,8 +308,41 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
             return Promise.reject(`can not find the user from token`)
         }
 
-        //verifyUser
-        let b = verifyUser(userSelf)
+        return userSelf
+    }
+
+
+    //getAndVerifyBrowserTokenUser
+    let getAndVerifyBrowserTokenUser = async (token, caller = '') => {
+
+        //getTokenUser
+        let userSelf = await getTokenUser(token)
+
+        //verifyBrowserUser
+        let b = verifyBrowserUser(userSelf, caller)
+        if (ispm(b)) {
+            b = await b
+        }
+
+        //check
+        if (!b) {
+            console.log('userSelf', userSelf)
+            console.log(`user does not have permission`)
+            return Promise.reject(`user does not have permission`)
+        }
+
+        return userSelf
+    }
+
+
+    //getAndVerifyAppTokenUser
+    let getAndVerifyAppTokenUser = async (token, caller = '') => {
+
+        //getTokenUser
+        let userSelf = await getTokenUser(token)
+
+        //verifyAppUser
+        let b = verifyAppUser(userSelf, caller)
         if (ispm(b)) {
             b = await b
         }
@@ -498,8 +551,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getTokenUserForSelf
-                    let user = await getTokenUserForSelf(token)
+                    //getAndVerifyBrowserTokenUser
+                    let user = await getAndVerifyBrowserTokenUser(token, 'getUserByToken')
 
                     //check
                     if (!iseobj(user)) {
@@ -530,8 +583,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getTokenUserForSelf
-                    let user = await getTokenUserForSelf(token)
+                    //getAndVerifyBrowserTokenUser
+                    let user = await getAndVerifyBrowserTokenUser(token, 'getAPIsList')
 
                     //check
                     if (!iseobj(user)) {
@@ -566,8 +619,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getTokenUserForSelf
-                    let user = await getTokenUserForSelf(token)
+                    //getAndVerifyBrowserTokenUser
+                    let user = await getAndVerifyBrowserTokenUser(token, 'updateAPIs')
 
                     //check
                     if (!iseobj(user)) {
@@ -605,8 +658,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getTokenUserForSelf
-                    let user = await getTokenUserForSelf(token)
+                    //getAndVerifyAppTokenUser
+                    let user = await getAndVerifyAppTokenUser(token, 'syncAndReplaceApis')
 
                     //check
                     if (!iseobj(user)) {
@@ -689,7 +742,7 @@ export default WWebApi
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.2</a> on Thu Nov 02 2023 22:58:48 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.2</a> on Fri Nov 03 2023 12:07:15 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>

@@ -33,7 +33,8 @@ import ds from '../src/schema/index.mjs'
  * @param {String} url 輸入資料庫連線字串，例如'mongodb://sername:password@$127.0.0.1:27017'
  * @param {String} db 輸入資料庫名稱字串
  * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'，且輸入'y'時會複寫權限系統該使用者之'isAdmin'欄位值
- * @param {Function} verifyUser 輸入處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
+ * @param {Function} verifyBrowserUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
+ * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
  * @param {Object} [opt={}] 輸入設定物件，預設{}
  * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，預設11005
  * @param {Boolean} [opt.bCheckUser=false] 輸入是否檢查使用者資訊布林值，預設false
@@ -75,7 +76,7 @@ import ds from '../src/schema/index.mjs'
  *         'eng': 'A web service package as methods to send requests to and receive responses from an API.',
  *         'cht': 'A web service package as methods to send requests to and receive responses from an API.',
  *     },
- *     webLogo: 'data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjwhRE9DVFlQRSBzdmcgIFBVQkxJQyAnLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4nICAnaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkJz48c3ZnIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgMCAwIDMyIDMyIiB2ZXJzaW9uPSIxLjEiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+PGcgaWQ9IkxheWVyXzIiLz48ZyBpZD0iTGF5ZXJfMyIvPjxnIGlkPSJMYXllcl80Ij48Zz48cGF0aCBkPSJNOS4wMiw2QzkuMDEyNyw2LDkuMDA2OCw1Ljk5OSw5LDZIMkMxLjQ0NzgsNiwxLDUuNTUyNywxLDVWMmMwLTAuNTUyNywwLjQ0NzgtMSwxLTFoNiAgICBjMC40MzA3LDAsMC44MTI1LDAuMjc1NCwwLjk0ODcsMC42ODM2bDAuOTQwNCwyLjgyMTNDOS45NzIyLDQuNjUxNCwxMC4wMiw0LjgyMDMsMTAuMDIsNUMxMC4wMiw1LjU1MjcsOS41NzIzLDYsOS4wMiw2eiBNMyw0ICAgIGg0LjYxMjhMNy4yNzkzLDNIM1Y0eiIgZmlsbD0iI0Y1RDgwMyIvPjwvZz48Zz48cGF0aCBkPSJNMjQuMDE5NSwyMmMtMC4wMDM5LDAtMC4wMTE3LDAuMDAxLTAuMDE5NSwwaC03Yy0wLjU1MjIsMC0xLTAuNDQ3My0xLTF2LTNjMC0wLjU1MjcsMC40NDc4LTEsMS0xaDYgICAgYzAuNDMwNywwLDAuODEyNSwwLjI3NTQsMC45NDgyLDAuNjgzNmwwLjk0MDQsMi44MjEzYzAuMDg0LDAuMTQ2NSwwLjEzMDksMC4zMTU0LDAuMTMwOSwwLjQ5NTEgICAgQzI1LjAxOTUsMjEuNTUyNywyNC41NzIzLDIyLDI0LjAxOTUsMjJ6IE0xOCwyMGg0LjYxMjNsLTAuMzMzLTFIMThWMjB6IiBmaWxsPSIjRjVEODAzIi8+PC9nPjxnPjxwYXRoIGQ9Ik0xNSwxNUgyYy0wLjU1MjIsMC0xLTAuNDQ3My0xLTFWNWMwLTAuNTUyNywwLjQ0NzgtMSwxLTFoMTNjMC41NTIyLDAsMSwwLjQ0NzMsMSwxdjkgICAgQzE2LDE0LjU1MjcsMTUuNTUyMiwxNSwxNSwxNXogTTMsMTNoMTFWNkgzVjEzeiIgZmlsbD0iIzAxODFCMCIvPjwvZz48Zz48cGF0aCBkPSJNMzAsMzFIMTdjLTAuNTUyMiwwLTEtMC40NDczLTEtMXYtOWMwLTAuNTUyNywwLjQ0NzgtMSwxLTFoMTNjMC41NTI3LDAsMSwwLjQ0NzMsMSwxdjkgICAgQzMxLDMwLjU1MjcsMzAuNTUyNywzMSwzMCwzMXogTTE4LDI5aDExdi03SDE4VjI5eiIgZmlsbD0iIzAxODFCMCIvPjwvZz48Zz48cGF0aCBkPSJNMjYsOGgtOGMtMC41NTI3LDAtMSwwLjQ0NzMtMSwxczAuNDQ3MywxLDEsMWg3djZjMCwwLjU1MjcsMC40NDczLDEsMSwxczEtMC40NDczLDEtMVY5ICAgIEMyNyw4LjQ0NzMsMjYuNTUyNyw4LDI2LDh6IiBmaWxsPSIjMDBBQ0JBIi8+PGc+PHBhdGggZD0iTTIwLDEyYy0wLjI1NTksMC0wLjUxMTctMC4wOTc3LTAuNzA3LTAuMjkzbC0yLTJjLTAuMzkwNi0wLjM5MDYtMC4zOTA2LTEuMDIzNCwwLTEuNDE0MWwyLTIgICAgIGMwLjM5MDYtMC4zOTA2LDEuMDIzNC0wLjM5MDYsMS40MTQxLDBzMC4zOTA2LDEuMDIzNCwwLDEuNDE0MUwxOS40MTQxLDlsMS4yOTMsMS4yOTNjMC4zOTA2LDAuMzkwNiwwLjM5MDYsMS4wMjM0LDAsMS40MTQxICAgICBDMjAuNTExNywxMS45MDIzLDIwLjI1NTksMTIsMjAsMTJ6IiBmaWxsPSIjRjVEODAzIi8+PC9nPjwvZz48Zz48cGF0aCBkPSJNMTQsMjVIN3YtNmMwLTAuNTUyNy0wLjQ0NzgtMS0xLTFzLTEsMC40NDczLTEsMXY3YzAsMC41NTI3LDAuNDQ3OCwxLDEsMWg4YzAuNTUyMiwwLDEtMC40NDczLDEtMSAgICBTMTQuNTUyMiwyNSwxNCwyNXoiIGZpbGw9IiMwMEFDQkEiLz48Zz48cGF0aCBkPSJNMTIsMjljLTAuMjU1OSwwLTAuNTExNy0wLjA5NzctMC43MDctMC4yOTNjLTAuMzkwNi0wLjM5MDYtMC4zOTA2LTEuMDIzNCwwLTEuNDE0MUwxMi41ODU5LDI2ICAgICBsLTEuMjkzLTEuMjkzYy0wLjM5MDYtMC4zOTA2LTAuMzkwNi0xLjAyMzQsMC0xLjQxNDFzMS4wMjM0LTAuMzkwNiwxLjQxNDEsMGwyLDJjMC4zOTA2LDAuMzkwNiwwLjM5MDYsMS4wMjM0LDAsMS40MTQxbC0yLDIgICAgIEMxMi41MTE3LDI4LjkwMjMsMTIuMjU1OSwyOSwxMiwyOXoiIGZpbGw9IiNGNUQ4MDMiLz48L2c+PC9nPjwvZz48ZyBpZD0iTGF5ZXJfNSIvPjxnIGlkPSJMYXllcl82Ii8+PGcgaWQ9IkxheWVyXzciLz48ZyBpZD0iTGF5ZXJfOCIvPjxnIGlkPSJMYXllcl85Ii8+PGcgaWQ9IkxheWVyXzEwIi8+PGcgaWQ9IkxheWVyXzExIi8+PGcgaWQ9IkxheWVyXzEyIi8+PGcgaWQ9IkxheWVyXzEzIi8+PGcgaWQ9IkxheWVyXzE0Ii8+PGcgaWQ9IkxheWVyXzE1Ii8+PGcgaWQ9IkxheWVyXzE2Ii8+PGcgaWQ9IkxheWVyXzE3Ii8+PGcgaWQ9IkxheWVyXzE4Ii8+PGcgaWQ9IkxheWVyXzE5Ii8+PGcgaWQ9IkxheWVyXzIwIi8+PGcgaWQ9IkxheWVyXzIxIi8+PGcgaWQ9IkxheWVyXzIyIi8+PGcgaWQ9IkxheWVyXzIzIi8+PGcgaWQ9IkxheWVyXzI0Ii8+PGcgaWQ9IkxheWVyXzI1Ii8+PGcgaWQ9IkxheWVyXzI2Ii8+PC9zdmc+',
+ *     webLogo: 'data:image/svg+xml;base64,...',
  *
  * }
  *
@@ -102,21 +103,29 @@ import ds from '../src/schema/index.mjs'
  *     return {}
  * }
  *
- * let verifyUser = (user) => {
+ * let verifyBrowserUser = (user, caller) => {
+ *     console.log('verifyBrowserUser/user', user)
  *     // return false //測試無法登入
- *     console.log('於生產環境時得加入驗證user機制')
+ *     console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
+ *     return user.isAdmin === 'y' //測試僅系統管理者使用
+ * }
+ *
+ * let verifyAppUser = (user, caller) => {
+ *     console.log('verifyAppUser/user', user)
+ *     // return false //測試無法登入
+ *     console.log('於生產環境時得加入限制應用程式使用者身份機制')
  *     return user.isAdmin === 'y' //測試僅系統管理者使用
  * }
  *
  * //WWebApi
- * let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt)
+ * let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser, opt)
  *
  * instWWebApi.on('error', (err) => {
  *     console.log(err)
  * })
  *
  */
-function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
+function WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser, opt = {}) {
     let instWServHapiServer = null
 
 
@@ -148,10 +157,17 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
     }
 
 
-    //check verifyUser
-    if (!isfun(verifyUser)) {
-        console.log('invalid verifyUser', verifyUser)
-        throw new Error('invalid verifyUser')
+    //check verifyBrowserUser
+    if (!isfun(verifyBrowserUser)) {
+        console.log('invalid verifyBrowserUser', verifyBrowserUser)
+        throw new Error('invalid verifyBrowserUser')
+    }
+
+
+    //check verifyAppUser
+    if (!isfun(verifyAppUser)) {
+        console.log('invalid verifyAppUser', verifyAppUser)
+        throw new Error('invalid verifyAppUser')
     }
 
 
@@ -229,8 +245,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
     }
 
 
-    //getTokenUserForSelf
-    let getTokenUserForSelf = async (token) => {
+    //getTokenUser
+    let getTokenUser = async (token) => {
 
         //getUserByToken
         let userSelf = getUserByToken(token)
@@ -245,8 +261,41 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
             return Promise.reject(`can not find the user from token`)
         }
 
-        //verifyUser
-        let b = verifyUser(userSelf)
+        return userSelf
+    }
+
+
+    //getAndVerifyBrowserTokenUser
+    let getAndVerifyBrowserTokenUser = async (token, caller = '') => {
+
+        //getTokenUser
+        let userSelf = await getTokenUser(token)
+
+        //verifyBrowserUser
+        let b = verifyBrowserUser(userSelf, caller)
+        if (ispm(b)) {
+            b = await b
+        }
+
+        //check
+        if (!b) {
+            console.log('userSelf', userSelf)
+            console.log(`user does not have permission`)
+            return Promise.reject(`user does not have permission`)
+        }
+
+        return userSelf
+    }
+
+
+    //getAndVerifyAppTokenUser
+    let getAndVerifyAppTokenUser = async (token, caller = '') => {
+
+        //getTokenUser
+        let userSelf = await getTokenUser(token)
+
+        //verifyAppUser
+        let b = verifyAppUser(userSelf, caller)
         if (ispm(b)) {
             b = await b
         }
@@ -455,8 +504,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getTokenUserForSelf
-                    let user = await getTokenUserForSelf(token)
+                    //getAndVerifyBrowserTokenUser
+                    let user = await getAndVerifyBrowserTokenUser(token, 'getUserByToken')
 
                     //check
                     if (!iseobj(user)) {
@@ -487,8 +536,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getTokenUserForSelf
-                    let user = await getTokenUserForSelf(token)
+                    //getAndVerifyBrowserTokenUser
+                    let user = await getAndVerifyBrowserTokenUser(token, 'getAPIsList')
 
                     //check
                     if (!iseobj(user)) {
@@ -523,8 +572,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getTokenUserForSelf
-                    let user = await getTokenUserForSelf(token)
+                    //getAndVerifyBrowserTokenUser
+                    let user = await getAndVerifyBrowserTokenUser(token, 'updateAPIs')
 
                     //check
                     if (!iseobj(user)) {
@@ -562,8 +611,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyUser, opt = {}) {
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getTokenUserForSelf
-                    let user = await getTokenUserForSelf(token)
+                    //getAndVerifyAppTokenUser
+                    let user = await getAndVerifyAppTokenUser(token, 'syncAndReplaceApis')
 
                     //check
                     if (!iseobj(user)) {
