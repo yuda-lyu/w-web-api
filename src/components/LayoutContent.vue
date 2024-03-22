@@ -308,7 +308,7 @@
 
                                             <div style="padding-left:10px; margin-bottom:-1px;">
                                                 <!-- 因上下皆有border, 故需負margin-bottom來吃掉重複border -->
-                                                <WGroupRadio
+                                                <WGroupChipRadio
                                                     :items="optputMenuItems"
                                                     :value="optputMenuItemSelect"
                                                     @input="changeOptputMenuItemSelect"
@@ -320,7 +320,7 @@
                                                     :border-color-hover="'#dadada'"
                                                     :border-color-active="'orange lighten-2'"
                                                     :margin-style="{}"
-                                                ></WGroupRadio>
+                                                ></WGroupChipRadio>
                                             </div>
 
                                             <div style="border:1px solid #ddd; background:#fff">
@@ -400,19 +400,19 @@
 </template>
 
 <script>
-import get from 'lodash/get'
-import set from 'lodash/set'
-import each from 'lodash/each'
-import trim from 'lodash/trim'
-import find from 'lodash/find'
-import cloneDeep from 'lodash/cloneDeep'
+import get from 'lodash-es/get'
+import set from 'lodash-es/set'
+import each from 'lodash-es/each'
+import trim from 'lodash-es/trim'
+import find from 'lodash-es/find'
+import cloneDeep from 'lodash-es/cloneDeep'
 import isobj from 'wsemi/src/isobj.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import j2o from 'wsemi/src/j2o.mjs'
 import timemsTZ2day from 'wsemi/src/timemsTZ2day.mjs'
 import convertToTree from 'wsemi/src/convertToTree.mjs'
 import WButtonCircle from 'w-component-vue/src/components/WButtonCircle.vue'
-import WGroupRadio from 'w-component-vue/src/components/WGroupRadio.vue'
+import WGroupChipRadio from 'w-component-vue/src/components/WGroupChipRadio.vue'
 import WDrawer from 'w-component-vue/src/components/WDrawer.vue'
 import WTree from 'w-component-vue/src/components/WTree.vue'
 import WJsonView from 'w-component-vue/src/components/WJsonView.vue'
@@ -422,7 +422,7 @@ import MdPanel from './MdPanel.vue'
 export default {
     components: {
         WButtonCircle,
-        WGroupRadio,
+        WGroupChipRadio,
         WDrawer,
         WTree,
         WJsonView,

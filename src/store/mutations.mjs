@@ -1,5 +1,5 @@
-import each from 'lodash/each'
-import set from 'lodash/set'
+import each from 'lodash-es/each'
+import set from 'lodash-es/set'
 import * as types from './types.mjs'
 import ds from '../schema/index.mjs'
 
@@ -174,7 +174,7 @@ export let mutations = {
     },
 
     [types.UpdateData] (state, msg) {
-        //msg.path內為存取路徑, 需使用lodash的set處理
+        //msg.path內為存取路徑, 需使用set處理
         // console.log('UpdateData msg', msg)
         set(state, msg.path, msg.data)
     },

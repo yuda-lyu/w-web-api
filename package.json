@@ -1,18 +1,18 @@
 {
   "name": "w-web-api",
-  "version": "1.0.32",
+  "version": "1.0.33",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
-    "@mdi/js": "^7.2.96",
-    "axios": "^1.3.4",
-    "lodash": "^4.17.21",
+    "@mdi/js": "^7.4.47",
+    "axios": "^1.6.8",
+    "lodash-es": "^4.17.21",
     "showdown": "^2.1.0",
-    "w-component-vue": "^2.3.47",
-    "w-data-collector": "^1.0.19",
-    "w-serv-hapi": "^1.0.11",
-    "w-serv-orm": "^1.0.7",
-    "w-ui-loginout": "^1.0.6",
-    "wsemi": "^1.7.38"
+    "w-component-vue": "^2.3.77",
+    "w-data-collector": "^1.0.21",
+    "w-serv-hapi": "^1.0.12",
+    "w-serv-orm": "^1.0.8",
+    "w-ui-loginout": "^1.0.7",
+    "wsemi": "^1.7.47"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^5.0.8",
@@ -28,8 +28,8 @@
     "eslint-plugin-vue": "^9.10.0",
     "vue": "^2.6.14",
     "vuex": "^3.6.2",
-    "w-orm-mongodb": "^1.1.29",
-    "w-package-tools": "^1.0.70"
+    "w-orm-mongodb": "^1.1.30",
+    "w-package-tools": "^1.0.73"
   },
   "scripts": {
     "serve": "vue-cli-service serve",

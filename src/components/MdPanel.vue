@@ -5,14 +5,14 @@
 </template>
 
 <script>
-// import get from 'lodash/get'
-// import find from 'lodash/find'
-// import each from 'lodash/each'
-// import map from 'lodash/map'
-// import size from 'lodash/size'
-// import sortBy from 'lodash/sortBy'
-// import isNumber from 'lodash/isNumber'
-// import cloneDeep from 'lodash/cloneDeep'
+// import get from 'lodash-es/get'
+// import find from 'lodash-es/find'
+// import each from 'lodash-es/each'
+// import map from 'lodash-es/map'
+// import size from 'lodash-es/size'
+// import sortBy from 'lodash-es/sortBy'
+// import isNumber from 'lodash-es/isNumber'
+// import cloneDeep from 'lodash-es/cloneDeep'
 // import sep from 'wsemi/src/sep.mjs'
 // import isobj from 'wsemi/src/isobj.mjs'
 // import iseobj from 'wsemi/src/iseobj.mjs'
