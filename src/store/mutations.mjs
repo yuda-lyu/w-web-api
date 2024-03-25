@@ -1,5 +1,5 @@
-import each from 'lodash-es/each'
-import set from 'lodash-es/set'
+import each from 'lodash-es/each.js'
+import set from 'lodash-es/set.js'
 import * as types from './types.mjs'
 import ds from '../schema/index.mjs'
 

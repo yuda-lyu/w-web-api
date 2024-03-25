@@ -1,12 +1,12 @@
-import map from 'lodash-es/map'
-import keys from 'lodash-es/keys'
-// import get from 'lodash-es/get'
+import map from 'lodash-es/map.js'
+import keys from 'lodash-es/keys.js'
+// import get from 'lodash-es/get.js'
 import genID from 'wsemi/src/genID.mjs'
 import dtmapping from 'wsemi/src/dtmapping.mjs'
 import dtpick from 'wsemi/src/dtpick.mjs'
 import nowms2str from 'wsemi/src/nowms2str.mjs'
 import now2strp from 'wsemi/src/now2strp.mjs'
-import isestr from 'wsemi/src/isestr'
+import isestr from 'wsemi/src/isestr.mjs'
 import filePathToCode from '../../../server/filePathToCode.mjs'
 
 

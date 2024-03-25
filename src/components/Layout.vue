@@ -49,8 +49,8 @@
 </template>
 
 <script>
-import get from 'lodash-es/get'
-// import cloneDeep from 'lodash-es/cloneDeep'
+import get from 'lodash-es/get.js'
+// import cloneDeep from 'lodash-es/cloneDeep.js'
 import isestr from 'wsemi/src/isestr.mjs'
 import WButtonCircle from 'w-component-vue/src/components/WButtonCircle.vue'
 import WTextSelect from 'w-component-vue/src/components/WTextSelect.vue'

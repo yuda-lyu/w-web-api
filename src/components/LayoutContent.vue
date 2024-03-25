@@ -400,12 +400,12 @@
 </template>
 
 <script>
-import get from 'lodash-es/get'
-import set from 'lodash-es/set'
-import each from 'lodash-es/each'
-import trim from 'lodash-es/trim'
-import find from 'lodash-es/find'
-import cloneDeep from 'lodash-es/cloneDeep'
+import get from 'lodash-es/get.js'
+import set from 'lodash-es/set.js'
+import each from 'lodash-es/each.js'
+import trim from 'lodash-es/trim.js'
+import find from 'lodash-es/find.js'
+import cloneDeep from 'lodash-es/cloneDeep.js'
 import isobj from 'wsemi/src/isobj.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import j2o from 'wsemi/src/j2o.mjs'
