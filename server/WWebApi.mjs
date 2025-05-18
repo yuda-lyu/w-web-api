@@ -37,9 +37,9 @@ import ds from '../src/schema/index.mjs'
  * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
  * @param {Object} [opt={}] 輸入設定物件，預設{}
  * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，預設11005
- * @param {Boolean} [opt.bCheckUser=false] 輸入是否檢查使用者資訊布林值，預設false
- * @param {Function} [opt.getUserById=null] 輸入當bCheckUser=true時依照使用者ID取得使用者資訊物件函數，預設null
- * @param {Boolean} [opt.bExcludeWhenNotAdmin=false] 輸入使用ORM的select方法時是否自動刪除數據內isActive欄位之布林值，預設false
+ * @param {Boolean} [opt.useCheckUser=false] 輸入是否檢查使用者資訊布林值，預設false
+ * @param {Function} [opt.getUserById=null] 輸入當useCheckUser=true時依照使用者ID取得使用者資訊物件函數，預設null
+ * @param {Boolean} [opt.useExcludeWhenNotAdmin=false] 輸入使用ORM的select方法時是否自動刪除數據內isActive欄位之布林值，預設false
  * @param {Object} [opt.webName={}] 輸入站台名稱物件，至少包含語系eng與cht鍵的名稱，預設{}
  * @param {Object} [opt.webDescription={}] 輸入站台描述物件，至少包含語系eng與cht鍵的名稱，預設{}
  * @param {String} [opt.webLogo=''] 輸入站台logo字串，採base64格式，預設''
@@ -60,9 +60,9 @@ import ds from '../src/schema/index.mjs'
  * let db = st.dbName
  * let opt = {
  *
- *     bCheckUser: false,
+ *     useCheckUser: false,
  *     getUserById: null,
- *     bExcludeWhenNotAdmin: false,
+ *     useExcludeWhenNotAdmin: false,
  *
  *     serverPort: 11005,
  *     subfolder: '', //mapi
@@ -179,16 +179,16 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser
     serverPort = cint(serverPort)
 
 
-    //bCheckUser
-    let bCheckUser = get(opt, 'bCheckUser', false)
+    //useCheckUser
+    let useCheckUser = get(opt, 'useCheckUser', false)
 
 
     //getUserById
     let getUserById = get(opt, 'getUserById', null)
 
 
-    //bExcludeWhenNotAdmin
-    let bExcludeWhenNotAdmin = get(opt, 'bExcludeWhenNotAdmin', false)
+    //useExcludeWhenNotAdmin
+    let useExcludeWhenNotAdmin = get(opt, 'useExcludeWhenNotAdmin', false)
 
 
     //webName
@@ -221,9 +221,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser
 
     //WServOrm
     let optWServOrm = {
-        bCheckUser,
+        useCheckUser,
         getUserById,
-        bExcludeWhenNotAdmin,
+        useExcludeWhenNotAdmin,
     }
     let wp = {}
     try {
@@ -654,24 +654,31 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser
         port: opt.serverPort,
         pathStaticFiles,
         apis,
-        getUserIDFromToken: async (token) => { //可使用async或sync函數
+        getUserIdByToken: async (token) => { //可使用async或sync函數
+            // console.log('getUserIdByToken', token)
             return ''
+            // let user = await getUserByToken(token) //api儲存時須使用
+            // let userId = get(user, 'id', '')
+            // if (!isestr(userId)) {
+            //     console.log('token', token)
+            //     console.log('userId', userId)
+            //     return Promise.reject(`can not find user.id`)
+            // }
+            // return userId
         },
-        useDbORM: true,
-        dbORMs: woItems,
-        operORM: procOrm, //procOrm的輸入為: userId, tableName, methodName, input
+        useDbOrm: true,
+        kpOrm: woItems,
+        operOrm: procOrm, //procOrm的輸入為: userId, tableName, methodName, input
         tableNamesExec,
         methodsExec: ['select', 'insert', 'save', 'del'], //mix需於procOrm內註冊以提供
         tableNamesSync,
-        extFuncs: { //接收參數第1個為userId, 之後才是前端給予參數
+        kpFunExt: { //接收參數第1個為userId, 之後才是前端給予參數
             getWebInfor,
             getAPIsList: (userId, query = {}) => {
                 return getAPIsList(query)
             },
             //...
         },
-        hookBefores: null,
-        hookAfters: null,
         fnTableTags: 'tableTags-web-api.json',
     })
 

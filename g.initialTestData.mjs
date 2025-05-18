@@ -8,6 +8,7 @@ async function initialTestData() {
     //genTestData
     await genTestData(ds, woItems)
 
+    console.log('finish.')
 }
 
 initialTestData()
@@ -17,4 +18,4 @@ initialTestData()
 
 
 //刪除舊檔與重建測試資料庫
-//node --experimental-modules --es-module-specifier-resolution=node g.initialTestData.mjs
+//node g.initialTestData.mjs

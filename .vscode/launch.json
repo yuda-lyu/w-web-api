@@ -12,10 +12,7 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}/srv.mjs",
-            "runtimeArgs": [
-                "--experimental-modules",
-                "--es-module-specifier-resolution=node"
-            ]
+            "runtimeArgs": []
         }
     ]
 }

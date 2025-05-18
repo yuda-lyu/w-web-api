@@ -10,9 +10,9 @@ let url = `mongodb://${st.dbUsername}:${st.dbPassword}@${st.dbIP}:${st.dbPort}` 
 let db = st.dbName
 let opt = {
 
-    bCheckUser: false,
+    useCheckUser: false,
     getUserById: null,
-    bExcludeWhenNotAdmin: false,
+    useExcludeWhenNotAdmin: false,
 
     serverPort: 11005,
     subfolder: '', //mapi
@@ -75,4 +75,4 @@ instWWebApi.on('error', (err) => {
 })
 
 
-//node --experimental-modules --es-module-specifier-resolution=node srv.mjs
+//node srv.mjs

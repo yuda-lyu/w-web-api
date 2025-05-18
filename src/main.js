@@ -1,4 +1,4 @@
-import get from 'lodash-es/get'
+import get from 'lodash-es/get.js'
 // import '@babel/polyfill' //需提供Vuetify的Symbol等API
 // import 'core-js/stable' //需提供Vuetify的Symbol等API, 官網說使用transpileDependencies但不夠, 改用之前提到的@babel/polyfill會被提示已廢棄, 改使用給webpack的polyfill方式才行
 // import 'regenerator-runtime/runtime'

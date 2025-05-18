@@ -1,18 +1,18 @@
 {
   "name": "w-web-api",
-  "version": "1.0.34",
+  "version": "1.0.35",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^7.4.47",
     "axios": "^1.6.8",
     "lodash-es": "^4.17.21",
     "showdown": "^2.1.0",
-    "w-component-vue": "^2.3.80",
+    "w-component-vue": "^2.4.15",
     "w-data-collector": "^1.0.22",
-    "w-serv-hapi": "^1.0.13",
-    "w-serv-orm": "^1.0.9",
-    "w-ui-loginout": "^1.0.8",
-    "wsemi": "^1.7.49"
+    "w-serv-hapi": "^1.0.53",
+    "w-serv-orm": "^1.0.25",
+    "w-ui-loginout": "^1.0.9",
+    "wsemi": "^1.7.90"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^5.0.8",
@@ -28,13 +28,13 @@
     "eslint-plugin-vue": "^9.10.0",
     "vue": "^2.6.14",
     "vuex": "^3.6.2",
-    "w-orm-mongodb": "^1.1.31",
-    "w-package-tools": "^1.0.75"
+    "w-orm-mongodb": "^1.1.33",
+    "w-package-tools": "^1.1.2"
   },
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "test": "mocha --parallel --timeout 60000 --experimental-modules --es-module-specifier-resolution=node",
+    "test": "mocha --parallel --timeout 60000",
     "lint": "vue-cli-service lint",
     "deploy": "gh-pages -d docs"
   },
