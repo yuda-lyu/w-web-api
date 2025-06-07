@@ -30,10 +30,10 @@ import ds from '../src/schema/index.mjs'
  *
  * @class
  * @param {Function} WOrm 輸入資料庫ORM函數
- * @param {String} url 輸入資料庫連線字串，例如'mongodb://sername:password@$127.0.0.1:27017'
+ * @param {String} url 輸入資料庫連線字串，例如w-orm-lmdb為'./db'，或w-orm-mongodb為'mongodb://username:password@$127.0.0.1:27017'
  * @param {String} db 輸入資料庫名稱字串
  * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'，且輸入'y'時會複寫權限系統該使用者之'isAdmin'欄位值
- * @param {Function} verifyBrowserUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
+ * @param {Function} verifyClientUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
  * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
  * @param {Object} [opt={}] 輸入設定物件，預設{}
  * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，預設11005
@@ -48,7 +48,7 @@ import ds from '../src/schema/index.mjs'
  * @returns {Object} 回傳物件，其內server為hapi伺服器實體，wsrv為w-converhp的伺服器事件物件，wsds為w-serv-webdata的伺服器事件物件，可監聽error事件
  * @example
  *
- * import WOrm from 'w-orm-mongodb/src/WOrmMongodb.mjs' //自行選擇引用ORM, 使用Mongodb測試
+ * import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
  * import WWebApi from './server/WWebApi.mjs'
  * import getSettings from './g.getSettings.mjs'
  *
@@ -56,7 +56,7 @@ import ds from '../src/schema/index.mjs'
  * //st
  * let st = getSettings()
  *
- * let url = `mongodb://${st.dbUsername}:${st.dbPassword}@${st.dbIP}:${st.dbPort}` //使用Mongodb測試
+ * let url = st.dbUrl
  * let db = st.dbName
  * let opt = {
  *
@@ -103,8 +103,8 @@ import ds from '../src/schema/index.mjs'
  *     return {}
  * }
  *
- * let verifyBrowserUser = (user, caller) => {
- *     console.log('verifyBrowserUser/user', user)
+ * let verifyClientUser = (user, caller) => {
+ *     console.log('verifyClientUser/user', user)
  *     // return false //測試無法登入
  *     console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
  *     return user.isAdmin === 'y' //測試僅系統管理者使用
@@ -118,14 +118,14 @@ import ds from '../src/schema/index.mjs'
  * }
  *
  * //WWebApi
- * let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser, opt)
+ * let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser, opt)
  *
  * instWWebApi.on('error', (err) => {
  *     console.log(err)
  * })
  *
  */
-function WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser, opt = {}) {
+function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser, opt = {}) {
     let instWServHapiServer = null
 
 
@@ -157,10 +157,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser
     }
 
 
-    //check verifyBrowserUser
-    if (!isfun(verifyBrowserUser)) {
-        console.log('invalid verifyBrowserUser', verifyBrowserUser)
-        throw new Error('invalid verifyBrowserUser')
+    //check verifyClientUser
+    if (!isfun(verifyClientUser)) {
+        console.log('invalid verifyClientUser', verifyClientUser)
+        throw new Error('invalid verifyClientUser')
     }
 
 
@@ -271,8 +271,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser
         //getTokenUser
         let userSelf = await getTokenUser(token)
 
-        //verifyBrowserUser
-        let b = verifyBrowserUser(userSelf, caller)
+        //verifyClientUser
+        let b = verifyClientUser(userSelf, caller)
         if (ispm(b)) {
             b = await b
         }
