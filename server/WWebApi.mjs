@@ -316,49 +316,65 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     }
 
 
-    //getAndVerifyBrowserTokenUser
-    let getAndVerifyBrowserTokenUser = async (token, from = '') => {
+    //getAndVerifyClientUser
+    let getAndVerifyClientUser = async (token, from = '') => {
+        //基於token查找client使用者, 會基於外部getUserByToken以及perm內部users進行查找並比對
 
         //getTokenUser
-        let userSelf = await getTokenUser(token)
+        let user = await getTokenUser(token)
 
         //verifyClientUser
-        let b = verifyClientUser(userSelf, from)
+        let b = verifyClientUser(user, from)
         if (ispm(b)) {
             b = await b
         }
 
         //check
         if (!b) {
-            console.log('userSelf', userSelf)
+            console.log('user', user)
             console.log(`user does not have permission`)
             return Promise.reject(`user does not have permission`)
         }
 
-        return userSelf
+        return user
     }
 
 
-    //getAndVerifyAppTokenUser
-    let getAndVerifyAppTokenUser = async (token, from = '') => {
+    //getAndVerifyAppUser
+    let getAndVerifyAppUser = async (token, from = '') => {
+        //基於token查找app使用者, 會基於外部getUserByToken進行查找, 故只要getUserByToken提供使用者即可, 可支援getUserByToken給予針對應用程式所產生之虛擬使用者
 
-        //getTokenUser
-        let userSelf = await getTokenUser(token)
+        //user
+        let user = null
+        if (isestr(token)) {
+            user = getUserByToken(token)
+            if (ispm(user)) {
+                user = await user
+            }
+        }
+        // console.log('user', user)
+
+        //check
+        if (!iseobj(user)) {
+            console.log(`token`, token)
+            console.log(`can not find the user from token`)
+            return Promise.reject(`can not find the user from token`)
+        }
 
         //verifyAppUser
-        let b = verifyAppUser(userSelf, from)
+        let b = verifyAppUser(user, from)
         if (ispm(b)) {
             b = await b
         }
 
         //check
         if (!b) {
-            console.log('userSelf', userSelf)
+            console.log('user', user)
             console.log(`user does not have permission`)
             return Promise.reject(`user does not have permission`)
         }
 
-        return userSelf
+        return user
     }
 
 
@@ -549,8 +565,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getAndVerifyBrowserTokenUser
-                    let user = await getAndVerifyBrowserTokenUser(token, 'getUserByToken')
+                    //getAndVerifyClientUser
+                    let user = await getAndVerifyClientUser(token, 'getUserByToken')
 
                     //check
                     if (!iseobj(user)) {
@@ -584,8 +600,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getAndVerifyBrowserTokenUser
-                    let user = await getAndVerifyBrowserTokenUser(token, 'getAPIsList')
+                    //getAndVerifyClientUser
+                    let user = await getAndVerifyClientUser(token, 'getAPIsList')
 
                     //check
                     if (!iseobj(user)) {
@@ -623,8 +639,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getAndVerifyBrowserTokenUser
-                    let user = await getAndVerifyBrowserTokenUser(token, 'updateAPIs')
+                    //getAndVerifyClientUser
+                    let user = await getAndVerifyClientUser(token, 'updateAPIs')
 
                     //check
                     if (!iseobj(user)) {
@@ -665,8 +681,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getAndVerifyAppTokenUser
-                    let user = await getAndVerifyAppTokenUser(token, 'syncAndReplaceApis')
+                    //getAndVerifyAppUser
+                    let user = await getAndVerifyAppUser(token, 'syncAndReplaceApis')
 
                     //check
                     if (!iseobj(user)) {
