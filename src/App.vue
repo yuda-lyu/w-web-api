@@ -10,6 +10,11 @@
             <Layout v-if="ready"></Layout>
         </transition>
 
+<!--
+        <LoadingWinBar></LoadingWinBar>
+        <CheckYesNo></CheckYesNo>
+        <CheckYes></CheckYes> -->
+
     </div>
 </template>
 
@@ -17,6 +22,7 @@
 import get from 'lodash-es/get.js'
 import cloneDeep from 'lodash-es/cloneDeep.js'
 import isestr from 'wsemi/src/isestr.mjs'
+import iseobj from 'wsemi/src/iseobj.mjs'
 import isDev from 'wsemi/src/isDev.mjs'
 import wui from 'w-ui-loginout/src/WUiLoginout.mjs'
 import Layout from './components/Layout.vue'
@@ -41,16 +47,21 @@ export default {
         //setVo, 更換ui內vo, 才能使用廣播技術, 更換語系才能用廣播通知全部組件forceUpdate
         vo.$ui.setVo(vo)
 
+        //setLang
+        let lang = get(window, '___pmwperm___.language', '')
+        vo.$ui.setLang(lang, 'app init') //初始化先讀取html內語系設定進行變更
+        // console.log('lang', lang)
+
         function loginSuccess(data) {
             console.log('login success', cloneDeep(data.user))
-            vo.$ui.updateConnState('已連線')
+            vo.$ui.updateConnState('csLogin')
             vo.$ui.updateUserToken(data.token)
             vo.$ui.updateUserSelf(data.user)
         }
 
         function loginError(data) {
             console.log('login error', cloneDeep(data))
-            vo.$ui.updateConnState(data.text)
+            vo.$ui.updateConnState('csErrLogin')
             vo.$ui.updateUserToken('')
             let urlRedirect = get(window, '___pmwapi___.urlRedirect', '')
             if (!isestr(urlRedirect)) {
@@ -86,8 +97,18 @@ export default {
     computed: {
 
         ready: function() {
-            let connState = get(this, `$store.state.connState`)
-            return connState === '已連線'
+            //console.log('computed ready')
+
+            let vo = this
+
+            let connState = get(vo, `$store.state.connState`)
+            let webInfor = get(vo, `$store.state.webInfor`)
+
+            let b1 = connState === 'csLogin'
+            let b2 = iseobj(webInfor)
+            let b = b1 && b2
+
+            return b
         },
 
     },

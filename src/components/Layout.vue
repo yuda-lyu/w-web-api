@@ -16,7 +16,7 @@
                 <div style="display:flex; align-items:center;">
 
                     <div style="padding-right:10px; display:flex; align-items:center;" v-if="webLogo">
-                        <img style="width:36px; height:36px;" :src="webLogo" />
+                        <img style="width:36px; _min-width:36px; height:36px;" :src="webLogo" />
                     </div>
 
                     <div>
@@ -29,13 +29,23 @@
 
             <div style="width:100%;"></div>
 
-            <div style="padding-right:10px; white-space:nowrap">
+            <div
+                style="padding-right:10px; white-space:nowrap;"
+                v-if="showLangSelect"
+            >
                 <WTextSelect
                     style="width:100px;"
-                    :items="tgLangs"
-                    v-model="tgLangSelect"
-                    @input="changeLang"
-                ></WTextSelect>
+                    :items="keysLang"
+                    :value="lang"
+                    @input="toggleLang"
+                >
+                    <template v-slot:select="props">
+                        {{getLangText(props.item)}}
+                    </template>
+                    <template v-slot:item="props">
+                        {{getLangText(props.item)}}
+                    </template>
+                </WTextSelect>
             </div>
 
         </div>
@@ -70,30 +80,37 @@ export default {
 
             drawer: false, //null,
 
-            tgLangs: [
-                {
-                    id: 'cht',
-                    text: '中文',
-                },
-                {
-                    id: 'eng',
-                    text: 'English',
-                },
+            firstSetting: true,
+
+            showLangSelect: false,
+
+            keysLang: [
+                'eng',
+                'cht',
             ],
-            tgLangSelect: {
-                id: 'cht',
-                text: '中文',
+            kpLangSelect: {
+                'eng': 'English',
+                'cht': '中文',
             },
 
         }
     },
-    beforeMount: function() {
-        // console.log('beforeMount')
+    mounted: function() {
+        // console.log('mounted')
 
         let vo = this
 
-        //setLang
-        vo.$ui.setLang(vo.tgLangSelect.id)
+        //firstSetting
+        if (vo.firstSetting) {
+            // console.log('webInfor', vo.webInfor)
+            let showLanguage = get(vo, 'webInfor.showLanguage', '')
+            // console.log('showLanguage', showLanguage)
+            vo.showLangSelect = showLanguage === 'y'
+            let language = get(vo, 'webInfor.language', '')
+            // console.log('language', language)
+            vo.$ui.setLang(language, 'layout mounted')
+            vo.firstSetting = false
+        }
 
     },
     computed: {
@@ -138,11 +155,24 @@ export default {
     },
     methods: {
 
-        changeLang: function(msg) {
-            // console.log('methods changeLang', msg)
+        getLangText: function(lang) {
+            // console.log('methods getLangText', lang)
+
             let vo = this
-            let lang = msg.id
-            vo.$ui.setLang(lang)
+
+            let t = get(vo, `kpLangSelect.${lang}`, '')
+
+            return t
+        },
+
+        toggleLang: function(lang) {
+            // console.log('methods toggleLang', lang)
+
+            let vo = this
+
+            //setLang
+            vo.$ui.setLang(lang, 'toggle')
+
         },
 
     }

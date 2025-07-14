@@ -75,14 +75,14 @@ let getUserByToken = async (token) => {
     return {}
 }
 
-let verifyBrowserUser = (user, caller) => {
+let verifyBrowserUser = (user, from) => {
     console.log('verifyBrowserUser/user', user)
     // return false //測試無法登入
     console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
     return user.isAdmin === 'y' //測試僅系統管理者使用
 }
 
-let verifyAppUser = (user, caller) => {
+let verifyAppUser = (user, from) => {
     console.log('verifyAppUser/user', user)
     // return false //測試無法登入
     console.log('於生產環境時得加入限制應用程式使用者身份機制')

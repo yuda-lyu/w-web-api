@@ -42,6 +42,7 @@ import replace from 'wsemi/src/replace.mjs'
 import timemsTZ2past from 'wsemi/src/timemsTZ2past.mjs'
 import convertToTree from 'wsemi/src/convertToTree.mjs'
 // import WUiDwload from 'w-ui-dwload/src/WUiDwload.mjs'
+import kpLang from './mLang.mjs'
 
 
 let vo = Vue.prototype
@@ -62,9 +63,9 @@ function updateLoading(loading) {
 }
 
 
-function updateViewState(viewState) {
-    vo.$store.commit(vo.$store.types.UpdateViewState, viewState)
-}
+// function updateViewState(viewState) {
+//     vo.$store.commit(vo.$store.types.UpdateViewState, viewState)
+// }
 
 
 function updateUserToken(userToken) {
@@ -78,7 +79,7 @@ function updateUserSelf(userSelf) {
 
 
 function forceUpdate() {
-    // console.log('call forceUpdate')
+    // console.log('forceUpdate')
 
     function broadcast(chs) {
         each(chs, (v) => {
@@ -96,16 +97,67 @@ function forceUpdate() {
 }
 
 
-function setLang(lang = null) {
-    // console.log('call setLang')
+function validLang(lang) {
+    if (lang !== 'eng' && lang !== 'cht') {
+        // console.log(`invalid lang[${lang}]`)
+        lang = 'eng'
+    }
+    return lang
+}
 
-    //check lang, 若有輸入才commit
-    if (isestr(lang)) {
-        vo.$store.commit(vo.$store.types.UpdateLang, lang)
+
+function getLang() {
+    let lang = ''
+
+    //from window
+    if (!isestr(lang)) {
+        let _lang = get(window, '___pmwperm___.language', '')
+        // console.log('_lang(from window)', _lang)
+        if (isestr(_lang)) {
+            lang = validLang(_lang) //有可能取到未取代前模板符號
+        }
     }
 
-    //getKpLang, 切換lang得調用getKpLang重算kpText
-    getKpLang()
+    //from store
+    if (!isestr(lang)) {
+        let _lang = get(vo, '$store.state.lang', '')
+        // console.log('_lang(from store)', _lang)
+        if (isestr(_lang)) {
+            lang = validLang(_lang) //有可能給予非預期lang
+        }
+    }
+
+    //return
+    if (!isestr(lang)) {
+        return 'eng'
+    }
+    return lang
+}
+
+
+function setLang(lang = null, from = '') {
+    // console.log('setLang', lang, from)
+
+    //check
+    if (!isestr(lang)) {
+        lang = getLang()
+    }
+    else {
+        lang = validLang(lang)
+    }
+    // console.log('get lang', lang)
+
+    //check, 若有變更才commit
+    if (true) {
+        let _lang = get(vo, '$store.state.lang')
+        if (lang !== _lang) {
+            vo.$store.commit(vo.$store.types.UpdateLang, lang)
+            // console.log('commit lang', lang)
+        }
+    }
+
+    //genKpText, 切換lang得調用getKpLang重算kpText
+    genKpText(lang)
 
     //forceUpdate
     forceUpdate()
@@ -113,43 +165,81 @@ function setLang(lang = null) {
 }
 
 
-function getKpLang() {
-    // console.log('call getKpLang')
+function genKpText(lang) {
+    // console.log('genKpText', lang)
 
-    //merge keyLangs
-    let keyLangs = get(vo, '$store.state.keyLangs')
-    let webName = get(vo, '$store.state.webInfor.webName')
-    let webDescription = get(vo, '$store.state.webInfor.webDescription')
-    let kls = {
-        ...keyLangs,
-        webName: {
-            ...webName,
-        },
-        webDescription: {
-            ...webDescription,
-        },
+    //kp
+    let kp = {}
+
+    //kpLang
+    kp = {
+        ...kp,
+        ...kpLang,
     }
 
-    //lang
-    let lang = get(vo, '$store.state.lang')
+    //kpLangExt
+    let kpLangExt = get(vo, '$store.state.webInfor.kpLangExt', {})
+    // console.log('kpLangExt', kpLangExt)
+    if (iseobj(kpLangExt)) {
+        kp = {
+            ...kp,
+            ...kpLangExt,
+        }
+    }
+
+    //webName
+    let webName = get(vo, '$store.state.webInfor.webName', {})
+    // console.log('webName', webName)
+    if (iseobj(webName)) {
+        kp = {
+            ...kp,
+            webName: {
+                ...webName,
+            },
+        }
+    }
+
+    //webDescription
+    let webDescription = get(vo, '$store.state.webInfor.webDescription', {})
+    // console.log('webDescription', webDescription)
+    if (iseobj(webDescription)) {
+        kp = {
+            ...kp,
+            webDescription: {
+                ...webDescription,
+            },
+        }
+    }
 
     //kpText
     let kpText = {}
-    each(kls, (v, k) => {
+    each(kp, (v, k) => {
         kpText[k] = v[lang]
     })
+    // console.log('kp', kp)
+    // console.log('kpText', kpText)
 
     //commit
     vo.$store.commit(vo.$store.types.UpdateKpText, kpText)
+    // console.log('commit kpText', kpText)
 
-    return kpText
 }
 
 
 function getKpText(key) {
-    // console.log('call getKpText')
+    // console.log('getKpText', key)
+
+    //kpText
     let kpText = get(vo, '$store.state.kpText')
-    return get(kpText, key, '')
+    // console.log('kpText', cloneDeep(kpText))
+
+    //t
+    let t = get(kpText, key, '')
+    if (!isestr(t)) {
+        t = key
+    }
+
+    return t
 }
 
 
@@ -209,13 +299,12 @@ let mUI = {
 
     updateConnState,
     updateLoading,
-    updateViewState,
+    // updateViewState,
     updateUserToken,
     updateUserSelf,
     forceUpdate,
 
     setLang,
-    getKpLang,
     getKpText,
 
     gv,

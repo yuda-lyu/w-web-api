@@ -8,6 +8,7 @@ import iseobj from 'wsemi/src/iseobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import isearr from 'wsemi/src/isearr.mjs'
 import ispint from 'wsemi/src/ispint.mjs'
+import isErr from 'wsemi/src/isErr.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
 import ispm from 'wsemi/src/ispm.mjs'
 import cint from 'wsemi/src/cint.mjs'
@@ -103,14 +104,14 @@ import ds from '../src/schema/index.mjs'
  *     return {}
  * }
  *
- * let verifyClientUser = (user, caller) => {
+ * let verifyClientUser = (user, from) => {
  *     console.log('verifyClientUser/user', user)
  *     // return false //測試無法登入
  *     console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
  *     return user.isAdmin === 'y' //測試僅系統管理者使用
  * }
  *
- * let verifyAppUser = (user, caller) => {
+ * let verifyAppUser = (user, from) => {
  *     console.log('verifyAppUser/user', user)
  *     // return false //測試無法登入
  *     console.log('於生產環境時得加入限制應用程式使用者身份機制')
@@ -245,6 +246,37 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     }
 
 
+    //checkUser
+    let checkUser = async(user) => {
+        let id = get(user, 'id', '')
+        if (!isestr(id)) {
+            console.log('user', user)
+            console.log('can not get the userId')
+            return Promise.reject(`can not get the userId`)
+        }
+        let email = get(user, 'email', '')
+        if (!isestr(email)) {
+            console.log('user', user)
+            console.log('can not get the email of user')
+            return Promise.reject(`can not get the email of user`)
+        }
+        let name = get(user, 'name', '')
+        if (!isestr(name)) {
+            console.log('user', user)
+            console.log('can not get userName')
+            return Promise.reject(`can not get userName`)
+        }
+        let isAdmin = get(user, 'isAdmin', '')
+        if (isAdmin !== 'y' && isAdmin !== 'n') {
+            console.log('user', user)
+            console.log('user.isAdmin is not y or n', user.isAdmin)
+            console.log('can not get the role of user')
+            return Promise.reject(`can not get the role of user`)
+        }
+        return true
+    }
+
+
     //getTokenUser
     let getTokenUser = async (token) => {
 
@@ -255,24 +287,43 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         }
 
         //check
-        if (!iseobj(userSelf)) {
-            console.log(`token`, token)
-            console.log(`can not find the user from token`)
-            return Promise.reject(`can not find the user from token`)
+        if (true) {
+            // if (!iseobj(userSelf)) {
+            //     console.log(`token`, token)
+            //     console.log(`can not find the user from token`)
+            //     return Promise.reject(`can not find the user from token`)
+            // }
+            await checkUser(userSelf)
         }
 
         return userSelf
     }
 
 
+    //p
+    let p = {
+        checkToken: async(token) => {
+
+            //getUserByToken
+            let u = await getUserByToken(token)
+            // console.log('u', u)
+
+            //checkUser
+            await checkUser(u)
+
+            return true
+        },
+    }
+
+
     //getAndVerifyBrowserTokenUser
-    let getAndVerifyBrowserTokenUser = async (token, caller = '') => {
+    let getAndVerifyBrowserTokenUser = async (token, from = '') => {
 
         //getTokenUser
         let userSelf = await getTokenUser(token)
 
         //verifyClientUser
-        let b = verifyClientUser(userSelf, caller)
+        let b = verifyClientUser(userSelf, from)
         if (ispm(b)) {
             b = await b
         }
@@ -289,13 +340,13 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
 
     //getAndVerifyAppTokenUser
-    let getAndVerifyAppTokenUser = async (token, caller = '') => {
+    let getAndVerifyAppTokenUser = async (token, from = '') => {
 
         //getTokenUser
         let userSelf = await getTokenUser(token)
 
         //verifyAppUser
-        let b = verifyAppUser(userSelf, caller)
+        let b = verifyAppUser(userSelf, from)
         if (ispm(b)) {
             b = await b
         }
@@ -486,13 +537,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //         return 'someAPI'
         //     },
         // },
-        {
-            method: 'GET',
-            path: '/getWebInfor',
-            handler: async function (req, res) {
-                return getWebInfor()
-            },
-        },
+
         {
             method: 'GET',
             path: '/api/getUserByToken', //未登入界面需先檢測token是否為系統管理員, 確認後回傳為系統管理員資訊物件, getUserByToken為w-ui-loginout預設值, 若要更改兩邊須同時修改
@@ -520,6 +565,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                 //pm2resolve core
                 let r = await pm2resolve(core)() //w-ui-loginout接收已預設格式用pm2resolve轉過, 會提取state進行判斷
+                if (isErr(r.msg)) {
+                    r.msg = r.msg.message
+                }
                 // console.log('getUserByToken', r)
 
                 return r
@@ -555,7 +603,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                 //pm2resolve core
                 let r = await pm2resolve(core)()
-                // console.log('verifyIdentity', r)
+                if (isErr(r.msg)) {
+                    r.msg = r.msg.message
+                }
+                // console.log('getAPIsList', r)
 
                 return r
             },
@@ -594,7 +645,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                 //pm2resolve core
                 let r = await pm2resolve(core)()
-                // console.log('verifyIdentity', r)
+                if (isErr(r.msg)) {
+                    r.msg = r.msg.message
+                }
+                // console.log('updateAPIs', r)
 
                 return r
             },
@@ -633,7 +687,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                 //pm2resolve core
                 let r = await pm2resolve(core)()
-                // console.log('verifyIdentity', r)
+                if (isErr(r.msg)) {
+                    r.msg = r.msg.message
+                }
+                // console.log('syncAndReplaceApis', r)
 
                 return r
             },
@@ -653,7 +710,30 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     instWServHapiServer = new WServHapiServer({
         port: opt.serverPort,
         pathStaticFiles,
+        apiName: 'api',
         apis,
+        tokenType: 'Bearer',
+        verifyConn: async ({ apiType, authorization, query, headers, req }) => {
+            // console.log('verifyConn', `apiType[${apiType}]`, `authorization[${authorization}]`)
+
+            //token
+            let token = strdelleft(authorization, 7) //刪除Bearer
+            // console.log('token', token)
+
+            //check
+            if (!isestr(token)) {
+                console.log('apiType', apiType)
+                console.log('authorization', authorization)
+                console.log('invalid token')
+                return false
+            }
+
+            //checkToken
+            let b = await p.checkToken(token)
+            // console.log('b', b)
+
+            return b
+        },
         getUserIdByToken: async (token) => { //可使用async或sync函數
             // console.log('getUserIdByToken', token)
             return ''
@@ -673,11 +753,17 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         methodsExec: ['select', 'insert', 'save', 'del'], //mix需於procOrm內註冊以提供
         tableNamesSync,
         kpFunExt: { //接收參數第1個為userId, 之後才是前端給予參數
+
             getWebInfor,
+
             getAPIsList: (userId, query = {}) => {
                 return getAPIsList(query)
             },
-            //...
+
+            // updateApis: (userId, rows) => {
+            //     return updateApis(rows)
+            // },
+
         },
         fnTableTags: 'tableTags-web-api.json',
     })

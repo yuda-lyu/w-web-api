@@ -1,9 +1,9 @@
 <template>
     <div
         style="height:100%; width:100%;"
-        :changeApis="changeApis"
         v-domresize
         @domresize="resize"
+        :changeApis="changeApis"
     >
 
         <template v-if="syncState">
@@ -25,47 +25,55 @@
                 <template v-slot:drawer="props">
                     <div :style="`height:${props.height}px; background:#fff; position:relative;`">
 
-                        <WTree
-                            :style="`height:${props.height}px;`"
-                            :viewHeightMax="props.height"
-                            :data="apisTree"
-                            :iconHeight="lineHeightTree"
-                            :defItemHeight="lineHeightTree"
-                            :activable="true"
-                            :itemActive="apiActive"
-                            :funActive="funActive"
-                            :itemTextColorActive="'#000'"
-                            :itemBackgroundColorActive ="'rgba(100,100,100,0.15)'"
-                        >
-                            <template v-slot:item="props">
+                        <template v-if="apisTree.length>0">
+                            <WTree
+                                :style="`height:${props.height}px;`"
+                                :viewHeightMax="props.height"
+                                :data="apisTree"
+                                :iconHeight="lineHeightTree"
+                                :defItemHeight="lineHeightTree"
+                                :activable="true"
+                                :itemActive="apiActive"
+                                :funActive="funActive"
+                                :itemTextColorActive="'#000'"
+                                :itemBackgroundColorActive ="'rgba(100,100,100,0.15)'"
+                            >
+                                <template v-slot:item="props">
 
-                                <div
-                                    :style="`display:flex; align-items:center; min-height:${lineHeightTree}px;`"
-                                    v-if="props.data.type!=='node'"
-                                >
-                                    {{props.data.key}}
-                                </div>
+                                    <div
+                                        :style="`display:flex; align-items:center; min-height:${lineHeightTree}px;`"
+                                        v-if="props.data.type!=='node'"
+                                    >
+                                        {{props.data.key}}
+                                    </div>
 
-                                <div
-                                    :style="`display:flex; align-items:center; min-height:${lineHeightTree}px; cursor:pointer;`"
-                                    @click="ckItem(getItemByKey(props.data.text))"
-                                    v-else
-                                >
+                                    <div
+                                        :style="`display:flex; align-items:center; min-height:${lineHeightTree}px; cursor:pointer;`"
+                                        @click="ckItem(getItemByKey(props.data.text))"
+                                        v-else
+                                    >
 
-                                    <div style="padding-right:5px;">
-                                        <div :style="`padding:0px 6px; font-size:0.7rem; border-radius:10px; border:1px solid #ddd; color:#fff; background:${getMethodColorByKey(props.data.text)};`">
-                                            {{getMethodByKey(props.data.text)}}
+                                        <div style="padding-right:5px;">
+                                            <div :style="`padding:0px 6px; font-size:0.7rem; border-radius:10px; border:1px solid #ddd; color:#fff; background:${getMethodColorByKey(props.data.text)};`">
+                                                {{getMethodByKey(props.data.text)}}
+                                            </div>
                                         </div>
+
+                                        <div>
+                                            {{$ui.gv(getItemByKey(props.data.text),'name')}}
+                                        </div>
+
                                     </div>
 
-                                    <div>
-                                        {{$ui.gv(getItemByKey(props.data.text),'name')}}
-                                    </div>
-
-                                </div>
-
-                            </template>
-                        </WTree>
+                                </template>
+                            </WTree>
+                        </template>
+                        <div
+                            style="padding:20px; font-size:0.9rem;"
+                            v-else
+                        >
+                            {{$t('waitingData')}}
+                        </div>
 
                         <div
                             :style="`position:absolute; top:1px; right:12px;`"
@@ -405,6 +413,7 @@
 import get from 'lodash-es/get.js'
 import set from 'lodash-es/set.js'
 import each from 'lodash-es/each.js'
+import size from 'lodash-es/size.js'
 import trim from 'lodash-es/trim.js'
 import find from 'lodash-es/find.js'
 import cloneDeep from 'lodash-es/cloneDeep.js'
@@ -522,8 +531,15 @@ export default {
             let vo = this
 
             //default
+            vo.apiActive = null
+            vo.apiSelect = null
             vo.apisTree = []
             vo.kpApisTree = {}
+
+            //check
+            if (size(vo.apis) === 0) {
+                return
+            }
 
             //cloneDeep
             let apis = cloneDeep(vo.apis)
@@ -553,8 +569,6 @@ export default {
             //convertToTree, 由預處理tree物件轉成tree物件
             let tree = convertToTree(tr, { bindRoot: '全部' })
             // console.log('tree', cloneDeep(tree))
-
-            //filepathToTree
 
             //apiSelect, 預先選定api項目, 非tree選單active物件, 因id由convertToTree轉換提供, 故不能直接算得active選單物件id
             let apiSelect = get(apis, 0, null)

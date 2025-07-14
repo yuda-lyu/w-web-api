@@ -9,7 +9,7 @@ let state = {
 
     hostname: `${window.location.origin}`,
     webInfor: {},
-    connState: '連線中...',
+    connState: 'csIng', //'csIng', 'csLogin', 'csLogout', 'csErrConn', 'csErrLogin'
     syncState: false,
     viewState: 'lists',
     loading: false,
@@ -31,102 +31,8 @@ let state = {
         isAdmin: 'n',
     },
 
-    lang: 'cht',
-    keyLangs: {
-
-        menuTreeShow: {
-            eng: 'Show API list',
-            cht: '顯示API清單',
-        },
-        menuTreeHide: {
-            eng: 'Hide API list',
-            cht: '隱藏API清單',
-        },
-
-        empty: {
-            eng: 'Empty',
-            cht: '無',
-        },
-        noSelectApi: {
-            eng: 'No Select',
-            cht: '尚未選擇API',
-        },
-        waitingData: {
-            eng: 'Waiting data...',
-            cht: '等待數據中...',
-        },
-        tokens: {
-            eng: 'Tokens',
-            cht: '授權金鑰',
-        },
-        apiUrl: {
-            eng: 'API url',
-            cht: 'API網址',
-        },
-        version: {
-            eng: 'Version',
-            cht: '版本',
-        },
-        levels: {
-            eng: 'Levels',
-            cht: '所屬階層',
-        },
-        keywords: {
-            eng: 'Keywords',
-            cht: '關鍵字',
-        },
-        state: {
-            eng: 'State',
-            cht: '狀態',
-        },
-        timeCreate: {
-            eng: 'Create time',
-            cht: '創建時間',
-        },
-        timeUpdate: {
-            eng: 'Update time',
-            cht: '更新時間',
-        },
-        creator: {
-            eng: 'Creator',
-            cht: 'API創建者',
-        },
-        dataSource: {
-            eng: 'Source',
-            cht: '資料提供者',
-        },
-        isActive: {
-            eng: 'Active',
-            cht: '有效',
-        },
-        mdInputParams: {
-            eng: 'Input',
-            cht: '輸入參數資訊或結構',
-        },
-        inputExample: {
-            eng: 'Input example',
-            cht: '輸入範例',
-        },
-        mdOutputParams: {
-            eng: 'Output',
-            cht: '回傳數據結構',
-        },
-        outputExample: {
-            eng: 'Output example',
-            cht: '回傳數據範例',
-        },
-
-        outputMenuTree: {
-            eng: 'Tree',
-            cht: '樹狀組件',
-        },
-        outputMenuRaw: {
-            eng: 'Raw',
-            cht: '原始數據',
-        },
-
-    },
-    kpText: {},
+    lang: 'cht', //'eng', 'cht'
+    kpText: {}, //一定要放在vuex內, 否則無法用broadcast驅動變更語系文字
 
 }
 
@@ -165,9 +71,9 @@ export let mutations = {
         state.loading = loading
     },
 
-    [types.UpdateViewState] (state, viewState) {
-        state.viewState = viewState
-    },
+    // [types.UpdateViewState] (state, viewState) {
+    //     state.viewState = viewState
+    // },
 
     [types.UpdateTableData] (state, msg) {
         state[msg.tableName] = msg.data
