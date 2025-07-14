@@ -1,4 +1,5 @@
 import axios from 'axios'
+import get from 'lodash-es/get.js'
 import ltdtpick from 'wsemi/src/ltdtpick.mjs'
 import genPm from 'wsemi/src/genPm.mjs'
 
@@ -32,13 +33,14 @@ async function provideApis(url, group, apis) {
 
     //ltdtpick
     apis = ltdtpick(apis, ks)
+    // console.log('apis', apis)
 
     //rin
     let rin = {
         group,
         apis,
     }
-    // rin = JSON.stringify(rin)
+    // console.log('rin', rin)
 
     //axios
     await axios({
@@ -48,20 +50,21 @@ async function provideApis(url, group, apis) {
         data: rin,
     })
         .then((res) => {
-            // console.log(res)
-            let r = {
-                msg: '成功傳輸API清單',
-                res,
+            // console.log('then', res)
+            let data = get(res, 'data')
+            let state = get(data, 'state')
+            let msg = get(data, 'msg', '')
+            if (state === 'success') {
+                pm.resolve(msg)
             }
-            pm.resolve(r)
+            else {
+                pm.reject(msg)
+            }
+
         })
         .catch((err) => {
-            // console.log(err)
-            let r = {
-                msg: '無法傳輸API清單',
-                res: err,
-            }
-            pm.reject(r)
+            // console.log('catch', err)
+            pm.reject(err)
         })
 
     return pm
