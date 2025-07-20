@@ -2,6 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import get from 'lodash-es/get.js'
 import each from 'lodash-es/each.js'
+import map from 'lodash-es/map.js'
 import keys from 'lodash-es/keys.js'
 import j2o from 'wsemi/src/j2o.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
@@ -18,6 +19,7 @@ import strright from 'wsemi/src/strright.mjs'
 import strdelright from 'wsemi/src/strdelright.mjs'
 import pm2resolve from 'wsemi/src/pm2resolve.mjs'
 import b642str from 'wsemi/src/b642str.mjs'
+import ltdtmapping from 'wsemi/src/ltdtmapping.mjs'
 import fsIsFolder from 'wsemi/src/fsIsFolder.mjs'
 import fsIsFile from 'wsemi/src/fsIsFile.mjs'
 import replace from 'wsemi/src/replace.mjs'
@@ -378,129 +380,138 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     }
 
 
-    //getAPIsList
-    let getAPIsList = async (query = {}) => {
-        let rs = await woItems.apis.select(query)
-        return rs
-    }
+    // //getAPIsList
+    // let getAPIsList = async (query = {}) => {
+    //     let rs = await woItems.apis.select(query)
+    //     return rs
+    // }
 
 
     //parsePayload
     let parsePayload = async (req) => {
 
-        //inp
-        let inp = get(req, 'payload')
+        //payload
+        let payload = get(req, 'payload')
 
         //to obj
-        if (isestr(inp)) {
-            inp = j2o(inp)
+        if (isestr(payload)) {
+            payload = j2o(payload)
         }
 
         //check
-        if (!iseobj(inp)) {
-            console.log('inp', inp)
-            console.log(`invalid inp from req`)
-            return Promise.reject(`invalid inp from req`)
+        if (!iseobj(payload)) {
+            console.log('payload', payload)
+            console.log(`invalid payload in req`)
+            return Promise.reject(`invalid payload in req`)
         }
 
         //group
-        let group = get(inp, 'group', '')
+        let group = get(payload, 'group', '')
 
         //check
         if (!isestr(group)) {
-            console.log('inp', inp)
-            console.log('group', group)
-            console.log(`invalid group from inp`)
-            return Promise.reject(`invalid group from inp`)
+            console.log('payload', payload)
+            console.log(`invalid group in payload`)
+            return Promise.reject(`invalid group in payload`)
         }
 
-        //apis
-        let apis = get(inp, 'apis', [])
+        //rows
+        let rows = get(payload, 'rows', [])
 
         //check
-        if (!isearr(apis)) {
-            console.log('inp', inp)
-            console.log('apis', apis)
-            console.log(`invalid apis from inp`)
-            return Promise.reject(`invalid apis from inp`)
+        if (!isearr(rows)) {
+            console.log('payload', payload)
+            console.log(`invalid rows in payload`)
+            return Promise.reject(`invalid rows in payload`)
         }
 
-        //偵測b64自動恢復
-        each(apis, (api, kapi) => {
-            // console.log(kapi, api.name)
-            each(api, (v, k) => {
-                // console.log(k, v)
-                if (isestr(v)) {
-                    if (strleft(v, 7) === 'base64:') {
-                        // console.log(k, 'get base64')
-                        v = strdelleft(v, 7)
-                        v = b642str(v)
-                        // console.log(v)
-                        apis[kapi][k] = v
-                    }
-                }
-            })
-        })
-
-        //save group
-        each(apis, (api, kapi) => {
-            apis[kapi].group = group
-        })
-
-        //resave
-        inp = { group, apis }
-
-        return inp
-    }
-
-
-    //updateAPIs
-    let updateAPIs = async (params = {}) => {
-
-        //spread params
-        let { apis: rsApis } = params
-        // console.log('group', group)
-        // console.log('rsApis', rsApis)
-
-        //save
-        let r = await woItems.apis.save(rsApis)
+        //r
+        let r = {
+            group,
+            rows,
+        }
 
         return r
     }
 
 
-    //syncAndReplaceApis
-    let syncAndReplaceApis = async (params) => {
+    // //updateAPIs
+    // let updateAPIs = async (inp = {}) => {
+
+    //     //spread inp
+    //     let { apis: rsApis } = inp
+    //     // console.log('group', group)
+    //     // console.log('rsApis', rsApis)
+
+    //     //save
+    //     let r = await woItems.apis.save(rsApis)
+
+    //     return r
+    // }
+
+
+    //syncAndReplaceTabs
+    let syncAndReplaceTabs = async (userId, inp, keyTable) => {
 
         //group
-        let group = get(params, 'group', '')
+        let group = get(inp, 'group', '')
         // console.log('group', group)
 
         //check
         if (!isestr(group)) {
-            console.log('params', params)
+            console.log('inp', inp)
             console.log('group', group)
             console.log(`invalid group`)
             return Promise.reject(`invalid group`)
         }
 
-        //apis
-        let apis = get(params, 'apis', [])
-        // console.log('apis', apis)
+        //rows
+        let rows = get(inp, 'rows', [])
+        // console.log('rows', rows)
 
         //check
-        if (!isearr(apis)) {
-            console.log('params', params)
-            console.log('apis', apis)
-            console.log(`invalid apis`)
-            return Promise.reject(`invalid apis`)
+        if (!isearr(rows)) {
+            console.log('inp', inp)
+            console.log('keyTable', keyTable)
+            return Promise.reject(`invalid rows`)
         }
 
+        //save from
+        rows = map(rows, (v, k) => {
+            // v.order = k + 1 //order大部分由外部給予, 不能複寫
+            v.group = group
+            return v
+        })
+
+        //偵測b64自動恢復
+        if (keyTable === 'apis') {
+            each(rows, (row, krow) => {
+                // console.log(kapi, row.name)
+                each(row, (v, k) => {
+                    // console.log(k, v)
+                    if (isestr(v)) {
+                        if (strleft(v, 7) === 'base64:') {
+                            // console.log(k, 'get base64')
+                            v = strdelleft(v, 7)
+                            v = b642str(v)
+                            // console.log(v)
+                            rows[krow][k] = v
+                        }
+                    }
+                })
+            })
+        }
+
+        //ltdtmapping
+        rows = ltdtmapping(rows, ds[keyTable].keys)
+        // console.log('ltdtmapping rows', rows)
+
         //delAll group
-        await woItems.apis.delAll({ group })
+        await woItems[keyTable].delAll({ group })
 
         //insert
-        let r = await woItems.apis.insert(apis)
+        // let r = await woItems[keyTable].insert(rows)
+        let r = await procOrm(userId, keyTable, 'insert', rows) //須使用procOrm才有辦法自動給予相關欄位
 
         return r
     }
@@ -556,7 +567,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         {
             method: 'GET',
-            path: '/api/getUserByToken', //未登入界面需先檢測token是否為系統管理員, 確認後回傳為系統管理員資訊物件, getUserByToken為w-ui-loginout預設值, 若要更改兩邊須同時修改
+            path: '/api/getUserByToken', //未登入主頁時需先檢測token, getUserByToken為w-ui-loginout預設值, 若要更改兩邊須同時修改
             handler: async function (req, res) {
                 // console.log('getUserByToken', req)
 
@@ -564,6 +575,15 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //token
                     let token = get(req, 'query.token', '')
+
+                    //check
+                    if (!isestr(token)) {
+                        console.log('req.query', get(req, 'query'))
+                        console.log('token', token)
+                        console.log('[API]getUserByToken/check token: invalid token')
+                        console.log(`token does not have permission`)
+                        return Promise.reject(`token does not have permission`)
+                    }
 
                     //getAndVerifyClientUser
                     let user = await getAndVerifyClientUser(token, 'getUserByToken')
@@ -589,49 +609,112 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                 return r
             },
         },
-        {
-            method: 'GET',
-            path: '/getAPIsList',
-            handler: async function (req, res) {
-                // console.log('getAPIsList', req)
 
-                async function core() {
+        // {
+        //     method: 'GET',
+        //     path: '/getAPIsList',
+        //     handler: async function (req, res) {
+        //         // console.log('getAPIsList', req)
 
-                    //token
-                    let token = get(req, 'query.token', '')
+        //         async function core() {
 
-                    //getAndVerifyClientUser
-                    let user = await getAndVerifyClientUser(token, 'getAPIsList')
+        //             //token
+        //             let token = get(req, 'query.token', '')
 
-                    //check
-                    if (!iseobj(user)) {
-                        console.log('token', token)
-                        console.log('[API]getAPIsList/check user: invalid user')
-                        console.log(`token does not have permission`)
-                        return Promise.reject(`token does not have permission`)
-                    }
+        //             //check
+        //             if (!isestr(token)) {
+        //                 console.log('req.query', get(req, 'query'))
+        //                 console.log('token', token)
+        //                 console.log('[API]getAPIsList/check token: invalid token')
+        //                 console.log(`token does not have permission`)
+        //                 return Promise.reject(`token does not have permission`)
+        //             }
 
-                    //getAPIsList
-                    let r = await getAPIsList({ isActive: 'y' })
+        //             //getAndVerifyClientUser
+        //             let user = await getAndVerifyClientUser(token, 'getAPIsList')
 
-                    return r
-                }
+        //             //check
+        //             if (!iseobj(user)) {
+        //                 console.log('token', token)
+        //                 console.log('[API]getAPIsList/check user: invalid user')
+        //                 console.log(`token does not have permission`)
+        //                 return Promise.reject(`token does not have permission`)
+        //             }
 
-                //pm2resolve core
-                let r = await pm2resolve(core)()
-                if (isErr(r.msg)) {
-                    r.msg = r.msg.message
-                }
-                // console.log('getAPIsList', r)
+        //             //getAPIsList
+        //             let r = await getAPIsList({ isActive: 'y' })
 
-                return r
-            },
-        },
+        //             return r
+        //         }
+
+        //         //pm2resolve core
+        //         let r = await pm2resolve(core)()
+        //         if (isErr(r.msg)) {
+        //             r.msg = r.msg.message
+        //         }
+        //         // console.log('getAPIsList', r)
+
+        //         return r
+        //     },
+        // },
+
+        // {
+        //     method: 'POST',
+        //     path: '/updateAPIs',
+        //     handler: async function (req, res) {
+        //         // console.log('updateAPIs', req)
+        //         // console.log('payload', req.payload)
+
+        //         async function core() {
+
+        //             //token
+        //             let token = get(req, 'query.token', '')
+
+        //             //check
+        //             if (!isestr(token)) {
+        //                 console.log('req.query', get(req, 'query'))
+        //                 console.log('token', token)
+        //                 console.log('[API]updateAPIs/check token: invalid token')
+        //                 console.log(`token does not have permission`)
+        //                 return Promise.reject(`token does not have permission`)
+        //             }
+
+        //             //getAndVerifyClientUser
+        //             let user = await getAndVerifyClientUser(token, 'updateAPIs')
+
+        //             //check
+        //             if (!iseobj(user)) {
+        //                 console.log('token', token)
+        //                 console.log('[API]updateAPIs/check user: invalid user')
+        //                 console.log(`token does not have permission`)
+        //                 return Promise.reject(`token does not have permission`)
+        //             }
+
+        //             //parsePayload
+        //             let inp = await parsePayload(req)
+
+        //             //updateAPIs
+        //             let r = await updateAPIs(inp)
+
+        //             return r
+        //         }
+
+        //         //pm2resolve core
+        //         let r = await pm2resolve(core)()
+        //         if (isErr(r.msg)) {
+        //             r.msg = r.msg.message
+        //         }
+        //         // console.log('updateAPIs', r)
+
+        //         return r
+        //     },
+        // },
+
         {
             method: 'POST',
-            path: '/updateAPIs',
+            path: '/syncAndReplaceTabs',
             handler: async function (req, res) {
-                // console.log('updateAPIs', req)
+                // console.log('syncAndReplaceTabs', req)
                 // console.log('payload', req.payload)
 
                 async function core() {
@@ -639,55 +722,53 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //token
                     let token = get(req, 'query.token', '')
 
-                    //getAndVerifyClientUser
-                    let user = await getAndVerifyClientUser(token, 'updateAPIs')
-
                     //check
-                    if (!iseobj(user)) {
+                    if (!isestr(token)) {
+                        console.log('req.query', get(req, 'query'))
                         console.log('token', token)
-                        console.log('[API]updateAPIs/check user: invalid user')
+                        console.log('[API]syncAndReplaceTabs/check token: invalid token')
                         console.log(`token does not have permission`)
                         return Promise.reject(`token does not have permission`)
                     }
 
-                    //parsePayload
-                    let inp = await parsePayload(req)
+                    //keyTable
+                    let keyTable = get(req, 'query.keyTable', '')
 
-                    //updateAPIs
-                    let r = await updateAPIs(inp)
+                    //check
+                    if (!isestr(keyTable)) {
+                        console.log('req.query', get(req, 'query'))
+                        console.log('keyTable', keyTable)
+                        console.log('[API]syncAndReplaceTabs/check keyTable: invalid keyTable')
+                        console.log(`token does not have permission`)
+                        return Promise.reject(`token does not have permission`)
+                    }
 
-                    return r
-                }
-
-                //pm2resolve core
-                let r = await pm2resolve(core)()
-                if (isErr(r.msg)) {
-                    r.msg = r.msg.message
-                }
-                // console.log('updateAPIs', r)
-
-                return r
-            },
-        },
-        {
-            method: 'POST',
-            path: '/syncAndReplaceApis',
-            handler: async function (req, res) {
-                // console.log('syncAndReplaceApis', req)
-                // console.log('payload', req.payload)
-
-                async function core() {
-
-                    //token
-                    let token = get(req, 'query.token', '')
+                    //check keyTable
+                    let allowedTables = ['apis']
+                    if (!allowedTables.includes(keyTable)) {
+                        console.log('[API]syncAndReplaceTabs/check keyTable: unexpected keyTable', keyTable)
+                        return Promise.reject(`invalid keyTable: ${keyTable}`)
+                    }
 
                     //getAndVerifyAppUser
-                    let user = await getAndVerifyAppUser(token, 'syncAndReplaceApis')
+                    let user = await getAndVerifyAppUser(token, 'syncAndReplaceTabs')
 
                     //check
                     if (!iseobj(user)) {
                         console.log('token', token)
-                        console.log('[API]syncAndReplaceApis/check user: invalid user')
+                        console.log('[API]syncAndReplaceTabs/check user: invalid user')
+                        console.log(`token does not have permission`)
+                        return Promise.reject(`token does not have permission`)
+                    }
+
+                    //userId
+                    let userId = get(user, 'id', '')
+
+                    //check userId
+                    if (!isestr(userId)) {
+                        console.log('token', token)
+                        console.log('user', user)
+                        console.log('[API]syncAndReplaceTabs/check userId: invalid userId')
                         console.log(`token does not have permission`)
                         return Promise.reject(`token does not have permission`)
                     }
@@ -695,8 +776,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //parsePayload
                     let inp = await parsePayload(req)
 
-                    //syncAndReplaceApis
-                    let r = await syncAndReplaceApis(inp)
+                    //syncAndReplaceTabs
+                    let r = await syncAndReplaceTabs(userId, inp, keyTable)
 
                     return r
                 }
@@ -706,11 +787,12 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                 if (isErr(r.msg)) {
                     r.msg = r.msg.message
                 }
-                // console.log('syncAndReplaceApis', r)
+                // console.log('syncAndReplaceTabs', r)
 
                 return r
             },
         },
+
     ]
 
 
@@ -772,11 +854,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
             getWebInfor,
 
-            getAPIsList: (userId, query = {}) => {
-                return getAPIsList(query)
-            },
-
-            // updateApis: (userId, rows) => {
+            // getAPIsList: (userId, query = {}) => { //待提供api管理系統界面使用
+            //     return getAPIsList(query)
+            // },
+            // updateApis: (userId, rows) => { //待提供api管理系統界面使用
             //     return updateApis(rows)
             // },
 
