@@ -512,6 +512,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //insert
         // let r = await woItems[keyTable].insert(rows)
         let r = await procOrm(userId, keyTable, 'insert', rows) //須使用procOrm才有辦法自動給予相關欄位
+        // console.log('r', r)
 
         return r
     }

@@ -5,7 +5,11 @@ import provideTabs from './server/provideTabs.mjs'
 
 async function provide() {
 
-    let url = `http://localhost:11005/syncAndReplaceTabs?token=sys&keyTable=apis`
+    let keyTable = 'apis'
+
+    let group = '寵物'
+
+    let url = `http://localhost:11005/syncAndReplaceTabs?keyTable=${keyTable}&token=sys`
 
     let rs = [
         {
@@ -16,7 +20,7 @@ async function provide() {
             url: '指api網址, 例如 http://localhost:11005/getDogsList',
             method: 'get',
             version: 'v1',
-            // group: '寵物',
+            group,
             levels: '寵物.天竺鼠',
             keywords: 'pets;guineapigs',
             state: 'ok',
@@ -35,8 +39,6 @@ async function provide() {
     })
     console.log('rs', rs)
 
-    let keyTable = 'apis'
-    let group = '寵物'
     let r = await provideTabs(url, keyTable, group, rs)
     console.log('r', r)
 
