@@ -554,17 +554,6 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
     //apis
     let apis = [
-        // {
-        //     method: 'GET',
-        //     path: '/api/someAPI',
-        //     handler: async function (req, res) {
-
-        //         // //token
-        //         // let token = get(req, 'query.token', '')
-
-        //         return 'someAPI'
-        //     },
-        // },
 
         {
             method: 'GET',
