@@ -1,18 +1,18 @@
 {
   "name": "w-web-api",
-  "version": "1.0.48",
+  "version": "1.0.49",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^7.4.47",
     "axios": "^1.9.0",
     "lodash-es": "^4.17.21",
     "showdown": "^2.1.0",
-    "w-component-vue": "^2.4.27",
+    "w-component-vue": "^2.4.36",
     "w-data-collector": "^1.0.22",
-    "w-serv-hapi": "^1.0.69",
-    "w-serv-orm": "^1.0.36",
+    "w-serv-hapi": "^1.0.70",
+    "w-serv-orm": "^1.0.37",
     "w-ui-loginout": "^1.0.10",
-    "wsemi": "^1.8.22"
+    "wsemi": "^1.8.34"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^5.0.8",
@@ -28,7 +28,7 @@
     "eslint-plugin-vue": "^9.10.0",
     "vue": "^2.6.14",
     "vuex": "^3.6.2",
-    "w-orm-lmdb": "^1.0.2",
+    "w-orm-lmdb": "^1.0.3",
     "w-package-tools": "^1.1.2"
   },
   "scripts": {
