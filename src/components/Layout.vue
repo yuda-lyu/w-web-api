@@ -127,6 +127,21 @@ export default {
             return get(vo, `$store.state.heightToolbar`, 0)
         },
 
+        userToken: function() {
+            let vo = this
+            return get(vo, `$store.state.userToken`)
+        },
+
+        lang: function() {
+            let vo = this
+            return get(vo, `$store.state.lang`, '')
+        },
+
+        webInfor: function() {
+            let wi = get(this, `$store.state.webInfor`)
+            return wi
+        },
+
         webName: {
             get() {
                 let vo = this
@@ -150,6 +165,16 @@ export default {
             let vo = this
 
             return get(vo, `$store.state.webInfor.webLogo`, '')
+        },
+
+        userSelf: function() {
+            let vo = this
+            return get(vo, `$store.state.userSelf`, '')
+        },
+
+        userName: function() {
+            let vo = this
+            return get(vo, `userSelf.name`, '')
         },
 
     },

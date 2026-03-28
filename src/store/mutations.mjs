@@ -31,7 +31,7 @@ let state = {
         isAdmin: 'n',
     },
 
-    lang: 'cht', //'eng', 'cht'
+    lang: 'eng', //'eng', 'cht'
     kpText: {}, //一定要放在vuex內, 否則無法用broadcast驅動變更語系文字
 
 }

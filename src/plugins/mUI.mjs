@@ -42,7 +42,30 @@ import replace from 'wsemi/src/replace.mjs'
 import timemsTZ2past from 'wsemi/src/timemsTZ2past.mjs'
 import convertToTree from 'wsemi/src/convertToTree.mjs'
 // import WUiDwload from 'w-ui-dwload/src/WUiDwload.mjs'
-import kpLang from './mLang.mjs'
+
+
+let kpFallback = {
+    csIng: {
+        eng: 'Connecting...',
+        cht: '連線中...',
+    },
+    csLogin: {
+        eng: 'Logged in',
+        cht: '已登入',
+    },
+    csLogout: {
+        eng: 'Logged out',
+        cht: '已登出',
+    },
+    csErrConn: {
+        eng: 'Unable to connect',
+        cht: '無法連線',
+    },
+    csErrLogin: {
+        eng: 'Login denied',
+        cht: '拒絕登入',
+    },
+}
 
 
 let vo = Vue.prototype
@@ -127,10 +150,9 @@ function getLang() {
         }
     }
 
-    //return
-    if (!isestr(lang)) {
-        return 'eng'
-    }
+    //validLang
+    lang = validLang(lang) //有可能給予非預期lang
+
     return lang
 }
 
@@ -142,86 +164,31 @@ function setLang(lang = null, from = '') {
     if (!isestr(lang)) {
         lang = getLang()
     }
-    else {
-        lang = validLang(lang)
-    }
+    lang = validLang(lang)
     // console.log('get lang', lang)
 
     //check, 若有變更才commit
     if (true) {
-        let _lang = get(vo, '$store.state.lang')
+        let _lang = get(vo, '$store.state.lang', '')
         if (lang !== _lang) {
             vo.$store.commit(vo.$store.types.UpdateLang, lang)
             // console.log('commit lang', lang)
         }
     }
 
-    //genKpText, 切換lang得調用getKpLang重算kpText
-    genKpText(lang)
-
-    //forceUpdate
-    forceUpdate()
-
-}
-
-
-function genKpText(lang) {
-    // console.log('genKpText', lang)
-
-    //kp
-    let kp = {}
-
     //kpLang
-    kp = {
-        ...kp,
-        ...kpLang,
-    }
-
-    //kpLangExt
-    let kpLangExt = get(vo, '$store.state.webInfor.kpLangExt', {})
-    // console.log('kpLangExt', kpLangExt)
-    if (iseobj(kpLangExt)) {
-        kp = {
-            ...kp,
-            ...kpLangExt,
-        }
-    }
-
-    //webName
-    let webName = get(vo, '$store.state.webInfor.webName', {})
-    // console.log('webName', webName)
-    if (iseobj(webName)) {
-        kp = {
-            ...kp,
-            webName: {
-                ...webName,
-            },
-        }
-    }
-
-    //webDescription
-    let webDescription = get(vo, '$store.state.webInfor.webDescription', {})
-    // console.log('webDescription', webDescription)
-    if (iseobj(webDescription)) {
-        kp = {
-            ...kp,
-            webDescription: {
-                ...webDescription,
-            },
-        }
-    }
+    let kpLang = get(vo, '$store.state.webInfor.kpLang', {})
 
     //kpText
-    let kpText = {}
-    each(kp, (v, k) => {
-        kpText[k] = v[lang]
-    })
-    // console.log('kp', kp)
+    let kpText = get(kpLang, lang, {})
     // console.log('kpText', kpText)
 
     //commit
     vo.$store.commit(vo.$store.types.UpdateKpText, kpText)
     // console.log('commit kpText', kpText)
+
+    //forceUpdate
+    forceUpdate()
 
 }
 
@@ -235,6 +202,11 @@ function getKpText(key) {
 
     //t
     let t = get(kpText, key, '')
+    if (!isestr(t)) {
+        // fallback: 後端語系尚未載入時使用預設值
+        let lang = getLang()
+        t = get(kpFallback, `${key}.${lang}`, '')
+    }
     if (!isestr(t)) {
         t = key
     }

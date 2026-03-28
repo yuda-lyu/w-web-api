@@ -25,6 +25,7 @@ import fsIsFile from 'wsemi/src/fsIsFile.mjs'
 import replace from 'wsemi/src/replace.mjs'
 import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
 import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
+import procLang from './procLang.mjs'
 import ds from '../src/schema/index.mjs'
 
 
@@ -222,6 +223,19 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let urlRedirect = get(opt, 'urlRedirect', '')
 
 
+    //params
+    let showLanguage = get(opt, 'showLanguage', 'y')
+    let language = get(opt, 'language', 'eng')
+
+
+    //kpLangExt
+    let kpLangExt = get(opt, 'kpLangExt', {})
+
+
+    //kpLang
+    let kpLang = procLang({ kpLangExt, webName, webDescription })
+
+
     //WServOrm
     let optWServOrm = {
         useCheckUser,
@@ -241,9 +255,15 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     //getWebInfor
     let getWebInfor = (userId) => {
         return {
-            webName,
-            webDescription,
+
+            // webName, //已併入kpLang
+            // webDescription, //已併入kpLang
             webLogo,
+
+            showLanguage,
+            language,
+            kpLang,
+
         }
     }
 

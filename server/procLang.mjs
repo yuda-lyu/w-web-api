@@ -1,3 +1,6 @@
+import get from 'lodash-es/get.js'
+import each from 'lodash-es/each.js'
+import iseobj from 'wsemi/src/iseobj.mjs'
 
 
 let kpLang = {
@@ -247,4 +250,89 @@ let kpLang = {
 }
 
 
-export default kpLang
+let init = (opt = {}) => {
+
+    //kpLangExt
+    let kpLangExt = get(opt, 'kpLangExt')
+    if (!iseobj(kpLangExt)) {
+        kpLangExt = {}
+    }
+
+    //webName
+    let webName = get(opt, 'webName')
+    if (!iseobj(webName)) {
+        webName = {}
+    }
+
+    //webDescription
+    let webDescription = get(opt, 'webDescription')
+    if (!iseobj(webDescription)) {
+        webDescription = {}
+    }
+
+    //kp
+    let kp = {}
+
+    //kpLang
+    kp = {
+        ...kp,
+        ...kpLang,
+    }
+
+    //ext kpLangExt
+    if (iseobj(kpLangExt)) {
+        // console.log('kpLangExt', kpLangExt)
+        kp = {
+            ...kp,
+            ...kpLangExt,
+        }
+    }
+
+    //webName
+    if (iseobj(webName)) {
+        // console.log('webName', webName)
+        kp = {
+            ...kp,
+            webName: {
+                ...webName,
+            },
+        }
+    }
+
+    //webDescription
+    if (iseobj(webDescription)) {
+        // console.log('webDescription', webDescription)
+        kp = {
+            ...kp,
+            webDescription: {
+                ...webDescription,
+            },
+        }
+    }
+
+    let langs = [
+        'eng',
+        'cht',
+    ]
+
+    let r = {}
+    each(langs, (lang) => {
+
+        //kpText
+        let kpText = {}
+        each(kp, (v, k) => {
+            kpText[k] = v[lang]
+        })
+        // console.log('kpText', kpText)
+
+        //save
+        r[lang] = kpText
+
+    })
+    // console.log('r', r)
+
+    return r
+}
+
+
+export default init
