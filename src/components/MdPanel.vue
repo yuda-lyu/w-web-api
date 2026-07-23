@@ -24,8 +24,7 @@
 // import strdelleft from 'wsemi/src/strdelleft.mjs'
 // import str2aes from 'wsemi/src/str2aes.mjs'
 // import timeTZ2past from 'wsemi/src/timeTZ2past.mjs'
-import Showdown from 'showdown'
-// import MarkdownIt from 'markdown-it'
+import md2html from 'w-md2html/src/md2html.mjs'
 
 
 export default {
@@ -39,35 +38,44 @@ export default {
     },
     data: function() {
         return {
+            mdh: '',
         }
     },
-    computed: {
-
-        mdh: function() {
-            let vo = this
-
-            // md = `| 參數 | 型別 | 範例 |
-            // | -- | -- | -- |
-            // | token | STRING | key-for-token |
-            // | id | STRING | id-for-test |
-            // | paramA | INTEGER | 123 |
-            // | paramB | DOUBLE | 123.456 |
-            // `
-
-            let cv = new Showdown.Converter()
-            cv.setOption('tables', true)
-            let html = cv.makeHtml(vo.md)
-
-            // let cv = new MarkdownIt()
-            // let html = cv.render(vo.md)
-
-            // console.log('md', md)
-            // console.log('html', html)
-            return html
+    watch: {
+        md: {
+            immediate: true,
+            handler: function() {
+                let vo = this
+                vo.updateMdh()
+            },
         },
-
     },
     methods: {
+
+        updateMdh: function() {
+            let vo = this
+
+            //nSeq, 因md2html為非同步, 須以序號丟棄過期結果避免快速輸入時渲染錯亂
+            vo.nSeq = (vo.nSeq || 0) + 1
+            let nCurr = vo.nSeq
+
+            md2html(vo.md)
+                .then((res) => {
+                    if (nCurr !== vo.nSeq) {
+                        return
+                    }
+                    vo.mdh = res.html
+                })
+                .catch((err) => {
+                    console.log('md2html', err)
+                    if (nCurr !== vo.nSeq) {
+                        return
+                    }
+                    vo.mdh = ''
+                })
+
+        },
+
     }
 }
 </script>
@@ -77,6 +85,11 @@ export default {
 .md {
     font-size: 13px;
     color: var(--c-1, #1b1b1b);
+}
+
+/* w-md2html 輸出自帶一層 <div class="md" style="contain:layout;">, containment 會阻斷首尾元素之 margin collapse 導致版面下移, 此處還原 */
+.md >>> .md {
+    contain: none !important;
 }
 
 .md >>> table {

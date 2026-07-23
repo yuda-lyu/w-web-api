@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.0.56",
+  "version": "1.0.57",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^7.4.47",
@@ -9,10 +9,11 @@
     "showdown": "^2.1.0",
     "w-component-vue": "^2.4.74",
     "w-data-collector": "^1.0.23",
+    "w-md2html": "^1.0.36",
     "w-serv-hapi": "^1.0.74",
     "w-serv-orm": "^1.0.40",
-    "w-ui-loginout": "^1.0.11",
     "w-syslog": "^1.0.10",
+    "w-ui-loginout": "^1.0.11",
     "wsemi": "^1.8.66"
   },
   "devDependencies": {
@@ -26,14 +27,12 @@
     "eslint-plugin-n": "^16.6.2",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-vue": "^9.10.0",
-    "pixelmatch": "^7.2.0",
-    "playwright": "^1.61.1",
-    "pngjs": "^7.0.0",
     "vue": "^2.6.14",
     "vuex": "^3.6.2",
     "w-orm-lmdb": "^1.0.8",
-    "w-screenctl": "^1.0.4",
-    "w-package-tools": "^1.1.11"
+    "w-package-tools": "^1.1.11",
+    "w-package-tools-e2e": "^1.0.0",
+    "w-screenctl": "^1.0.4"
   },
   "scripts": {
     "serve": "vue-cli-service serve",
