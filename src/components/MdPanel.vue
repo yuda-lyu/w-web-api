@@ -73,80 +73,102 @@ export default {
 </script>
 
 <style scoped>
+/* Scalar 風格 markdown 渲染：無外框、細列分隔、等寬欄、名稱欄加粗、標題退場感 */
+.md {
+    font-size: 13px;
+    color: var(--c-1, #1b1b1b);
+}
 
 .md >>> table {
     border-collapse: collapse;
-    margin: 0;
-    padding: 0;
+    width: 100%;
+    font-size: 13px;
+    margin: 2px 0 8px;
     word-break: initial;
 }
 
-.md >>> tr {
-    margin: 0;
-    padding: 0;
-}
-
 .md >>> table tr th {
-    font-weight: bold;
-    background: #eee;
-    border: 1px solid #ddd;
-    border-bottom: 0;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11.5px;
+    letter-spacing: .03em;
+    color: var(--c-2, #6b7280);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border, #e6e8ec);
     margin: 0;
-    padding: 6px 13px;
+    padding: 8px 18px 8px 0;
 }
 
 .md >>> table tr td {
-    border: 1px solid #ddd;
+    border: none;
+    border-bottom: 1px solid var(--border-soft, #eef0f3);
+    color: var(--c-1, #1b1b1b);
+    font-family: var(--font-code, ui-monospace, Menlo, Consolas, monospace);
+    font-size: 12.5px;
+    vertical-align: top;
     margin: 0;
-    padding: 6px 13px;
+    padding: 8px 18px 8px 0;
 }
 
-.md >>> h1 {
-    font-weight: bold;
-    font-size: 1.2rem;
-    line-height: 1.2rem;
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
+.md >>> table tbody tr:last-child td {
+    border-bottom: none;
 }
 
-.md >>> h2 {
-    font-weight: bold;
-    font-size: 1.1rem;
-    line-height: 1.1rem;
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
+.md >>> table tr td:first-child {
+    font-weight: 600;
+    color: var(--c-1, #1b1b1b);
 }
 
-.md >>> h3 {
-    font-weight: bold;
-    font-size: 1rem;
-    line-height: 1rem;
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
+/* 對齊 mockup：型別欄(第2欄)綠字、範例欄(第3欄)灰字 */
+.md >>> table tr td:nth-child(2) {
+    color: var(--m-post, #069061);
 }
 
-.md >>> h4 {
-    font-weight: bold;
-    font-size: 1rem;
-    line-height: 1rem;
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
+.md >>> table tr td:nth-child(3) {
+    color: var(--c-2, #6b7280);
 }
 
-.md >>> h5 {
-    font-weight: bold;
-    font-size: 1rem;
-    line-height: 1rem;
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-
+.md >>> h1,
+.md >>> h2,
+.md >>> h3,
+.md >>> h4,
+.md >>> h5,
 .md >>> h6 {
-    font-weight: bold;
-    font-size: 1rem;
-    line-height: 1rem;
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
+    font-weight: 600;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--c-2, #6b7280);
+    margin: 8px 0 6px;
+}
+
+.md >>> p {
+    color: var(--c-2, #6b7280);
+    line-height: 1.6;
+    margin: 4px 0;
+}
+
+.md >>> code {
+    font-family: var(--font-code, ui-monospace, Menlo, Consolas, monospace);
+    font-size: 12px;
+    background: var(--bg-3, #eceef1);
+    border-radius: 4px;
+    padding: 1px 5px;
+}
+
+.md >>> pre {
+    font-family: var(--font-code, ui-monospace, Menlo, Consolas, monospace);
+    font-size: 12px;
+    background: var(--bg-2, #f7f8fa);
+    border: 1px solid var(--border, #e6e8ec);
+    border-radius: 8px;
+    padding: 12px 14px;
+    overflow: auto;
+}
+
+.md >>> pre code {
+    background: transparent;
+    padding: 0;
 }
 
 </style>

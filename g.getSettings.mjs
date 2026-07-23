@@ -12,6 +12,9 @@ function getSettings() {
         // 'dbPort': 27017,
         'dbUrl': './db',
         'dbName': 'wapis',
+        'ssoBaseUrl': 'http://localhost:11007',
+        'ssoAppToken': '', //部署時填入SSO tokens表中isApp=y的app token
+        'ssoLoginUrl': 'http://localhost:11007/', //未登入時導向之SSO登入頁
     }
 }
 

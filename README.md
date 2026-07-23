@@ -47,7 +47,7 @@ let opt = {
     },
     webDescription: {
         'eng': 'A web service package as methods to send requests to and receive responses from an API.',
-        'cht': 'A web service package as methods to send requests to and receive responses from an API.',
+        'cht': '一套以方法形式，用於發送請求至API並接收其回應的網頁服務套件。',
     },
     webLogo: 'data:image/svg+xml;base64,...',
 

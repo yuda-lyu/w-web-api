@@ -10,10 +10,9 @@
             <Layout v-if="ready"></Layout>
         </transition>
 
-<!--
         <LoadingWinBar></LoadingWinBar>
         <CheckYesNo></CheckYesNo>
-        <CheckYes></CheckYes> -->
+        <CheckYes></CheckYes>
 
     </div>
 </template>
@@ -27,12 +26,18 @@ import isDev from 'wsemi/src/isDev.mjs'
 import wui from 'w-ui-loginout/src/WUiLoginout.mjs'
 import Layout from './components/Layout.vue'
 import LayoutState from './components/LayoutState.vue'
+import LoadingWinBar from './components/Common/LoadingWinBar.vue'
+import CheckYesNo from './components/Common/CheckYesNo.vue'
+import CheckYes from './components/Common/CheckYes.vue'
 
 
 export default {
     components: {
         Layout,
         LayoutState,
+        LoadingWinBar,
+        CheckYesNo,
+        CheckYes,
     },
     data: function() {
         return {
@@ -47,10 +52,9 @@ export default {
         //setVo, 更換ui內vo, 才能使用廣播技術, 更換語系才能用廣播通知全部組件forceUpdate
         vo.$ui.setVo(vo)
 
-        //setLang
-        let lang = get(window, '___pmwperm___.language', '')
-        vo.$ui.setLang(lang, 'app init') //初始化先讀取html內語系設定進行變更
-        // console.log('lang', lang)
+        //setLang：交由 getLang 解析（優先序 URL ?lang= > window ___pmwperm___.language > store），
+        //支援「以 ?lang= 指定語系載入初始畫面」（對齊 w-web-sso），無 URL 時行為同舊（讀 html 注入語系）。
+        vo.$ui.setLang(null, 'app init')
 
         function loginSuccess(data) {
             console.log('login success', cloneDeep(data.user))
@@ -131,7 +135,7 @@ export default {
 <style>
 html,
 body {
-    font-family: '微軟正黑體', 'Microsoft JhengHei', 'MicrosoftJhengHeiRegular', 'Avenir', Helvetica, Arial, sans-serif;
+    font-family: var(--font);
     overflow-y: hidden;
 }
 

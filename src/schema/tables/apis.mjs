@@ -86,6 +86,34 @@ let settings = {
         name: '輸出範例',
         type: 'STRING',
     },
+    'testBaseUrl': {
+        name: '測試基底網址',
+        type: 'STRING',
+    },
+    'authType': {
+        name: '認證類型',
+        type: 'STRING',
+    },
+    'authConfigJson': {
+        name: '認證設定JSON',
+        type: 'TEXT',
+    },
+    'defaultHeadersJson': {
+        name: '預設標頭JSON',
+        type: 'TEXT',
+    },
+    'defaultQueryJson': {
+        name: '預設查詢參數JSON',
+        type: 'TEXT',
+    },
+    'defaultBodyJson': {
+        name: '預設請求內容JSON',
+        type: 'TEXT',
+    },
+    'contentType': {
+        name: '內容類型',
+        type: 'STRING',
+    },
     'timeCreate': {
         name: '創建時間',
         type: 'STRING',
@@ -106,6 +134,8 @@ let funNew = (ndata = {}) => {
     o.timeCreate = nowms2str()
     o.timeUpdate = o.timeCreate
     o.isActive = 'y'
+    o.authType = isestr(o.authType) ? o.authType : 'none'
+    o.contentType = isestr(o.contentType) ? o.contentType : 'application/json'
     return o
 }
 

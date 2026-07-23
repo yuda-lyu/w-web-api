@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>server/WWebApi.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">server/WWebApi.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import path from 'path'
+import fs from 'fs'
+import get from 'lodash-es/get.js'
+import each from 'lodash-es/each.js'
+import map from 'lodash-es/map.js'
+import keys from 'lodash-es/keys.js'
+import j2o from 'wsemi/src/j2o.mjs'
+import iseobj from 'wsemi/src/iseobj.mjs'
+import isestr from 'wsemi/src/isestr.mjs'
+import isearr from 'wsemi/src/isearr.mjs'
+import ispint from 'wsemi/src/ispint.mjs'
+import isErr from 'wsemi/src/isErr.mjs'
+import isfun from 'wsemi/src/isfun.mjs'
+import ispm from 'wsemi/src/ispm.mjs'
+import cint from 'wsemi/src/cint.mjs'
+import strleft from 'wsemi/src/strleft.mjs'
+import strdelleft from 'wsemi/src/strdelleft.mjs'
+import strright from 'wsemi/src/strright.mjs'
+import strdelright from 'wsemi/src/strdelright.mjs'
+import pm2resolve from 'wsemi/src/pm2resolve.mjs'
+import b642str from 'wsemi/src/b642str.mjs'
+import ltdtmapping from 'wsemi/src/ltdtmapping.mjs'
+import fsIsFolder from 'wsemi/src/fsIsFolder.mjs'
+import fsIsFile from 'wsemi/src/fsIsFile.mjs'
+import replace from 'wsemi/src/replace.mjs'
+import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
+import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
+import procLang from './procLang.mjs'
+import procProxy from './procProxy.mjs'
+import procApis from './procApis.mjs'
+import staEvent from './staLogs/staEvent.mjs'
+import srLogInit from './srLog.mjs'
+import ds from '../src/schema/index.mjs'
+
+
+/**
+ * API伺服器
+ *
+ * @class
+ * @param {Function} WOrm 輸入資料庫ORM函數
+ * @param {String} url 輸入資料庫連線字串，例如w-orm-lmdb為'./db'，或w-orm-mongodb為'mongodb://username:password@$127.0.0.1:27017'
+ * @param {String} db 輸入資料庫名稱字串
+ * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'，且輸入'y'時會複寫權限系統該使用者之'isAdmin'欄位值
+ * @param {Function} verifyClientUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
+ * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
+ * @param {Object} [opt={}] 輸入設定物件，預設{}
+ * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，預設11005
+ * @param {Boolean} [opt.useCheckUser=false] 輸入是否檢查使用者資訊布林值，預設false
+ * @param {Function} [opt.getUserById=null] 輸入當useCheckUser=true時依照使用者ID取得使用者資訊物件函數，預設null
+ * @param {Boolean} [opt.useExcludeWhenNotAdmin=false] 輸入使用ORM的select方法時是否自動刪除數據內isActive欄位之布林值，預設false
+ * @param {Object} [opt.webName={}] 輸入站台名稱物件，至少包含語系eng與cht鍵的名稱，預設{}
+ * @param {Object} [opt.webDescription={}] 輸入站台描述物件，至少包含語系eng與cht鍵的名稱，預設{}
+ * @param {String} [opt.webLogo=''] 輸入站台logo字串，採base64格式，預設''
+ * @param {String} [opt.subfolder=''] 輸入站台所在子目錄字串，提供站台位於內網採反向代理進行服務時，故需支援位於子目錄情形，預設''
+ * @param {String} [opt.urlRedirect=''] 輸入錯誤時自動轉址字串，提供站台例如無法登入或驗證失敗時須自動轉址，預設''
+ * @returns {Object} 回傳物件，其內server為hapi伺服器實體，wsrv為w-converhp的伺服器事件物件，wsds為w-serv-webdata的伺服器事件物件，可監聽error事件
+ * @example
+ *
+ * import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
+ * import WWebApi from './server/WWebApi.mjs'
+ * import getSettings from './g.getSettings.mjs'
+ *
+ *
+ * //st
+ * let st = getSettings()
+ *
+ * let url = st.dbUrl
+ * let db = st.dbName
+ * let opt = {
+ *
+ *     useCheckUser: false,
+ *     getUserById: null,
+ *     useExcludeWhenNotAdmin: false,
+ *
+ *     serverPort: 11005,
+ *     subfolder: '', //mapi
+ *     urlRedirect: 'https://www.google.com/', //本機測試時得先編譯, 再瀏覽: http://localhost:11005/
+ *
+ *     webName: {
+ *         'eng': 'API Service',
+ *         'cht': 'API管理系統',
+ *     },
+ *     webDescription: {
+ *         'eng': 'A web service package as methods to send requests to and receive responses from an API.',
+ *         'cht': 'A web service package as methods to send requests to and receive responses from an API.',
+ *     },
+ *     webLogo: 'data:image/svg+xml;base64,...',
+ *
+ * }
+ *
+ * let getUserByToken = async (token) => {
+ *     // return {} //測試無法登入
+ *     if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者
+ *         return {
+ *             id: 'id-for-application',
+ *             name: 'application',
+ *             email: 'application@example.com',
+ *             isAdmin: 'y',
+ *         }
+ *     }
+ *     if (token === 'sys') { //開發階段w-ui-loginout自動給予browser使用者(且位於localhost)的token為sys
+ *         return {
+ *             id: 'id-for-admin',
+ *             name: '測試者',
+ *             email: 'admin@example.com',
+ *             isAdmin: 'y',
+ *         }
+ *     }
+ *     console.log('invalid token', token)
+ *     console.log('於生產環境時得加入SSO等驗證token機制')
+ *     return {}
+ * }
+ *
+ * let verifyClientUser = (user, from) => {
+ *     console.log('verifyClientUser/user', user)
+ *     // return false //測試無法登入
+ *     console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
+ *     return user.isAdmin === 'y' //測試僅系統管理者使用
+ * }
+ *
+ * let verifyAppUser = (user, from) => {
+ *     console.log('verifyAppUser/user', user)
+ *     // return false //測試無法登入
+ *     console.log('於生產環境時得加入限制應用程式使用者身份機制')
+ *     return user.isAdmin === 'y' //測試僅系統管理者使用
+ * }
+ *
+ * //WWebApi
+ * let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser, opt)
+ *
+ * instWWebApi.on('error', (err) => {
+ *     console.log(err)
+ * })
+ *
+ */
+function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser, opt = {}) {
+    let instWServHapiServer = null
+
+
+    //check WOrm
+    if (!isfun(WOrm)) {
+        console.log('invalid WOrm', WOrm)
+        throw new Error('invalid WOrm')
+    }
+
+
+    //check url
+    if (!isestr(url)) {
+        console.log('invalid url', url)
+        throw new Error('invalid url')
+    }
+
+
+    //check db
+    if (!isestr(db)) {
+        console.log('invalid db', db)
+        throw new Error('invalid db')
+    }
+
+
+    //check getUserByToken
+    if (!isfun(getUserByToken)) {
+        console.log('invalid getUserByToken', getUserByToken)
+        throw new Error('invalid getUserByToken')
+    }
+
+
+    //check verifyClientUser
+    if (!isfun(verifyClientUser)) {
+        console.log('invalid verifyClientUser', verifyClientUser)
+        throw new Error('invalid verifyClientUser')
+    }
+
+
+    //check verifyAppUser
+    if (!isfun(verifyAppUser)) {
+        console.log('invalid verifyAppUser', verifyAppUser)
+        throw new Error('invalid verifyAppUser')
+    }
+
+
+    //serverPort
+    let serverPort = get(opt, 'serverPort')
+    if (!ispint(serverPort)) {
+        serverPort = 11005
+    }
+    serverPort = cint(serverPort)
+
+
+    //useCheckUser
+    let useCheckUser = get(opt, 'useCheckUser', false)
+
+
+    //getUserById
+    let getUserById = get(opt, 'getUserById', null)
+
+
+    //useExcludeWhenNotAdmin
+    let useExcludeWhenNotAdmin = get(opt, 'useExcludeWhenNotAdmin', false)
+
+
+    //webName
+    let webName = get(opt, 'webName', {})
+
+
+    //webDescription
+    let webDescription = get(opt, 'webDescription', {})
+
+
+    //webLogo
+    let webLogo = get(opt, 'webLogo', '')
+
+
+    //subfolder
+    let subfolder = get(opt, 'subfolder', '')
+    if (isestr(subfolder)) {
+        if (strright(subfolder, 1) === '/') { //右邊不需要給「/」
+            subfolder = strdelright(subfolder, 1)
+        }
+        if (strleft(subfolder, 1) !== '/') { //左邊需要給「/」
+            subfolder = `/${subfolder}`
+        }
+    }
+
+
+    //urlRedirect
+    let urlRedirect = get(opt, 'urlRedirect', '')
+
+
+    //params
+    let showLanguage = get(opt, 'showLanguage', 'y')
+    let language = get(opt, 'language', 'eng')
+    let logFd = get(opt, 'logFd', './logs') //srLog 寫入 + staEvent 統計共用之 log 資料夾
+
+
+    //kpLangExt
+    let kpLangExt = get(opt, 'kpLangExt', {})
+
+
+    //kpLang
+    let kpLang = procLang({ kpLangExt, webName, webDescription })
+
+
+    //WServOrm
+    let optWServOrm = {
+        useCheckUser,
+        getUserById,
+        useExcludeWhenNotAdmin,
+    }
+    let wp = {}
+    try {
+        wp = WServOrm(ds, WOrm, url, db, optWServOrm)
+    }
+    catch (err) {
+        //ORM 為必要依賴：初始化失敗即 fail-fast，不以 wp={} 帶 undefined woItems/procOrm 殘缺啟動（與建構子其餘必要依賴一致）
+        console.log('WServOrm init failed', err)
+        throw err
+    }
+    let { woItems, procOrm } = wp
+
+
+    //srLog（後端 log；錯誤一律 log err-key 供識別，對齊 w-web-sso）
+    let srLog = srLogInit(opt)
+
+    //maskTok：debug console.log 不印完整 token/authorization（憑證），僅前 4 碼 + ***，避免憑證落入 stdout
+    let maskTok = (t) => isestr(t) ? (strleft(t, 4) + '***') : t
+
+    //kpFunExt 邊界統一處理：成功記 info（供 staEvent 統計呼叫頻率）；catch 後端錯誤 → srLog 該 err-key →
+    //原樣 re-reject（前端依 key 查自己 lang 顯示）。event 統一加 'kpfun-' 前綴 → 專用事件、與 api/verifyConn 區分。
+    let wrapErrLog = (event, fn) => {
+        let ev = 'kpfun-' + event
+        return async (...args) => {
+            try {
+                let result = await fn(...args)
+                srLog.info({ event: ev }) //成功也記 info
+                return result
+            }
+            catch (err) {
+                srLog.error({ event: ev, err })
+                return Promise.reject(err)
+            }
+        }
+    }
+
+
+    //procProxy
+    let { proxyRequest } = procProxy({ srLog })
+
+
+    //procApis
+    let { getApisList, saveApi, deleteApi } = procApis({ woItems, procOrm, ds })
+
+
+    //getWebInfor
+    let getWebInfor = (userId) => {
+        return {
+
+            // webName, //已併入kpLang
+            // webDescription, //已併入kpLang
+            webLogo,
+
+            showLanguage,
+            language,
+            kpLang,
+
+        }
+    }
+
+
+    //checkUser
+    let checkUser = async(user) => {
+        let id = get(user, 'id', '')
+        if (!isestr(id)) {
+            console.log('user', user)
+            console.log('can not get the userId')
+            return Promise.reject('errUserIdMissing')
+        }
+        let email = get(user, 'email', '')
+        if (!isestr(email)) {
+            console.log('user', user)
+            console.log('can not get the email of user')
+            return Promise.reject('errUserEmailMissing')
+        }
+        let name = get(user, 'name', '')
+        if (!isestr(name)) {
+            console.log('user', user)
+            console.log('can not get userName')
+            return Promise.reject('errUserNameMissing')
+        }
+        let isAdmin = get(user, 'isAdmin', '')
+        if (isAdmin !== 'y' &amp;&amp; isAdmin !== 'n') {
+            console.log('user', user)
+            console.log('user.isAdmin is not y or n', user.isAdmin)
+            console.log('can not get the role of user')
+            return Promise.reject('errUserRoleMissing')
+        }
+        return true
+    }
+
+
+    //getTokenUser
+    let getTokenUser = async (token) => {
+
+        //getUserByToken
+        let userSelf = getUserByToken(token)
+        if (ispm(userSelf)) {
+            userSelf = await userSelf
+        }
+
+        //check
+        await checkUser(userSelf)
+
+        return userSelf
+    }
+
+
+    //p
+    let p = {
+        checkToken: async(token) => {
+
+            //getUserByToken
+            let u = await getUserByToken(token)
+            // console.log('u', u)
+
+            //checkUser
+            await checkUser(u)
+
+            return true
+        },
+    }
+
+
+    //getAndVerifyClientUser
+    let getAndVerifyClientUser = async (token, from = '') => {
+        //基於token查找client使用者, 會基於外部getUserByToken以及perm內部users進行查找並比對
+
+        //getTokenUser
+        let user = await getTokenUser(token)
+
+        //verifyClientUser
+        let b = verifyClientUser(user, from)
+        if (ispm(b)) {
+            b = await b
+        }
+
+        //check
+        if (!b) {
+            console.log('user', user)
+            console.log(`user does not have permission`)
+            return Promise.reject('errUserNoPermission')
+        }
+
+        srLog.info({ event: 'verifyClientUser', from, userId: get(user, 'id', '') }) //瀏覽使用者驗證通過
+        return user
+    }
+
+
+    //getAndVerifyAppUser
+    let getAndVerifyAppUser = async (token, from = '') => {
+        //基於token查找app使用者, 會基於外部getUserByToken進行查找, 故只要getUserByToken提供使用者即可, 可支援getUserByToken給予針對應用程式所產生之虛擬使用者
+
+        //user
+        let user = null
+        if (isestr(token)) {
+            user = getUserByToken(token)
+            if (ispm(user)) {
+                user = await user
+            }
+        }
+        // console.log('user', user)
+
+        //check
+        if (!iseobj(user)) {
+            console.log(`token`, token)
+            console.log(`can not find the user from token`)
+            return Promise.reject('errUserNotFound')
+        }
+
+        //verifyAppUser
+        let b = verifyAppUser(user, from)
+        if (ispm(b)) {
+            b = await b
+        }
+
+        //check
+        if (!b) {
+            console.log('user', user)
+            console.log(`user does not have permission`)
+            return Promise.reject('errUserNoPermission')
+        }
+
+        srLog.info({ event: 'verifyAppUser', from, userId: get(user, 'id', '') }) //應用程式使用者驗證通過
+        return user
+    }
+
+
+    // //getAPIsList
+    // let getAPIsList = async (query = {}) => {
+    //     let rs = await woItems.apis.select(query)
+    //     return rs
+    // }
+
+
+    //parsePayload
+    let parsePayload = async (req) => {
+
+        //payload
+        let payload = get(req, 'payload')
+
+        //to obj
+        if (isestr(payload)) {
+            payload = j2o(payload)
+        }
+
+        //check
+        if (!iseobj(payload)) {
+            console.log('payload', payload)
+            console.log(`invalid payload in req`)
+            return Promise.reject('errPayloadInvalid')
+        }
+
+        //group
+        let group = get(payload, 'group', '')
+
+        //check
+        if (!isestr(group)) {
+            console.log('payload', payload)
+            console.log(`invalid group in payload`)
+            return Promise.reject('errGroupInvalid')
+        }
+
+        //rows
+        let rows = get(payload, 'rows', [])
+
+        //check
+        if (!isearr(rows)) {
+            console.log('payload', payload)
+            console.log(`invalid rows in payload`)
+            return Promise.reject('errRowsInvalid')
+        }
+
+        //r
+        let r = {
+            group,
+            rows,
+        }
+
+        return r
+    }
+
+
+    // //updateAPIs
+    // let updateAPIs = async (inp = {}) => {
+
+    //     //spread inp
+    //     let { apis: rsApis } = inp
+    //     // console.log('group', group)
+    //     // console.log('rsApis', rsApis)
+
+    //     //save
+    //     let r = await woItems.apis.save(rsApis)
+
+    //     return r
+    // }
+
+
+    //syncAndReplaceTabs
+    let syncAndReplaceTabs = async (userId, inp, keyTable) => {
+
+        //group
+        let group = get(inp, 'group', '')
+        // console.log('group', group)
+
+        //check
+        if (!isestr(group)) {
+            console.log('inp', inp)
+            console.log('group', group)
+            console.log(`invalid group`)
+            return Promise.reject('errGroupInvalid')
+        }
+
+        //rows
+        let rows = get(inp, 'rows', [])
+        // console.log('rows', rows)
+
+        //check
+        if (!isearr(rows)) {
+            console.log('inp', inp)
+            console.log('keyTable', keyTable)
+            return Promise.reject('errRowsInvalid')
+        }
+
+        //save from
+        rows = map(rows, (v, k) => {
+            // v.order = k + 1 //order大部分由外部給予, 不能複寫
+            v.group = group
+            return v
+        })
+
+        //偵測b64自動恢復
+        if (keyTable === 'apis') {
+            each(rows, (row, krow) => {
+                // console.log(kapi, row.name)
+                each(row, (v, k) => {
+                    // console.log(k, v)
+                    if (isestr(v)) {
+                        if (strleft(v, 7) === 'base64:') {
+                            // console.log(k, 'get base64')
+                            v = strdelleft(v, 7)
+                            v = b642str(v)
+                            // console.log(v)
+                            rows[krow][k] = v
+                        }
+                    }
+                })
+            })
+        }
+
+        //ltdtmapping
+        rows = ltdtmapping(rows, ds[keyTable].keys)
+        // console.log('ltdtmapping rows', rows)
+
+        //delAll group
+        await woItems[keyTable].delAll({ group })
+
+        //insert
+        // let r = await woItems[keyTable].insert(rows)
+        let r = await procOrm(userId, keyTable, 'insert', rows) //須使用procOrm才有辦法自動給予相關欄位
+        // console.log('r', r)
+
+        return r
+    }
+
+
+    //pathStaticFiles
+    let pathStaticFiles = 'dist'
+    let npmPathStaticFiles = './node_modules/w-web-api/dist'
+    if (fsIsFolder(npmPathStaticFiles)) {
+        pathStaticFiles = npmPathStaticFiles
+    }
+    // console.log('pathStaticFiles', pathStaticFiles)
+
+
+    //subfolder
+    let fnEntryIn = 'index.tmp'
+    let fnEntryOut = 'index.html'
+    try {
+        let fpEntryIn = path.resolve(pathStaticFiles, fnEntryIn)
+        if (!fsIsFile(fpEntryIn)) {
+            fpEntryIn = path.resolve(pathStaticFiles, fnEntryOut) //本機開發另使用html替代tmp
+        }
+        if (!fsIsFile(fpEntryIn)) {
+            console.log('fpEntryIn', fpEntryIn)
+            throw new Error(`invalid fpEntryIn`)
+        }
+        let fpEntryOut = path.resolve(pathStaticFiles, fnEntryOut)
+        let c = fs.readFileSync(fpEntryIn, 'utf8')
+        c = replace(c, '/mapi/', '{sfd}/') //方法同genEntry
+        c = replace(c, '{sfd}', subfolder)
+        c = replace(c, '{urlRedirect}', urlRedirect)
+        c = replace(c, '{language}', language) //注入初始語系 → window.___pmwperm___.language（前端 getLang 之來源之一）
+        fs.writeFileSync(fpEntryOut, c, 'utf8')
+    }
+    catch (err) {
+        console.log(err)
+        console.log(`can not generate ${fnEntryOut}`)
+    }
+
+
+    //apis
+    let apis = [
+
+        {
+            method: 'GET',
+            path: '/api/getUserByToken', //未登入主頁時需先檢測token, getUserByToken為w-ui-loginout預設值, 若要更改兩邊須同時修改
+            handler: async function (req, res) {
+                // console.log('getUserByToken', req)
+
+                async function core() {
+
+                    //token
+                    let token = get(req, 'query.token', '')
+
+                    //check
+                    if (!isestr(token)) {
+                        console.log('req.query', get(req, 'query'))
+                        console.log('token', maskTok(token))
+                        console.log('[API]getUserByToken/check token: invalid token')
+                        return Promise.reject('errTokenNoPermission')
+                    }
+
+                    //getAndVerifyClientUser
+                    let user = await getAndVerifyClientUser(token, 'getUserByToken')
+
+                    //check
+                    if (!iseobj(user)) {
+                        console.log('token', maskTok(token))
+                        console.log('[API]getUserByToken/check user: invalid user')
+                        return Promise.reject('errTokenNoPermission')
+                    }
+
+                    srLog.info({ event: 'api/getUserByToken', userId: get(user, 'id', '') })
+                    return user
+                }
+
+                //pm2resolve core
+                let r = await pm2resolve(core)() //w-ui-loginout接收已預設格式用pm2resolve轉過, 會提取state進行判斷
+                if (isErr(r.msg)) {
+                    r.msg = r.msg.message
+                }
+                // console.log('getUserByToken', r)
+
+                return r
+            },
+        },
+
+        // {
+        //     method: 'GET',
+        //     path: '/getAPIsList',
+        //     handler: async function (req, res) {
+        //         // console.log('getAPIsList', req)
+
+        //         async function core() {
+
+        //             //token
+        //             let token = get(req, 'query.token', '')
+
+        //             //check
+        //             if (!isestr(token)) {
+        //                 console.log('req.query', get(req, 'query'))
+        //                 console.log('token', token)
+        //                 console.log('[API]getAPIsList/check token: invalid token')
+        //                 return Promise.reject('errTokenNoPermission')
+        //             }
+
+        //             //getAndVerifyClientUser
+        //             let user = await getAndVerifyClientUser(token, 'getAPIsList')
+
+        //             //check
+        //             if (!iseobj(user)) {
+        //                 console.log('token', token)
+        //                 console.log('[API]getAPIsList/check user: invalid user')
+        //                 return Promise.reject('errTokenNoPermission')
+        //             }
+
+        //             //getAPIsList
+        //             let r = await getAPIsList({ isActive: 'y' })
+
+        //             return r
+        //         }
+
+        //         //pm2resolve core
+        //         let r = await pm2resolve(core)()
+        //         if (isErr(r.msg)) {
+        //             r.msg = r.msg.message
+        //         }
+        //         // console.log('getAPIsList', r)
+
+        //         return r
+        //     },
+        // },
+
+        // {
+        //     method: 'POST',
+        //     path: '/updateAPIs',
+        //     handler: async function (req, res) {
+        //         // console.log('updateAPIs', req)
+        //         // console.log('payload', req.payload)
+
+        //         async function core() {
+
+        //             //token
+        //             let token = get(req, 'query.token', '')
+
+        //             //check
+        //             if (!isestr(token)) {
+        //                 console.log('req.query', get(req, 'query'))
+        //                 console.log('token', token)
+        //                 console.log('[API]updateAPIs/check token: invalid token')
+        //                 return Promise.reject('errTokenNoPermission')
+        //             }
+
+        //             //getAndVerifyClientUser
+        //             let user = await getAndVerifyClientUser(token, 'updateAPIs')
+
+        //             //check
+        //             if (!iseobj(user)) {
+        //                 console.log('token', token)
+        //                 console.log('[API]updateAPIs/check user: invalid user')
+        //                 return Promise.reject('errTokenNoPermission')
+        //             }
+
+        //             //parsePayload
+        //             let inp = await parsePayload(req)
+
+        //             //updateAPIs
+        //             let r = await updateAPIs(inp)
+
+        //             return r
+        //         }
+
+        //         //pm2resolve core
+        //         let r = await pm2resolve(core)()
+        //         if (isErr(r.msg)) {
+        //             r.msg = r.msg.message
+        //         }
+        //         // console.log('updateAPIs', r)
+
+        //         return r
+        //     },
+        // },
+
+        {
+            method: 'POST',
+            path: '/syncAndReplaceTabs',
+            handler: async function (req, res) {
+                // console.log('syncAndReplaceTabs', req)
+                // console.log('payload', req.payload)
+
+                async function core() {
+
+                    //token
+                    let token = get(req, 'query.token', '')
+
+                    //check
+                    if (!isestr(token)) {
+                        console.log('req.query', get(req, 'query'))
+                        console.log('token', maskTok(token))
+                        console.log('[API]syncAndReplaceTabs/check token: invalid token')
+                        return Promise.reject('errTokenNoPermission')
+                    }
+
+                    //keyTable
+                    let keyTable = get(req, 'query.keyTable', '')
+
+                    //check
+                    if (!isestr(keyTable)) {
+                        console.log('req.query', get(req, 'query'))
+                        console.log('keyTable', keyTable)
+                        console.log('[API]syncAndReplaceTabs/check keyTable: invalid keyTable')
+                        return Promise.reject('errKeyTableInvalid')
+                    }
+
+                    //check keyTable
+                    let allowedTables = ['apis']
+                    if (!allowedTables.includes(keyTable)) {
+                        console.log('[API]syncAndReplaceTabs/check keyTable: unexpected keyTable', keyTable)
+                        return Promise.reject('errKeyTableInvalid')
+                    }
+
+                    //getAndVerifyAppUser
+                    let user = await getAndVerifyAppUser(token, 'syncAndReplaceTabs')
+
+                    //check
+                    if (!iseobj(user)) {
+                        console.log('token', maskTok(token))
+                        console.log('[API]syncAndReplaceTabs/check user: invalid user')
+                        return Promise.reject('errTokenNoPermission')
+                    }
+
+                    //userId
+                    let userId = get(user, 'id', '')
+
+                    //check userId
+                    if (!isestr(userId)) {
+                        console.log('token', maskTok(token))
+                        console.log('user', user)
+                        console.log('[API]syncAndReplaceTabs/check userId: invalid userId')
+                        return Promise.reject('errTokenNoPermission')
+                    }
+
+                    //parsePayload
+                    let inp = await parsePayload(req)
+
+                    //syncAndReplaceTabs
+                    let r = await syncAndReplaceTabs(userId, inp, keyTable)
+
+                    srLog.info({ event: 'api/syncAndReplaceTabs', userId, keyTable })
+                    return r
+                }
+
+                //pm2resolve core
+                let r = await pm2resolve(core)()
+                if (isErr(r.msg)) {
+                    r.msg = r.msg.message
+                }
+                // console.log('syncAndReplaceTabs', r)
+
+                return r
+            },
+        },
+
+    ]
+
+
+    //tableNamesExec, tableNamesSync
+    let tableNamesExec = keys(ds)
+    // let tableNamesSync = filter(tableNamesExec, (v) => {
+    //     return strright(v, 5) !== 'Items'//不同步數據
+    // })
+    let tableNamesSync = tableNamesExec
+
+
+    //WServHapiServer
+    instWServHapiServer = new WServHapiServer({
+        port: serverPort,
+        pathStaticFiles,
+        apiName: 'api',
+        apis,
+        tokenType: 'Bearer',
+        verifyConn: async ({ apiType, authorization, query, headers, req }) => {
+            // console.log('verifyConn', `apiType[${apiType}]`, `authorization[${authorization}]`)
+
+            //token
+            let token = strdelleft(authorization, 7) //刪除Bearer
+            // console.log('token', token)
+
+            //check
+            if (!isestr(token)) {
+                console.log('apiType', apiType)
+                console.log('authorization', maskTok(authorization))
+                console.log('invalid token')
+                return false
+            }
+
+            //checkToken：套件層連線閘僅做「token 認證」（解析 user + 驗欄位齊備）。**授權**（如限管理員）屬
+            //套件使用者之責——由其提供之 getUserByToken（可對非授權者回 {}）/ verifyClientUser / verifyAppUser，
+            //或 WServOrm 之 useCheckUser/useExcludeWhenNotAdmin 等鉤子決定；套件不對連線層強加特定授權政策（避免越界、
+            //保留使用者彈性）。詳見 spec/設計要點與取捨.md「套件授權責任」。
+            let b = await p.checkToken(token)
+
+            srLog.info({ event: 'verifyConn', apiType }) //連線之 token 認證通過（checkToken 失敗會 throw 不到此）
+            return b
+        },
+        getUserIdByToken: async (token) => { //可使用async或sync函數
+            // console.log('getUserIdByToken', token)
+            if (!isestr(token)) {
+                return ''
+            }
+            let user = await getUserByToken(token)
+            let userId = get(user, 'id', '')
+            return userId
+        },
+        useDbOrm: true,
+        kpOrm: woItems,
+        operOrm: procOrm, //procOrm的輸入為: userId, tableName, methodName, input
+        tableNamesExec,
+        methodsExec: ['select', 'insert', 'save', 'del'], //mix需於procOrm內註冊以提供
+        tableNamesSync,
+        kpFunExt: { //接收參數第1個為userId, 之後才是前端給予參數（皆經 wrapErrLog：錯誤 srLog err-key 後 re-reject）
+
+            getWebInfor: wrapErrLog('getWebInfor', getWebInfor),
+
+            proxyRequest: wrapErrLog('proxyRequest', (userId, reqSpec) => {
+                return proxyRequest(reqSpec)
+            }),
+
+            getApisList: wrapErrLog('getApisList', (userId) => {
+                return getApisList(userId)
+            }),
+            saveApi: wrapErrLog('saveApi', (userId, row) => {
+                return saveApi(userId, row)
+            }),
+            deleteApi: wrapErrLog('deleteApi', (userId, id) => {
+                return deleteApi(userId, id)
+            }),
+
+            //統計資訊頁：回傳各 event 之時段發生頻率（讀 logFd 之 log）。連線之 token 認證由 verifyConn 把關；
+            //授權（限管理員）屬套件使用者責任（見 verifyConn 註解與設計要點與取捨「套件授權責任」）。timeLength 天數 / timeInterval 'hr'|'day'。
+            getStaEvent: wrapErrLog('getStaEvent', (userId, timeLength = 7, timeInterval = 'hr') => {
+                return staEvent(timeLength, timeInterval, { fdLog: logFd })
+            }),
+
+            // getAPIsList: (userId, query = {}) => { //待提供api管理系統界面使用
+            //     return getAPIsList(query)
+            // },
+            // updateApis: (userId, rows) => { //待提供api管理系統界面使用
+            //     return updateApis(rows)
+            // },
+
+        },
+        fnTableTags: 'tableTags-web-api.json',
+    })
+
+
+    return instWServHapiServer
+}
+
+
+export default WWebApi
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Jul 23 2026 11:15:32 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

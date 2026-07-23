@@ -1,0 +1,113 @@
+/* ============================================================
+   Scalar 風格 UI 設計系統 v2（light + Scalar 配色，結構重設計）
+   由 src/main.js import；全域非 scoped。對照 zMockup-scalar-v2.html。
+   ============================================================ */
+:root{
+  --bg-1:#ffffff; --bg-2:#f7f8fa; --bg-3:#eceef1; --bg-accent:rgba(0,153,255,0.08);
+  --code-bg:#0d1117; --code-fg:#c9d1d9;
+  --c-1:#1b1b1b; --c-2:#6b7280; --c-3:#9aa1ac;
+  --accent:#0099ff; --accent-hover:#0077cc;
+  --border:#e6e8ec; --border-soft:#eef0f3;
+  /* method（Scalar 配色：GET藍/POST綠/PUT橙/DEL紅/PATCH黃） */
+  --m-get:#0082d0;  --m-get-bg:rgba(0,130,208,0.10);
+  --m-post:#069061; --m-post-bg:rgba(6,144,97,0.11);
+  --m-put:#c2670a;  --m-put-bg:rgba(255,88,0,0.10);
+  --m-del:#e01b54;  --m-del-bg:rgba(239,0,6,0.09);
+  --m-patch:#b7860b;--m-patch-bg:rgba(237,190,32,0.16);
+  --m-other:#6b7280;--m-other-bg:rgba(107,114,128,0.10);
+  /* status */
+  --s-2xx:#069061; --s-2xx-bg:rgba(6,144,97,0.12);
+  --s-3xx:#0082d0; --s-3xx-bg:rgba(0,130,208,0.10);
+  --s-4xx:#c2670a; --s-4xx-bg:rgba(255,88,0,0.11);
+  --s-5xx:#e01b54; --s-5xx-bg:rgba(239,0,6,0.10);
+  --danger:#e01b54; --danger-bg:#fff5f7; --success:#069061;
+  --ok-fg:#069061; --ok-bg:rgba(6,144,97,0.12);
+  --font:"Microsoft JhengHei","微軟正黑體",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-code:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Courier New",monospace;
+  --fs-h1:27px; --fs-h2:18px; --fs-h3:15px; --fs-body:14px; --fs-sm:13px; --fs-xs:11.5px;
+  --fw-medium:500; --fw-bold:600;
+  --radius:8px; --radius-sm:5px; --radius-lg:11px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-6:24px; --sp-8:32px;
+  --focus:0 0 0 3px rgba(0,153,255,0.18);
+  --focus-danger:0 0 0 3px rgba(239,0,6,0.15);
+}
+
+/* ---------- method badge ---------- */
+.w-mb{font-family:var(--font-code);font-weight:var(--fw-bold);text-transform:uppercase;font-size:10px;
+  letter-spacing:.03em;padding:2px 6px;min-width:40px;text-align:center;border-radius:var(--radius-sm);
+  border:none;display:inline-block;flex:0 0 auto;line-height:1.5}
+.w-mb.get{color:var(--m-get);background:var(--m-get-bg)}
+.w-mb.post{color:var(--m-post);background:var(--m-post-bg)}
+.w-mb.put{color:var(--m-put);background:var(--m-put-bg)}
+.w-mb.del{color:var(--m-del);background:var(--m-del-bg)}
+.w-mb.patch{color:var(--m-patch);background:var(--m-patch-bg)}
+.w-mb.other{color:var(--m-other);background:var(--m-other-bg)}
+
+/* ---------- 共用輸入 / 按鈕（edit/test 用） ---------- */
+.w-input,.w-textarea,.w-select{width:100%;box-sizing:border-box;padding:8px 12px;font-size:var(--fs-body);
+  color:var(--c-1);background:var(--bg-1);border:1px solid var(--border);border-radius:var(--radius);
+  outline:none;transition:border-color .15s,box-shadow .15s;font-family:var(--font)}
+.w-textarea{font-family:var(--font-code);font-size:var(--fs-sm);resize:vertical;min-height:72px;line-height:1.55}
+.w-input:focus,.w-textarea:focus,.w-select:focus{border-color:var(--accent);box-shadow:var(--focus)}
+.w-input.is-error,.w-textarea.is-error{border-color:var(--danger);box-shadow:var(--focus-danger)}
+.w-btn-primary{padding:8px 17px;font-size:var(--fs-body);font-weight:var(--fw-medium);border-radius:var(--radius);
+  border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;transition:.15s}
+.w-btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.w-btn-danger{padding:8px 17px;font-size:var(--fs-body);border-radius:var(--radius);border:1px solid var(--danger);
+  background:transparent;color:var(--danger);cursor:pointer;transition:.15s}
+.w-btn-danger:hover{background:var(--danger-bg)}
+.w-btn-ghost{padding:7px 14px;font-size:var(--fs-sm);border:1px solid var(--border);background:transparent;
+  color:var(--c-2);border-radius:var(--radius);cursor:pointer;transition:.15s}
+.w-btn-ghost:hover{background:var(--bg-3)}
+
+/* ---------- 雜項 ---------- */
+.w-mono{font-family:var(--font-code)}
+.w-muted{color:var(--c-2)}
+.w-tnum{font-variant-numeric:tabular-nums}
+
+/* ---------- segmented 分頁（Docs/Edit/Test） ---------- */
+.w-seg{display:inline-flex;gap:2px;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:3px}
+.w-seg-btn{border:none;background:transparent;color:var(--c-2);font-size:13px;padding:5px 17px;border-radius:6px;
+  cursor:pointer;font-weight:var(--fw-medium);transition:.15s}
+.w-seg-btn:hover{color:var(--c-1)}
+.w-seg-btn.on{background:var(--bg-1);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.07)}
+
+/* ---------- DOCS：operation header + pills ---------- */
+.op-title{font-size:var(--fs-h1);font-weight:var(--fw-bold);letter-spacing:-.01em;margin:6px 0 10px;color:var(--c-1)}
+.op-path{display:inline-flex;align-items:center;gap:10px;padding:8px 13px;background:var(--bg-2);
+  border:1px solid var(--border);border-radius:var(--radius);font-family:var(--font-code);font-size:13px;color:var(--c-1);
+  max-width:100%;overflow:auto}
+.op-desc{color:var(--c-2);margin:14px 0 0;max-width:720px;font-size:14.5px;line-height:1.7}
+.pills{display:flex;flex-wrap:wrap;gap:7px;margin:16px 0 4px}
+.pill{font-size:12px;color:var(--c-2);background:var(--bg-2);border:1px solid var(--border);border-radius:20px;padding:3px 11px}
+.pill b{color:var(--c-1);font-weight:var(--fw-bold)}
+.pill.ok{color:var(--ok-fg);background:var(--ok-bg);border-color:transparent;font-weight:var(--fw-bold)}
+.pill .kw-chip{display:inline-block;vertical-align:middle;font-size:11px;font-weight:var(--fw-bold);color:#0082d0;background:rgba(0,130,208,0.12);border-radius:9px;padding:1px 7px;margin-left:5px}
+
+/* ---------- DOCS：兩欄 + 區塊 ---------- */
+.split{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:34px;margin-top:28px;align-items:start}
+@media (max-width:1100px){ .split{grid-template-columns:1fr} }
+.dsec{margin-bottom:28px}
+.dsec-h{font-size:13px;font-weight:var(--fw-bold);letter-spacing:.05em;text-transform:uppercase;color:var(--c-3);
+  padding-bottom:9px;border-bottom:1px solid var(--border-soft);margin-bottom:12px}
+
+/* 左欄 Markdown 由 MdPanel.vue 自身 scoped 樣式處理（Scalar 乾淨表格/標題） */
+
+/* ---------- 右欄 code rail（Scalar 招牌） ---------- */
+.rail{position:sticky;top:14px;display:flex;flex-direction:column;gap:16px}
+.card{border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)}
+.card-h{display:flex;align-items:center;gap:9px;padding:9px 13px;background:var(--bg-2);border-bottom:1px solid var(--border);font-size:12px;color:var(--c-2)}
+.card-h .lab{font-weight:var(--fw-bold);color:var(--c-1)}
+.card-h .st{margin-left:auto;font-family:var(--font-code);font-size:11.5px;font-weight:var(--fw-bold);
+  color:var(--ok-fg);background:var(--ok-bg);padding:1px 8px;border-radius:var(--radius-sm)}
+.code{background:var(--code-bg);color:var(--code-fg);font-family:var(--font-code);font-size:12.5px;line-height:1.7;
+  padding:14px 16px;white-space:pre;overflow:auto;margin:0}
+.code .k{color:#79c0ff}.code .s{color:#a5d6ff}.code .n{color:#f0883e}.code .pn{color:#8b949e}.code .b{color:#ff7b72}
+
+/* ---------- TEST：回應狀態徽章 ---------- */
+.w-status{font-family:var(--font-code);font-weight:var(--fw-bold);font-size:13px;padding:2px 11px;
+  border-radius:var(--radius-sm);display:inline-block}
+.w-status.s2{color:var(--s-2xx);background:var(--s-2xx-bg)}
+.w-status.s3{color:var(--s-3xx);background:var(--s-3xx-bg)}
+.w-status.s4{color:var(--s-4xx);background:var(--s-4xx-bg)}
+.w-status.s5{color:var(--s-5xx);background:var(--s-5xx-bg)}

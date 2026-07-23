@@ -5,8 +5,28 @@
         @domresize="resize"
         :changeApis="changeApis"
     >
+      <div style="display:flex; height:100%; width:100%;">
 
-        <template v-if="syncState">
+        <!-- 左側垂直主選單（仿 w-web-sso）：切換 API 工作區 / 統計資訊 -->
+        <div :style="`width:${widthMainMenu}px; flex-shrink:0; height:100%; box-sizing:border-box; background:var(--bg-2); border-right:1px solid var(--border); display:flex; flex-direction:column; padding:8px 0; gap:4px;`">
+            <button
+                v-for="m in mainMenus"
+                :key="m.id"
+                class="w-mm-btn"
+                :class="{on: section===m.id}"
+                @click="onClickMainMenu(m)"
+            >
+                <svg viewBox="0 0 24 24" width="22" height="22" style="display:block; margin:0 auto;"><path :d="m.icon" fill="currentColor"></path></svg>
+                <div class="w-mm-label">{{$t(m.textKey)}}</div>
+            </button>
+        </div>
+
+        <!-- 工作區 -->
+        <div style="flex:1; min-width:0; height:100%; position:relative;">
+
+          <template v-if="section==='api'">
+
+            <template v-if="syncState">
 
             <WDrawer
                 :style="`height:${panelHeight}px; width:100%;`"
@@ -23,25 +43,44 @@
             >
 
                 <template v-slot:drawer="props">
-                    <div :style="`height:${props.height}px; background:#fff; position:relative;`">
+                    <div :style="`height:${props.height}px; background:var(--bg-2); border-right:1px solid var(--border); position:relative;`">
+
+                        <!-- 搜尋 + 新增API -->
+                        <div :style="`height:${heightDrawerHeader}px; box-sizing:border-box; padding:8px 40px 8px 8px; border-bottom:1px solid var(--border); display:flex; gap:6px; align-items:center;`">
+                            <input
+                                v-model="search"
+                                type="text"
+                                :placeholder="$t('searchApiPlaceholder')"
+                                style="flex:1; min-width:0; padding:5px 8px; border:1px solid var(--border); border-radius:var(--radius); font-size:0.85rem; outline:none; box-sizing:border-box; transition:border-color .15s, box-shadow .15s;"
+                                @focus="$event.target.style.borderColor='var(--accent)'; $event.target.style.boxShadow='var(--focus)'"
+                                @blur="$event.target.style.borderColor='var(--border)'; $event.target.style.boxShadow='none'"
+                            />
+                            <button
+                                @click="onClickAddApi"
+                                class="w-btn-primary"
+                                style="flex-shrink:0; white-space:nowrap;"
+                            >+ {{$t('addApi')}}</button>
+                        </div>
 
                         <template v-if="apisTree.length>0">
                             <WTree
-                                :style="`height:${props.height}px;`"
-                                :viewHeightMax="props.height"
+                                :style="`height:${props.height-heightDrawerHeader}px;`"
+                                :viewHeightMax="props.height-heightDrawerHeader"
                                 :data="apisTree"
                                 :iconHeight="lineHeightTree"
                                 :defItemHeight="lineHeightTree"
                                 :activable="true"
                                 :itemActive="apiActive"
                                 :funActive="funActive"
-                                :itemTextColorActive="'#000'"
-                                :itemBackgroundColorActive ="'rgba(100,100,100,0.15)'"
+                                :itemTextColorActive="'var(--c-1)'"
+                                :itemBackgroundColorActive ="'linear-gradient(to right, #0099ff 3px, rgba(0,153,255,0.08) 3px)'"
+                                :indent="0.25"
+                                :iconSize="12"
                             >
                                 <template v-slot:item="props">
 
                                     <div
-                                        :style="`display:flex; align-items:center; min-height:${lineHeightTree}px;`"
+                                        :style="`display:flex; align-items:center; min-height:${lineHeightTree}px; color:var(--c-3); font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;`"
                                         v-if="props.data.type!=='node'"
                                     >
                                         {{props.data.key}}
@@ -49,12 +88,12 @@
 
                                     <div
                                         :style="`display:flex; align-items:center; min-height:${lineHeightTree}px; cursor:pointer;`"
-                                        @click="ckItem(getItemByKey(props.data.text))"
+                                        @click="ckItem(getItemByKey(props.data.text), props.data)"
                                         v-else
                                     >
 
                                         <div style="padding-right:5px;">
-                                            <div :style="`padding:0px 6px; font-size:0.7rem; border-radius:10px; border:1px solid #ddd; color:#fff; background:${getMethodColorByKey(props.data.text)};`">
+                                            <div class="w-mb" :class="getMethodByKey(props.data.text).toLowerCase()">
                                                 {{getMethodByKey(props.data.text)}}
                                             </div>
                                         </div>
@@ -81,7 +120,7 @@
                         >
                             <WButtonCircle
                                 :paddingStyle="{v:3,h:3}"
-                                :icon="'mdi-arrow-left'"
+                                :icon="mdiArrowLeft"
                                 :iconSize="16"
                                 :backgroundColor="'#fff'"
                                 :backgroundColorHover="'#eee'"
@@ -101,275 +140,92 @@
                 <template v-slot:content="props">
                     <div :style="`height:${props.height}px; width:${props.width}px; position:relative;`">
 
-                        <!-- 選擇API之顯示區 -->
-                        <template>
+                        <!-- 模式切換(文件/編輯/測試) + 內容 -->
+                        <template v-if="apiSelect || newMode">
+
+                            <div :style="`height:${heightModeBar}px; box-sizing:border-box; padding:8px 12px; border-bottom:1px solid var(--border); background:var(--bg-1); display:flex; align-items:center;`">
+                                <div class="w-seg">
+                                    <button class="w-seg-btn" :class="{on: mode==='docs'}" @click="onChangeMode({id:'docs'})">{{$t('tabDocs')}}</button>
+                                    <button class="w-seg-btn" :class="{on: mode==='edit'}" @click="onChangeMode({id:'edit'})">{{$t('tabEdit')}}</button>
+                                    <button class="w-seg-btn" :class="{on: mode==='test'}" @click="onChangeMode({id:'test'})">{{$t('tabTest')}}</button>
+                                </div>
+                            </div>
 
                             <div
-                                :style="`height:${props.height}px; overflow-y:auto;`"
-                                v-if="apiSelect"
+                                :style="`height:${props.height-heightModeBar}px; overflow-y:auto; background:var(--bg-1);`"
+                                v-if="mode==='docs' && apiSelect"
                             >
-                                <div style="padding:20px;">
+                                <div style="padding:30px 36px;">
 
-                                    <div style="padding:5px;">
+                                    <!-- op header -->
+                                    <div><span class="w-mb" :class="getMethod(apiSelect).toLowerCase()">{{getMethod(apiSelect)}}</span></div>
+                                    <div class="op-title">{{$ui.gv(apiSelect,'name')}}</div>
+                                    <div class="op-path"><span class="w-mb" :class="getMethod(apiSelect).toLowerCase()">{{getMethod(apiSelect)}}</span><span class="w-mono">{{$ui.gv(apiSelect,'url')}}</span></div>
+                                    <div class="op-desc">{{$ui.gv(apiSelect,'description')}}</div>
 
-                                        <div class="bk-title" style="">
-                                            {{$t('apiUrl')}}
-                                        </div>
-
-                                        <div style="padding:10px; border-radius:5px; border:1px solid #ddd; background:#fff; display:flex; align-items:center;">
-
-                                            <div style="padding-right:5px;">
-                                                <div :style="`padding:0px 6px; font-size:0.7rem; border-radius:10px; border:1px solid #ddd; color:#fff; background:${getMethodColor(apiSelect)};`">
-                                                    {{getMethod(apiSelect)}}
-                                                </div>
-                                            </div>
-
-                                            <div style="font-size:0.8rem;">
-                                                {{$ui.gv(apiSelect,'url')}}
-                                            </div>
-
-                                        </div>
-
+                                    <!-- metadata pills -->
+                                    <div class="pills">
+                                        <span class="pill" v-if="$ui.gv(apiSelect,'version')"><b>{{$ui.gv(apiSelect,'version')}}</b></span>
+                                        <span class="pill" v-if="$ui.gv(apiSelect,'levels')">{{$t('levels')}} <b>{{$ui.gv(apiSelect,'levels')}}</b></span>
+                                        <span class="pill" v-if="keywordsList.length">{{$t('keywords')}}<span class="kw-chip" v-for="kw in keywordsList" :key="'kw-'+kw">{{kw}}</span></span>
+                                        <span class="pill ok" v-if="$ui.gv(apiSelect,'state')">{{$ui.gv(apiSelect,'state')}}</span>
+                                        <span class="pill" v-if="$ui.gv(apiSelect,'creator')">{{$t('creator')}} <b>{{$ui.gv(apiSelect,'creator')}}</b></span>
+                                        <span class="pill" v-if="$ui.gv(apiSelect,'dataSource')">{{$t('dataSource')}} <b>{{$ui.gv(apiSelect,'dataSource')}}</b></span>
                                     </div>
 
-                                    <div style="padding:10px;">
-
-                                        <div style="color:#485ed5;">
-                                            {{$ui.gv(apiSelect,'name')}}
+                                    <!-- two-column split -->
+                                    <div class="split">
+                                        <!-- 左欄：參數說明 -->
+                                        <div>
+                                            <div class="dsec">
+                                                <div class="dsec-h">{{$t('docInput')}}</div>
+                                                <div class="doc-md"><MdPanel :md="$ui.gv(apiSelect,'mdInputParams')"></MdPanel></div>
+                                            </div>
+                                            <div class="dsec">
+                                                <div class="dsec-h">{{$t('docOutputFields')}}</div>
+                                                <div class="doc-md"><MdPanel :md="$ui.gv(apiSelect,'mdOutputParams')"></MdPanel></div>
+                                            </div>
                                         </div>
-
-                                        <div class="bk-title" style="">
-                                            {{$ui.gv(apiSelect,'description')}}
+                                        <!-- 右欄：code rail -->
+                                        <div class="rail">
+                                            <div class="card">
+                                                <div class="card-h"><span class="lab">{{$t('docRequest')}}</span><span class="w-muted" style="margin-left:auto; font-size:11.5px;">cURL</span></div>
+                                                <pre class="code">{{curlOf(apiSelect)}}</pre>
+                                            </div>
+                                            <div class="card">
+                                                <div class="card-h"><span class="lab">{{$t('resTitle')}}</span><span class="st">200 OK</span></div>
+                                                <pre class="code" v-html="jsonHighlight($ui.gv(apiSelect,'outputExample'))"></pre>
+                                            </div>
                                         </div>
-
-                                    </div>
-
-                                    <div style="padding:10px;">
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('tokens')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'tokens')}}
-                                            </div>
-
-                                        </div>
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('version')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'version')}}
-                                            </div>
-
-                                        </div>
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('levels')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'')}}
-                                            </div>
-
-                                        </div>
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('keywords')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'')}}
-                                            </div>
-
-                                        </div>
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('state')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'')}}
-                                            </div>
-
-                                        </div>
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('timeCreate')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'timeCreate',getDay)}}
-                                            </div>
-
-                                        </div>
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('timeUpdate')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'timeUpdate',getDay)}}
-                                            </div>
-
-                                        </div>
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('creator')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'creator')}}
-                                            </div>
-
-                                        </div>
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('dataSource')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'dataSource')}}
-                                            </div>
-
-                                        </div>
-
-                                        <div class="bk" style="">
-
-                                            <div class="bk-title" style="">
-                                                {{$t('isActive')}}
-                                            </div>
-
-                                            <div class="bk-item" style="">
-                                                {{$ui.gv(apiSelect,'isActive')}}
-                                            </div>
-
-                                        </div>
-
-                                    </div>
-
-                                    <div style="padding:10px;">
-
-                                        <div class="bk-title" style="">
-                                            {{$t('mdInputParams')}}
-                                        </div>
-
-                                        <div class="bk-item" style="padding:10px;">
-                                            <MdPanel
-                                                :md="$ui.gv(apiSelect,'mdInputParams')"
-                                            ></MdPanel>
-                                        </div>
-
-                                    </div>
-
-                                    <div style="padding:10px;">
-
-                                        <div class="bk-title" style="">
-                                            {{$t('inputExample')}}
-                                        </div>
-
-                                        <div class="bk-item" style="padding:10px;">
-                                            {{$ui.gv(apiSelect,'inputExample')}}
-                                        </div>
-
-                                    </div>
-
-                                    <div style="padding:10px;">
-
-                                        <div class="bk-title" style="">
-                                            {{$t('mdOutputParams')}}
-                                        </div>
-
-                                        <div class="bk-item" style="padding:10px;">
-                                            <MdPanel
-                                                :md="$ui.gv(apiSelect,'mdOutputParams')"
-                                            ></MdPanel>
-                                        </div>
-
-                                    </div>
-
-                                    <div style="padding:10px;">
-
-                                        <div class="bk-title" style="">
-                                            {{$t('outputExample')}}
-                                        </div>
-
-                                        <div style="padding-top:3px;">
-
-                                            <div style="padding-left:10px; margin-bottom:-1px;">
-                                                <!-- 因上下皆有border, 故需負margin-bottom來吃掉重複border -->
-                                                <WGroupChipRadio
-                                                    :items="optputMenuItems"
-                                                    :value="optputMenuItemSelect"
-                                                    @input="changeOptputMenuItemSelect"
-                                                    :group="true"
-                                                    :group-border-radius-style="{top:true}"
-                                                    :group-shift="7"
-                                                    :border-radius="20"
-                                                    :border-color="'#ddd'"
-                                                    :border-color-hover="'#dadada'"
-                                                    :border-color-active="'orange lighten-2'"
-                                                    :margin-style="{}"
-                                                ></WGroupChipRadio>
-                                            </div>
-
-                                            <div style="border:1px solid #ddd; background:#fff">
-
-                                                <div
-                                                    style="padding:10px 15px;"
-                                                    v-if="optputMenuItemSelectId==='tree'"
-                                                >
-                                                    <WJsonView
-                                                        style="width:100%;"
-                                                        :viewHeightMax="null"
-                                                        :data="getOutputJsonObj(apiSelect)"
-                                                    ></WJsonView>
-                                                </div>
-
-                                                <div
-                                                    style="padding:15px; color:#555; font-size:0.85rem;"
-                                                    v-if="optputMenuItemSelectId==='raw'
-                                                ">
-                                                    <pre style="margin:0px; padding:0px;">{{getOutputJson(apiSelect)}}</pre>
-                                                </div>
-
-                                            </div>
-
-                                        </div>
-
                                     </div>
 
                                 </div>
                             </div>
 
-                            <div
-                                style="padding:20px; font-size:0.9rem;"
-                                v-else
-                            >
-                                {{$t('noSelectApi')}}
-                            </div>
+                            <LayoutContentEdit
+                                v-else-if="mode==='edit'"
+                                :item="editItem"
+                                :height="props.height-heightModeBar"
+                                :isNew="newMode"
+                                @saved="onEditSaved"
+                                @deleted="onEditDeleted"
+                                @cancel="onEditCancel"
+                            ></LayoutContentEdit>
+
+                            <LayoutContentTest
+                                v-else-if="mode==='test' && apiSelect"
+                                :item="apiSelect"
+                                :height="props.height-heightModeBar"
+                            ></LayoutContentTest>
 
                         </template>
+
+                        <div
+                            style="padding:20px; font-size:0.9rem;"
+                            v-else
+                        >
+                            {{$t('noSelectApi')}}
+                        </div>
 
                         <div
                             :style="`position:absolute; top:1px; left:4px;`"
@@ -377,7 +233,7 @@
                         >
                             <WButtonCircle
                                 :paddingStyle="{v:3,h:3}"
-                                :icon="'mdi-arrow-right'"
+                                :icon="mdiArrowRight"
                                 :iconSize="16"
                                 :backgroundColor="'#fff'"
                                 :backgroundColorHover="'#eee'"
@@ -406,6 +262,16 @@
             </div>
         </template>
 
+          </template>
+
+          <LayoutContentStats
+            v-else-if="section==='stats'"
+            :height="panelHeight"
+          ></LayoutContentStats>
+
+        </div>
+
+      </div>
     </div>
 </template>
 
@@ -416,28 +282,30 @@ import each from 'lodash-es/each.js'
 import size from 'lodash-es/size.js'
 import trim from 'lodash-es/trim.js'
 import find from 'lodash-es/find.js'
+import filter from 'lodash-es/filter.js'
 import cloneDeep from 'lodash-es/cloneDeep.js'
 import isobj from 'wsemi/src/isobj.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
-import j2o from 'wsemi/src/j2o.mjs'
-import timemsTZ2day from 'wsemi/src/timemsTZ2day.mjs'
 import convertToTree from 'wsemi/src/convertToTree.mjs'
+import { mdiArrowLeft, mdiArrowRight, mdiCloudBraces, mdiChartBar } from '@mdi/js'
 import WButtonCircle from 'w-component-vue/src/components/WButtonCircle.vue'
-import WGroupChipRadio from 'w-component-vue/src/components/WGroupChipRadio.vue'
 import WDrawer from 'w-component-vue/src/components/WDrawer.vue'
 import WTree from 'w-component-vue/src/components/WTree.vue'
-import WJsonView from 'w-component-vue/src/components/WJsonView.vue'
 import MdPanel from './MdPanel.vue'
+import LayoutContentEdit from './LayoutContentEdit.vue'
+import LayoutContentTest from './LayoutContentTest.vue'
+import LayoutContentStats from './LayoutContentStats.vue'
 
 
 export default {
     components: {
         WButtonCircle,
-        WGroupChipRadio,
         WDrawer,
         WTree,
-        WJsonView,
         MdPanel,
+        LayoutContentEdit,
+        LayoutContentTest,
+        LayoutContentStats,
     },
     props: {
     },
@@ -446,6 +314,14 @@ export default {
 
             panelWidth: 0,
             panelHeight: 0,
+
+            //左側垂直主選單
+            section: 'api', //'api' | 'stats'
+            widthMainMenu: 76,
+            mainMenus: [
+                { id: 'api', textKey: 'mmApi', icon: mdiCloudBraces },
+                { id: 'stats', textKey: 'mmStaInfor', icon: mdiChartBar },
+            ],
 
             drawer: true,
             drawerWidth: 320,
@@ -457,16 +333,17 @@ export default {
             apisTree: [],
             kpApisTree: {},
             apiActive: null,
+            mdiArrowLeft,
+            mdiArrowRight,
             apiSelect: null,
 
-            kpColorMethod: {
-                GET: '#7c2',
-                POST: '#68f',
-                PUT: '#f82',
-                DEL: '#f26',
-            },
-
-            optputMenuItemSelectId: 'tree',
+            //API 管理：模式切換 / 新增 / 搜尋
+            mode: 'docs', //'docs' | 'edit' | 'test'
+            newMode: false,
+            blankApi: {},
+            search: '',
+            heightModeBar: 46,
+            heightDrawerHeader: 48,
 
         }
     },
@@ -484,32 +361,25 @@ export default {
             let vo = this
             //trigger
             let apis = vo.apis
+            let search = vo.search //讓搜尋變更也觸發tree重建
+            void search
             vo.genTree(apis)
             return ''
         },
 
-        optputMenuItems: function() {
+        editItem: function() {
             let vo = this
-            let ms = [
-                {
-                    id: 'tree',
-                    text: vo.$t('outputMenuTree'),
-                    icon: 'mdi-vanity-light',
-                },
-                {
-                    id: 'raw',
-                    text: vo.$t('outputMenuRaw'),
-                    icon: 'mdi-lan',
-                },
-            ]
-            return ms
+            return vo.newMode ? vo.blankApi : vo.apiSelect
         },
 
-        optputMenuItemSelect: function() {
+        //關鍵字以分號切開成陣列（trim + 去空），供 pills 區逐一以 chip 呈現
+        keywordsList: function() {
             let vo = this
-            let r = find(vo.optputMenuItems, { id: vo.optputMenuItemSelectId })
-            // console.log(r)
-            return r
+            let s = get(vo.apiSelect, 'keywords', '')
+            if (!s) {
+                return []
+            }
+            return String(s).split(';').map((x) => x.trim()).filter((x) => x !== '')
         },
 
     },
@@ -530,20 +400,32 @@ export default {
         genTree: function () {
             let vo = this
 
+            //保留目前選取的API id, 重建後盡量維持選取(避免儲存/同步後選取跳回第一筆)
+            let prevId = get(vo.apiSelect, 'id', '')
+
             //default
             vo.apiActive = null
-            vo.apiSelect = null
             vo.apisTree = []
             vo.kpApisTree = {}
 
             //check
             if (size(vo.apis) === 0) {
+                vo.apiSelect = null
                 return
             }
 
             //cloneDeep
             let apis = cloneDeep(vo.apis)
             // console.log('apis', cloneDeep(apis))
+
+            //搜尋過濾(name/keywords/url/levels/method)
+            let sterm = trim(vo.search).toLowerCase()
+            if (sterm !== '') {
+                apis = filter(apis, (v) => {
+                    let hay = `${get(v, 'name', '')} ${get(v, 'keywords', '')} ${get(v, 'url', '')} ${get(v, 'levels', '')} ${get(v, 'method', '')}`.toLowerCase()
+                    return hay.indexOf(sterm) >= 0
+                })
+            }
 
             //tr
             let tr = {}
@@ -570,8 +452,14 @@ export default {
             let tree = convertToTree(tr, { bindRoot: '全部' })
             // console.log('tree', cloneDeep(tree))
 
-            //apiSelect, 預先選定api項目, 非tree選單active物件, 因id由convertToTree轉換提供, 故不能直接算得active選單物件id
-            let apiSelect = get(apis, 0, null)
+            //apiSelect: 優先保留原選取(仍存在時), 否則取第一筆
+            let apiSelect = null
+            if (prevId !== '') {
+                apiSelect = find(apis, { id: prevId }) || null
+            }
+            if (!iseobj(apiSelect)) {
+                apiSelect = get(apis, 0, null)
+            }
             // console.log('apiSelect', cloneDeep(apiSelect))
 
             //save
@@ -596,6 +484,16 @@ export default {
             return method
         },
 
+        curlOf: function(item) {
+            let vo = this
+            let method = vo.getMethod(item) || 'GET'
+            let url = get(item, 'inputExample', '')
+            if (!url) {
+                url = get(item, 'url', '')
+            }
+            return 'curl -X ' + method + ' "' + url + '"'
+        },
+
         getMethodByKey: function(key) {
             let vo = this
             let item = vo.getItemByKey(key)
@@ -603,62 +501,102 @@ export default {
             return method
         },
 
-        getMethodColor: function(item) {
-            let vo = this
-            let method = vo.getMethod(item)
-            let color = get(vo.kpColorMethod, method, '#888')
-            return color
-        },
-
-        getMethodColorByKey: function(key) {
-            let vo = this
-            let method = vo.getMethodByKey(key)
-            let color = get(vo.kpColorMethod, method, '#888')
-            return color
-        },
-
-        getDay: function(t) {
-            return timemsTZ2day(t)
-        },
-
-        getOutputJson: function(item) {
-            // let vo = this
-            let j = get(item, 'outputExample', '')
-            j = trim(j)
-            return j
-        },
-
-        getOutputJsonObj: function(item) {
-            // let vo = this
-            let j = this.getOutputJson(item)
-            // console.log(j)
-            let o = j2o(j)
-            return o
+        jsonHighlight: function(str) {
+            let s = (str === null || str === undefined) ? '' : String(str)
+            // escape HTML
+            s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            // key: "xxx":
+            s = s.replace(/("(?:[^"\\]|\\.)*")(\s*:)/g, '<span class="k">$1</span>$2')
+            // string value
+            s = s.replace(/:(\s*)("(?:[^"\\]|\\.)*")/g, ':$1<span class="s">$2</span>')
+            // number
+            s = s.replace(/([:\[,\s])(-?\d+\.?\d*)/g, '$1<span class="n">$2</span>')
+            // bool/null
+            s = s.replace(/\b(true|false|null)\b/g, '<span class="b">$1</span>')
+            return s
         },
 
         funActive: function(msg) {
             let vo = this
-            let b = !Array.isArray(msg.item.children) //children非陣列代表沒有所屬節點
+            let b = !Array.isArray(msg.item.children) //children非陣列代表沒有所屬節點(葉節點)
             if (b) {
-                if (!iseobj(vo.apiActive)) { //偵測若沒有apiActive才初始化預先選擇之api項目, 非api完整資訊
-                    let id = msg.item.id
-                    vo.apiActive = { id }
-                    // console.log('!iseobj(vo.apiActive)', vo.apiActive)
+                //渲染時用穩定的 api id(=節點 text) 對應目前選取項, 把 apiActive 刷新成該葉節點「當前」的 id;
+                //避免存檔後 tree 重建、convertToTree 重新產生節點 id, 使 apiActive 變舊而高亮(含左側 accent bar)失效
+                let itemText = get(msg, 'item.text', '')
+                let itemId = get(msg, 'item.id', '')
+                if (iseobj(vo.apiSelect) && itemText === vo.apiSelect.id) {
+                    if (get(vo.apiActive, 'id') !== itemId) {
+                        vo.apiActive = { id: itemId }
+                    }
+                }
+                else if (!iseobj(vo.apiActive)) { //無選取時初始化第一個葉節點為 active
+                    vo.apiActive = { id: itemId }
                 }
             }
             return b
         },
 
-        changeOptputMenuItemSelect: function(msg) {
-            // console.log('changeOptputMenuItemSelect', msg)
-            let vo = this
-            vo.optputMenuItemSelectId = msg.id
-        },
-
-        ckItem: function(item) {
+        ckItem: function(item, node) {
             // console.log('ckItem', item)
             let vo = this
             vo.apiSelect = cloneDeep(item)
+            if (iseobj(node)) { //點擊即更新 active 節點 id, 使高亮(含左側 bar)立即移到所點項目
+                vo.apiActive = { id: node.id }
+            }
+            vo.newMode = false //點選既有API即離開新增狀態
+        },
+
+        onChangeMode: function(msg) {
+            let vo = this
+            vo.mode = msg.id
+            //切到非編輯模式時取消新增狀態
+            if (vo.newMode && msg.id !== 'edit') {
+                vo.newMode = false
+            }
+        },
+
+        onClickMainMenu: function(m) {
+            let vo = this
+            vo.section = m.id
+        },
+
+        onClickAddApi: function() {
+            let vo = this
+            //種子空白API(預設值, 送出時後端funNew會配id/時間)
+            vo.blankApi = {
+                name: '',
+                description: '',
+                url: '',
+                method: 'get',
+                version: 'v1',
+                group: '',
+                levels: '',
+                keywords: '',
+                state: 'ok',
+                authType: 'none',
+                contentType: 'application/json',
+            }
+            vo.newMode = true
+            vo.mode = 'edit'
+        },
+
+        onEditSaved: function() {
+            let vo = this
+            vo.newMode = false
+            vo.mode = 'docs'
+        },
+
+        onEditDeleted: function() {
+            let vo = this
+            vo.newMode = false
+            vo.apiSelect = null
+            vo.mode = 'docs'
+        },
+
+        onEditCancel: function() {
+            let vo = this
+            vo.newMode = false
+            vo.mode = 'docs'
         },
 
     }
@@ -666,23 +604,34 @@ export default {
 </script>
 
 <style scoped>
-.bk {
-    display:inline-block;
-    width:200px;
-    padding:0px 10px 10px 0px;
-    vertical-align:top;
+.w-mm-btn {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 4px;
+    border: none;
+    border-left: 3px solid transparent;
+    background: transparent;
+    color: var(--c-2);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transition: background .15s, color .15s, border-color .15s;
 }
-.bk-title {
-    padding:3px;
-    font-size:0.8rem;
-    color:#888;
+.w-mm-btn:hover {
+    background: rgba(0, 153, 255, 0.06);
+    color: var(--c-1);
 }
-.bk-item {
-    padding:3px 5px;
-    font-size:0.9rem;
-    line-height:0.9rem;
-    border-radius:5px;
-    border:1px solid #ddd;
-    background:#fff;
+.w-mm-btn.on {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: rgba(0, 153, 255, 0.08);
+}
+.w-mm-label {
+    font-size: 11px;
+    line-height: 1.2;
+    text-align: center;
+    word-break: break-word;
 }
 </style>

@@ -1,8 +1,8 @@
 <template>
-    <div style="height:100svh; background:#f5f5f5;">
+    <div style="height:100svh; background:var(--bg-2);">
 
         <!-- menu top, 因窄版導致名稱換行故須使用overflow-y:hidden -->
-        <div :style="`height:${heightToolbar}px; overflow-y:hidden; padding:0px 10px; background:#fff; border-bottom:1px solid #ccc; display:flex; align-items:center;`">
+        <div :style="`height:${heightToolbar}px; box-sizing:border-box; overflow-y:hidden; padding:0px 10px; background:var(--bg-1); border-bottom:1px solid var(--border); display:flex; align-items:center;`">
 
             <WButtonCircle
                 :icon="'mdi-menu'"
@@ -20,8 +20,8 @@
                     </div>
 
                     <div>
-                        <div style="font-size:1.2rem; color:#000;">{{webName}}</div>
-                        <div style="font-size:0.8rem; color:#666;">{{$t('webDescription')}}</div>
+                        <div style="font-size:var(--fs-h3); color:var(--c-1); font-weight:600;">{{webName}}</div>
+                        <div style="font-size:var(--fs-xs); color:var(--c-2);">{{$t('webDescription')}}</div>
                     </div>
 
                 </div>
@@ -106,18 +106,15 @@ export default {
             let showLanguage = get(vo, 'webInfor.showLanguage', '')
             // console.log('showLanguage', showLanguage)
             vo.showLangSelect = showLanguage === 'y'
-            let language = get(vo, 'webInfor.language', '')
-            // console.log('language', language)
-            vo.$ui.setLang(language, 'layout mounted')
+            //setLang(null)：改走 getLang 解析（URL ?lang= > window 注入之 server 語系 > store），
+            //不再用 webInfor.language 明確覆蓋（否則會蓋掉 URL ?lang= 與使用者切換）。server 初始語系已由
+            //window.___pmwperm___.language（WWebApi 注入 index.html）提供，getLang 會取得。
+            vo.$ui.setLang(null, 'layout mounted')
             vo.firstSetting = false
         }
 
     },
     computed: {
-
-        viewState: function() {
-            return get(this, `$store.state.viewState`, '')
-        },
 
         heightToolbar: function() {
             //console.log('computed heightToolbar')
@@ -125,11 +122,6 @@ export default {
             let vo = this
 
             return get(vo, `$store.state.heightToolbar`, 0)
-        },
-
-        userToken: function() {
-            let vo = this
-            return get(vo, `$store.state.userToken`)
         },
 
         lang: function() {
@@ -165,16 +157,6 @@ export default {
             let vo = this
 
             return get(vo, `$store.state.webInfor.webLogo`, '')
-        },
-
-        userSelf: function() {
-            let vo = this
-            return get(vo, `$store.state.userSelf`, '')
-        },
-
-        userName: function() {
-            let vo = this
-            return get(vo, `userSelf.name`, '')
         },
 
     },

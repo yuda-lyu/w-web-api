@@ -4,6 +4,7 @@ import get from 'lodash-es/get.js'
 // import 'regenerator-runtime/runtime'
 // import 'intersection-observer' //需供Vuetify的Intersection Observer, 專案內有使用v-intersect才需引入, 而w-component-vue沒用v-intersect
 import Vue from 'vue'
+import './assets/scalar-ui.css'
 import WServHapiClient from 'w-serv-hapi/src/WServHapiClient.mjs'
 import WAlert from 'w-component-vue/src/components/WAlert.mjs'
 import domMutation from 'w-component-vue/src/js/domMutation.mjs'
@@ -12,8 +13,6 @@ import domDragDrop from 'w-component-vue/src/js/domDragDrop.mjs'
 import App from './App.vue'
 import store from './store/index.mjs'
 import ui from './plugins/mUI.mjs'
-import mDataSelectorSchema from './plugins/mDataSelectorSchema.mjs'
-import * as s from './plugins/mShare.mjs'
 import ds from './schema/index.mjs'
 // console.log('globalState', globalState)
 // console.log('ds', ds)
@@ -31,14 +30,16 @@ Vue.prototype.$alert = function() {
     }
 }
 
-//dssm
-let dssm = mDataSelectorSchema(ds)
-
 //prototype
 Vue.prototype.$ui = ui
 Vue.prototype.$t = ui.getKpText
-Vue.prototype.$s = s
-Vue.prototype.$dssm = dssm
+//$transErr：後端 reject 之 err-key → 依當前 lang 反查顯示文字。
+//非字串或查無對應 key（getKpText 查不到會原樣回 key）則 fallback 'anUnexpectedErrorOccurred'，避免顯示生 key。
+Vue.prototype.$transErr = (err) => {
+    let key = (typeof err === 'string' && err) ? err : 'anUnexpectedErrorOccurred'
+    let msg = ui.getKpText(key)
+    return (msg && msg !== key) ? msg : ui.getKpText('anUnexpectedErrorOccurred')
+}
 Vue.prototype.$ds = ds
 Vue.prototype.$dg = {}
 
@@ -79,7 +80,9 @@ WServHapiClient({
 
             })
             .catch((err) => {
-                console.log(err)
+                console.log('getWebInfor failed', err)
+                //getWebInfor 失敗時導向連線錯誤態，避免 ready(需 webInfor) 永假而卡在「已登入」轉圈無回饋
+                ui.updateConnState('csErrConn')
             })
 
     },
