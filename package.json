@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.0.55",
+  "version": "1.0.56",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^7.4.47",
@@ -9,7 +9,7 @@
     "showdown": "^2.1.0",
     "w-component-vue": "^2.4.74",
     "w-data-collector": "^1.0.23",
-    "w-serv-hapi": "^1.0.73",
+    "w-serv-hapi": "^1.0.74",
     "w-serv-orm": "^1.0.40",
     "w-ui-loginout": "^1.0.11",
     "w-syslog": "^1.0.10",
