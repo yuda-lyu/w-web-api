@@ -3,7 +3,7 @@
 <head>
     
     <meta charset="utf-8">
-    <title>WWebApi.mjs - Documentation</title>
+    <title>server/WWebApi.mjs - Documentation</title>
     
     
     <script src="scripts/prettify/prettify.js"></script>
@@ -35,7 +35,7 @@
 
 <div id="main">
     
-    <h1 class="page-title">WWebApi.mjs</h1>
+    <h1 class="page-title">server/WWebApi.mjs</h1>
     
 
     
@@ -73,6 +73,10 @@ import replace from 'wsemi/src/replace.mjs'
 import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
 import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
 import procLang from './procLang.mjs'
+import procProxy from './procProxy.mjs'
+import procApis from './procApis.mjs'
+import staEvent from './staLogs/staEvent.mjs'
+import srLogInit from './srLog.mjs'
 import ds from '../src/schema/index.mjs'
 
 
@@ -273,6 +277,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     //params
     let showLanguage = get(opt, 'showLanguage', 'y')
     let language = get(opt, 'language', 'eng')
+    let logFd = get(opt, 'logFd', './logs') //srLog 寫入 + staEvent 統計共用之 log 資料夾
 
 
     //kpLangExt
@@ -294,9 +299,43 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         wp = WServOrm(ds, WOrm, url, db, optWServOrm)
     }
     catch (err) {
-        console.log(err)
+        //ORM 為必要依賴：初始化失敗即 fail-fast，不以 wp={} 帶 undefined woItems/procOrm 殘缺啟動（與建構子其餘必要依賴一致）
+        console.log('WServOrm init failed', err)
+        throw err
     }
     let { woItems, procOrm } = wp
+
+
+    //srLog（後端 log；錯誤一律 log err-key 供識別，對齊 w-web-sso）
+    let srLog = srLogInit(opt)
+
+    //maskTok：debug console.log 不印完整 token/authorization（憑證），僅前 4 碼 + ***，避免憑證落入 stdout
+    let maskTok = (t) => isestr(t) ? (strleft(t, 4) + '***') : t
+
+    //kpFunExt 邊界統一處理：成功記 info（供 staEvent 統計呼叫頻率）；catch 後端錯誤 → srLog 該 err-key →
+    //原樣 re-reject（前端依 key 查自己 lang 顯示）。event 統一加 'kpfun-' 前綴 → 專用事件、與 api/verifyConn 區分。
+    let wrapErrLog = (event, fn) => {
+        let ev = 'kpfun-' + event
+        return async (...args) => {
+            try {
+                let result = await fn(...args)
+                srLog.info({ event: ev }) //成功也記 info
+                return result
+            }
+            catch (err) {
+                srLog.error({ event: ev, err })
+                return Promise.reject(err)
+            }
+        }
+    }
+
+
+    //procProxy
+    let { proxyRequest } = procProxy({ srLog })
+
+
+    //procApis
+    let { getApisList, saveApi, deleteApi } = procApis({ woItems, procOrm, ds })
 
 
     //getWebInfor
@@ -321,26 +360,26 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         if (!isestr(id)) {
             console.log('user', user)
             console.log('can not get the userId')
-            return Promise.reject(`can not get the userId`)
+            return Promise.reject('errUserIdMissing')
         }
         let email = get(user, 'email', '')
         if (!isestr(email)) {
             console.log('user', user)
             console.log('can not get the email of user')
-            return Promise.reject(`can not get the email of user`)
+            return Promise.reject('errUserEmailMissing')
         }
         let name = get(user, 'name', '')
         if (!isestr(name)) {
             console.log('user', user)
             console.log('can not get userName')
-            return Promise.reject(`can not get userName`)
+            return Promise.reject('errUserNameMissing')
         }
         let isAdmin = get(user, 'isAdmin', '')
         if (isAdmin !== 'y' &amp;&amp; isAdmin !== 'n') {
             console.log('user', user)
             console.log('user.isAdmin is not y or n', user.isAdmin)
             console.log('can not get the role of user')
-            return Promise.reject(`can not get the role of user`)
+            return Promise.reject('errUserRoleMissing')
         }
         return true
     }
@@ -356,14 +395,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         }
 
         //check
-        if (true) {
-            // if (!iseobj(userSelf)) {
-            //     console.log(`token`, token)
-            //     console.log(`can not find the user from token`)
-            //     return Promise.reject(`can not find the user from token`)
-            // }
-            await checkUser(userSelf)
-        }
+        await checkUser(userSelf)
 
         return userSelf
     }
@@ -402,9 +434,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         if (!b) {
             console.log('user', user)
             console.log(`user does not have permission`)
-            return Promise.reject(`user does not have permission`)
+            return Promise.reject('errUserNoPermission')
         }
 
+        srLog.info({ event: 'verifyClientUser', from, userId: get(user, 'id', '') }) //瀏覽使用者驗證通過
         return user
     }
 
@@ -427,7 +460,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         if (!iseobj(user)) {
             console.log(`token`, token)
             console.log(`can not find the user from token`)
-            return Promise.reject(`can not find the user from token`)
+            return Promise.reject('errUserNotFound')
         }
 
         //verifyAppUser
@@ -440,9 +473,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         if (!b) {
             console.log('user', user)
             console.log(`user does not have permission`)
-            return Promise.reject(`user does not have permission`)
+            return Promise.reject('errUserNoPermission')
         }
 
+        srLog.info({ event: 'verifyAppUser', from, userId: get(user, 'id', '') }) //應用程式使用者驗證通過
         return user
     }
 
@@ -469,7 +503,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         if (!iseobj(payload)) {
             console.log('payload', payload)
             console.log(`invalid payload in req`)
-            return Promise.reject(`invalid payload in req`)
+            return Promise.reject('errPayloadInvalid')
         }
 
         //group
@@ -479,7 +513,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         if (!isestr(group)) {
             console.log('payload', payload)
             console.log(`invalid group in payload`)
-            return Promise.reject(`invalid group in payload`)
+            return Promise.reject('errGroupInvalid')
         }
 
         //rows
@@ -489,7 +523,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         if (!isearr(rows)) {
             console.log('payload', payload)
             console.log(`invalid rows in payload`)
-            return Promise.reject(`invalid rows in payload`)
+            return Promise.reject('errRowsInvalid')
         }
 
         //r
@@ -529,7 +563,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             console.log('inp', inp)
             console.log('group', group)
             console.log(`invalid group`)
-            return Promise.reject(`invalid group`)
+            return Promise.reject('errGroupInvalid')
         }
 
         //rows
@@ -540,7 +574,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         if (!isearr(rows)) {
             console.log('inp', inp)
             console.log('keyTable', keyTable)
-            return Promise.reject(`invalid rows`)
+            return Promise.reject('errRowsInvalid')
         }
 
         //save from
@@ -611,6 +645,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         c = replace(c, '/mapi/', '{sfd}/') //方法同genEntry
         c = replace(c, '{sfd}', subfolder)
         c = replace(c, '{urlRedirect}', urlRedirect)
+        c = replace(c, '{language}', language) //注入初始語系 → window.___pmwperm___.language（前端 getLang 之來源之一）
         fs.writeFileSync(fpEntryOut, c, 'utf8')
     }
     catch (err) {
@@ -636,10 +671,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //check
                     if (!isestr(token)) {
                         console.log('req.query', get(req, 'query'))
-                        console.log('token', token)
+                        console.log('token', maskTok(token))
                         console.log('[API]getUserByToken/check token: invalid token')
-                        console.log(`token does not have permission`)
-                        return Promise.reject(`token does not have permission`)
+                        return Promise.reject('errTokenNoPermission')
                     }
 
                     //getAndVerifyClientUser
@@ -647,12 +681,12 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check
                     if (!iseobj(user)) {
-                        console.log('token', token)
+                        console.log('token', maskTok(token))
                         console.log('[API]getUserByToken/check user: invalid user')
-                        console.log(`token does not have permission`)
-                        return Promise.reject(`token does not have permission`)
+                        return Promise.reject('errTokenNoPermission')
                     }
 
+                    srLog.info({ event: 'api/getUserByToken', userId: get(user, 'id', '') })
                     return user
                 }
 
@@ -683,8 +717,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //                 console.log('req.query', get(req, 'query'))
         //                 console.log('token', token)
         //                 console.log('[API]getAPIsList/check token: invalid token')
-        //                 console.log(`token does not have permission`)
-        //                 return Promise.reject(`token does not have permission`)
+        //                 return Promise.reject('errTokenNoPermission')
         //             }
 
         //             //getAndVerifyClientUser
@@ -694,8 +727,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //             if (!iseobj(user)) {
         //                 console.log('token', token)
         //                 console.log('[API]getAPIsList/check user: invalid user')
-        //                 console.log(`token does not have permission`)
-        //                 return Promise.reject(`token does not have permission`)
+        //                 return Promise.reject('errTokenNoPermission')
         //             }
 
         //             //getAPIsList
@@ -732,8 +764,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //                 console.log('req.query', get(req, 'query'))
         //                 console.log('token', token)
         //                 console.log('[API]updateAPIs/check token: invalid token')
-        //                 console.log(`token does not have permission`)
-        //                 return Promise.reject(`token does not have permission`)
+        //                 return Promise.reject('errTokenNoPermission')
         //             }
 
         //             //getAndVerifyClientUser
@@ -743,8 +774,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //             if (!iseobj(user)) {
         //                 console.log('token', token)
         //                 console.log('[API]updateAPIs/check user: invalid user')
-        //                 console.log(`token does not have permission`)
-        //                 return Promise.reject(`token does not have permission`)
+        //                 return Promise.reject('errTokenNoPermission')
         //             }
 
         //             //parsePayload
@@ -782,10 +812,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //check
                     if (!isestr(token)) {
                         console.log('req.query', get(req, 'query'))
-                        console.log('token', token)
+                        console.log('token', maskTok(token))
                         console.log('[API]syncAndReplaceTabs/check token: invalid token')
-                        console.log(`token does not have permission`)
-                        return Promise.reject(`token does not have permission`)
+                        return Promise.reject('errTokenNoPermission')
                     }
 
                     //keyTable
@@ -796,15 +825,14 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                         console.log('req.query', get(req, 'query'))
                         console.log('keyTable', keyTable)
                         console.log('[API]syncAndReplaceTabs/check keyTable: invalid keyTable')
-                        console.log(`token does not have permission`)
-                        return Promise.reject(`token does not have permission`)
+                        return Promise.reject('errKeyTableInvalid')
                     }
 
                     //check keyTable
                     let allowedTables = ['apis']
                     if (!allowedTables.includes(keyTable)) {
                         console.log('[API]syncAndReplaceTabs/check keyTable: unexpected keyTable', keyTable)
-                        return Promise.reject(`invalid keyTable: ${keyTable}`)
+                        return Promise.reject('errKeyTableInvalid')
                     }
 
                     //getAndVerifyAppUser
@@ -812,10 +840,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check
                     if (!iseobj(user)) {
-                        console.log('token', token)
+                        console.log('token', maskTok(token))
                         console.log('[API]syncAndReplaceTabs/check user: invalid user')
-                        console.log(`token does not have permission`)
-                        return Promise.reject(`token does not have permission`)
+                        return Promise.reject('errTokenNoPermission')
                     }
 
                     //userId
@@ -823,11 +850,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check userId
                     if (!isestr(userId)) {
-                        console.log('token', token)
+                        console.log('token', maskTok(token))
                         console.log('user', user)
                         console.log('[API]syncAndReplaceTabs/check userId: invalid userId')
-                        console.log(`token does not have permission`)
-                        return Promise.reject(`token does not have permission`)
+                        return Promise.reject('errTokenNoPermission')
                     }
 
                     //parsePayload
@@ -836,6 +862,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //syncAndReplaceTabs
                     let r = await syncAndReplaceTabs(userId, inp, keyTable)
 
+                    srLog.info({ event: 'api/syncAndReplaceTabs', userId, keyTable })
                     return r
                 }
 
@@ -863,7 +890,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
     //WServHapiServer
     instWServHapiServer = new WServHapiServer({
-        port: opt.serverPort,
+        port: serverPort,
         pathStaticFiles,
         apiName: 'api',
         apis,
@@ -878,28 +905,28 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             //check
             if (!isestr(token)) {
                 console.log('apiType', apiType)
-                console.log('authorization', authorization)
+                console.log('authorization', maskTok(authorization))
                 console.log('invalid token')
                 return false
             }
 
-            //checkToken
+            //checkToken：套件層連線閘僅做「token 認證」（解析 user + 驗欄位齊備）。**授權**（如限管理員）屬
+            //套件使用者之責——由其提供之 getUserByToken（可對非授權者回 {}）/ verifyClientUser / verifyAppUser，
+            //或 WServOrm 之 useCheckUser/useExcludeWhenNotAdmin 等鉤子決定；套件不對連線層強加特定授權政策（避免越界、
+            //保留使用者彈性）。詳見 spec/設計要點與取捨.md「套件授權責任」。
             let b = await p.checkToken(token)
-            // console.log('b', b)
 
+            srLog.info({ event: 'verifyConn', apiType }) //連線之 token 認證通過（checkToken 失敗會 throw 不到此）
             return b
         },
         getUserIdByToken: async (token) => { //可使用async或sync函數
             // console.log('getUserIdByToken', token)
-            return ''
-            // let user = await getUserByToken(token) //api儲存時須使用
-            // let userId = get(user, 'id', '')
-            // if (!isestr(userId)) {
-            //     console.log('token', token)
-            //     console.log('userId', userId)
-            //     return Promise.reject(`can not find user.id`)
-            // }
-            // return userId
+            if (!isestr(token)) {
+                return ''
+            }
+            let user = await getUserByToken(token)
+            let userId = get(user, 'id', '')
+            return userId
         },
         useDbOrm: true,
         kpOrm: woItems,
@@ -907,9 +934,29 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         tableNamesExec,
         methodsExec: ['select', 'insert', 'save', 'del'], //mix需於procOrm內註冊以提供
         tableNamesSync,
-        kpFunExt: { //接收參數第1個為userId, 之後才是前端給予參數
+        kpFunExt: { //接收參數第1個為userId, 之後才是前端給予參數（皆經 wrapErrLog：錯誤 srLog err-key 後 re-reject）
 
-            getWebInfor,
+            getWebInfor: wrapErrLog('getWebInfor', getWebInfor),
+
+            proxyRequest: wrapErrLog('proxyRequest', (userId, reqSpec) => {
+                return proxyRequest(reqSpec)
+            }),
+
+            getApisList: wrapErrLog('getApisList', (userId) => {
+                return getApisList(userId)
+            }),
+            saveApi: wrapErrLog('saveApi', (userId, row) => {
+                return saveApi(userId, row)
+            }),
+            deleteApi: wrapErrLog('deleteApi', (userId, id) => {
+                return deleteApi(userId, id)
+            }),
+
+            //統計資訊頁：回傳各 event 之時段發生頻率（讀 logFd 之 log）。連線之 token 認證由 verifyConn 把關；
+            //授權（限管理員）屬套件使用者責任（見 verifyConn 註解與設計要點與取捨「套件授權責任」）。timeLength 天數 / timeInterval 'hr'|'day'。
+            getStaEvent: wrapErrLog('getStaEvent', (userId, timeLength = 7, timeInterval = 'hr') => {
+                return staEvent(timeLength, timeInterval, { fdLog: logFd })
+            }),
 
             // getAPIsList: (userId, query = {}) => { //待提供api管理系統界面使用
             //     return getAPIsList(query)
@@ -942,7 +989,7 @@ export default WWebApi
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.2</a> on Sat Mar 28 2026 23:43:26 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Thu Jul 23 2026 11:15:32 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
