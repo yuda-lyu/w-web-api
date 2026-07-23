@@ -1,12 +1,11 @@
 {
   "name": "w-web-api",
-  "version": "1.0.57",
+  "version": "1.0.58",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^7.4.47",
     "axios": "^1.18.1",
     "lodash-es": "^4.18.1",
-    "showdown": "^2.1.0",
     "w-component-vue": "^2.4.74",
     "w-data-collector": "^1.0.23",
     "w-md2html": "^1.0.36",
