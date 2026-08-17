@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.0.65",
+  "version": "1.0.66",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^7.4.47",
@@ -27,7 +27,7 @@
     "eslint-plugin-vue": "^9.10.0",
     "vue": "^2.7.16",
     "vuex": "^3.6.2",
-    "w-orm-lmdb": "^1.0.12",
+    "w-orm-lmdb": "^1.0.19",
     "w-package-tools": "^1.1.12",
     "w-package-tools-e2e": "^1.0.0",
     "w-screenctl": "^1.0.8"
