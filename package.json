@@ -1,11 +1,11 @@
 {
   "name": "w-web-api",
-  "version": "1.0.70",
+  "version": "1.0.71",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "@mdi/js": "^7.4.47",
     "axios": "^1.18.1",
-    "w-component-vue": "^2.4.85",
+    "w-component-vue": "^2.4.86",
     "w-data-collector": "^1.0.30",
     "w-md2html": "^1.0.43",
     "w-serv-hapi": "^1.0.80",
