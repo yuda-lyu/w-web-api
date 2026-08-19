@@ -67,11 +67,11 @@
                 >
                     {{$t('noStaData')}}
                 </div>
-                <WEchartsVueDyn
+                <WEchartsVue
                     v-else
                     :options="chartOption"
                     :style="`width:100%; height:${chartHeight}px;`"
-                ></WEchartsVueDyn>
+                ></WEchartsVue>
             </div>
 
             <!-- 事件統計表（各事件為列，依最近1日總數多→少排序；欄位 1日/8時/4時/1時） -->
@@ -119,7 +119,7 @@ import sumBy from 'lodash-es/sumBy.js'
 import reduce from 'lodash-es/reduce.js'
 import size from 'lodash-es/size.js'
 import isearr from 'wsemi/src/isearr.mjs'
-import WEchartsVueDyn from 'w-component-vue/src/components/WEchartsVueDyn.vue'
+import WEchartsVue from 'w-echarts-vue/src/components/WEchartsVue.vue'
 
 
 //固定色票（依事件在 allEvents 之索引取色，使同一事件顏色穩定、圖表與表格與 chip 一致）
@@ -132,7 +132,7 @@ let COLORS = [
 
 export default {
     components: {
-        WEchartsVueDyn,
+        WEchartsVue,
     },
     props: {
         height: {
