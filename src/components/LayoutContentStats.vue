@@ -259,7 +259,7 @@ export default {
 
             return {
                 tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-                legend: { show: true, type: 'scroll' },
+                legend: { show: true, type: 'scroll', top: 0 }, //top須明給: echarts 6 起 legend 預設由 top:0 改為 bottom, 不給會落到底部壓住 x 軸時間標籤
                 grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
                 xAxis: [{
                     type: 'category',
