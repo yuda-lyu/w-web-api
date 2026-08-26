@@ -58,7 +58,7 @@ import ds from '../src/schema/index.mjs'
  *
  * import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
  * import WWebApi from './server/WWebApi.mjs'
- * import getSettings from './g.getSettings.mjs'
+ * import getSettings from './g_getSettings.mjs'
  *
  *
  * //st

@@ -2,7 +2,7 @@
 
 ## 觸發
 
-使用者於右側內容區點「測試」分頁，`LayoutContent.vue` 切到 `LayoutContentTest.vue`，請求建構器由所選 API 種子帶入（網址/方法/標頭等）；使用者改 Request URL 後點「送出請求」，呼叫 `$fapi.proxyRequest` 經後端 proxy 繞過 CORS 打目標，回應面板顯示狀態碼與內容。
+進站預設頁為統計資訊頁，使用者點左側主選單「API」切至 API 工作區後，於右側內容區點「測試」分頁，`LayoutContent.vue` 切到 `LayoutContentTest.vue`，請求建構器由所選 API 種子帶入（網址/方法/標頭等）；使用者改 Request URL 後點「送出請求」，呼叫 `$fapi.proxyRequest` 經後端 proxy 繞過 CORS 打目標，回應面板顯示狀態碼與內容。
 
 ## 重要流程
 

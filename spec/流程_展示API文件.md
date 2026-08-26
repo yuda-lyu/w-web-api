@@ -2,16 +2,16 @@
 
 ## 觸發
 
-使用者以帶 `?token=sys` 的網址開啟頁面；`App.vue` 完成登入與 webInfor 取得後才渲染 `Layout`，`LayoutContent.vue` 依後端同步下來的 API 清單建出左側樹、預設選取第一筆，右側顯示其 Docs 分頁文件。使用者可於樹搜尋、點選節點切換文件、切換 Docs/Edit/Test 分頁、切換語系、收合左側抽屜。
+使用者以帶 `?token=sys` 的網址開啟頁面；`App.vue` 完成登入與 webInfor 取得後才渲染 `Layout`。進站預設頁為統計資訊頁，使用者點左側主選單「API」切至 API 工作區後，`LayoutContent.vue` 依後端同步下來的 API 清單建出左側樹、預設選取第一筆，右側顯示其 Docs 分頁文件。使用者可於樹搜尋、點選節點切換文件、切換 Docs/Edit/Test 分頁、切換語系、收合左側抽屜。
 
 ## 重要流程
 
 - **E2E-001**
   - title: 載入顯示 API 樹與第一筆 API 文件
-  - description: 使用者以 `?token=sys` 進入頁面（開發模式自動登入為管理員）。預期左側渲染出多筆 seeded API 的樹狀清單、右側預設顯示第一筆 API（取得API清單）的 Docs 分頁。確立「載入即就緒」基準畫面。
+  - description: 使用者以 `?token=sys` 進入頁面（開發模式自動登入為管理員；進站預設頁為統計資訊頁），點左側主選單「API」切至 API 工作區。預期左側渲染出多筆 seeded API 的樹狀清單、右側預設顯示第一筆 API（取得API清單）的 Docs 分頁。確立「API 工作區就緒」基準畫面。
   - flow:
     - 測試資料：base seed，至少含「取得API清單」（url `http://localhost:11005/getAPIsList`，預設選取）與「取得寵物清單」。
-    - 操作：開啟 `<baseUrl>/?token=sys`（cht 輪改開 `<baseUrl>/?token=sys&lang=cht`，以 URL `?lang=` 指定語系、**初始畫面即中文**，不經 UI 切換）。
+    - 操作：開啟 `<baseUrl>/?token=sys`（cht 輪改開 `<baseUrl>/?token=sys&lang=cht`，以 URL `?lang=` 指定語系、**初始畫面即中文**，不經 UI 切換）→ 點左側主選單「API」切至 API 工作區。
     - 驗證（等待樹渲染完成——同時出現「取得API清單」與「取得寵物清單」後）：
       1. 語意：左樹含上述兩筆；docs 顯示第一筆 url；三分頁顯示當前語系之「Docs／Edit／Test」（中文「文件／編輯／測試」）。
       2. 視覺：整體載入就緒基準，全頁乾淨截圖、**不畫紅框**（本案無單一聚焦區、整頁皆主體；全框＝無標註意義），與 baseline `test/pics/display/display-{eng,cht}-E2E-001-docs-list.png` 視覺一致（pixelmatch 容差）。

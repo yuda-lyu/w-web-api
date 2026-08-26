@@ -1,35 +1,41 @@
 <template>
     <div class="stats-panel" :style="`height:${height}px; overflow-y:auto; padding:20px 24px; box-sizing:border-box;`">
 
-        <!-- 標題列 -->
-        <div style="margin-bottom:16px;">
+        <!-- 標題列（ref 供 chartHeight 量測上方實佔高度） -->
+        <div ref="$hdr" style="margin-bottom:16px;">
             <div style="font-size:1.4rem; font-weight:600; color:var(--c-1);">{{$t('statisticsInformation')}}</div>
             <div style="font-size:0.875rem; color:var(--c-3); margin-top:4px;">{{$t('statisticsInformationDescription')}}</div>
         </div>
 
-        <!-- 控制區（事件選擇 + 時間範圍；把各事件分出來、可區分選取，供趨勢辨認 / 危險識別） -->
-        <div class="ctrl">
+        <!-- 控制區（事件選擇 + 時間範圍；把各事件分出來、可區分選取，供趨勢辨認 / 危險識別）
+             結構性對齊：.ctrl 為兩欄 grid（label 欄寬 max-content 自動隨語系文字），.ctrl-row 以
+             display:contents 使 label 與 field 直接成為 grid 子項，中英文自動對齊，免寫死 label 寬度 -->
+        <div ref="$ctrl" class="ctrl">
 
             <!-- 第一列：時間範圍 -->
             <div class="ctrl-row">
                 <span class="ctrl-label">{{$t('timeRange')}}</span>
-                <select id="timeGroupSel" v-model="timeGroup" class="ctrl-select">
-                    <option value="1hr">{{$t('selectItem1hr')}}</option>
-                    <option value="4hr">{{$t('selectItem4hr')}}</option>
-                    <option value="8hr">{{$t('selectItem8hr')}}</option>
-                    <option value="1day">{{$t('selectItem1day')}}</option>
-                </select>
+                <div class="ctrl-field">
+                    <select id="timeGroupSel" v-model="timeGroup" class="ctrl-select">
+                        <option value="1hr">{{$t('selectItem1hr')}}</option>
+                        <option value="4hr">{{$t('selectItem4hr')}}</option>
+                        <option value="8hr">{{$t('selectItem8hr')}}</option>
+                        <option value="1day">{{$t('selectItem1day')}}</option>
+                    </select>
+                </div>
             </div>
 
             <!-- 第二列：選擇事件 標題 + 全選/清除 -->
-            <div class="ctrl-row" style="margin-top:12px;">
+            <div class="ctrl-row">
                 <span class="ctrl-label">{{$t('selectEvents')}}</span>
-                <button class="evt-sel-btn stats-sel-all" @click="selectAllEvents">{{$t('selectAll')}}</button>
-                <button class="evt-sel-btn stats-sel-none" @click="selectNoneEvents">{{$t('selectNone')}}</button>
-                <span class="evt-count">{{selectedEvents.length}}/{{allEvents.length}}</span>
+                <div class="ctrl-field">
+                    <button class="evt-sel-btn stats-sel-all" @click="selectAllEvents">{{$t('selectAll')}}</button>
+                    <button class="evt-sel-btn stats-sel-none" @click="selectNoneEvents">{{$t('selectNone')}}</button>
+                    <span class="evt-count">{{selectedEvents.length}}/{{allEvents.length}}</span>
+                </div>
             </div>
 
-            <!-- 第三列：事件 chip（CSS grid 等寬欄對齊，不 ragged wrap） -->
+            <!-- 第三列：事件 chip（flex-wrap 內容自然寬；chip 依內容取寬、排滿可用寬才換行） -->
             <div class="evt-grid">
                 <label
                     v-for="ev in allEvents"
@@ -148,17 +154,43 @@ export default {
             timeGroup: '1hr',
             loading: false,
             errMsg: '',
+            hUpper: 0, //標題列+控制區實佔高度（ResizeObserver 量測，供 chartHeight 計算；chip 換行數/語系皆會使其變化）
         }
     },
     mounted: function() {
         let vo = this
+
+        //ResizeObserver 量測標題列+控制區實佔高（含 margin），取代固定扣除值；
+        //ro 為瀏覽器原生物件不放 data（避免被深層響應化），掛 this 成非響應式屬性
+        let ro = new ResizeObserver(function() {
+            vo.updateUpperHeight()
+        })
+        if (vo.$refs['$hdr']) {
+            ro.observe(vo.$refs['$hdr'])
+        }
+        if (vo.$refs['$ctrl']) {
+            ro.observe(vo.$refs['$ctrl'])
+        }
+        vo.ro = ro
+        vo.updateUpperHeight()
+
         vo.load()
+    },
+    beforeDestroy: function() {
+        let vo = this
+        if (vo.ro) {
+            vo.ro.disconnect()
+            vo.ro = null
+        }
     },
     computed: {
 
         chartHeight: function() {
             let vo = this
-            let h = vo.height - 360 //扣標題 + 控制列(含事件選擇) + 表格區估算
+            //panel 上下 padding 40 + 上方實佔(hUpper, 量測) + 表格預留 98（既有設計值：舊公式 height−360
+            //於 1440 下等價於保留 chart 底至 panel 內容底 98px，沿用該行為，非新設數字）
+            let TABLE_RESERVE = 98
+            let h = vo.height - 40 - vo.hUpper - TABLE_RESERVE
             return h < 220 ? 220 : h
         },
 
@@ -311,6 +343,24 @@ export default {
     },
     methods: {
 
+        //量測標題列+控制區實佔高（offsetHeight + margin-bottom），存入 hUpper 供 chartHeight 計算
+        updateUpperHeight: function() {
+            let vo = this
+            let mb = function(el) {
+                return parseFloat(getComputedStyle(el).marginBottom) || 0
+            }
+            let h = 0
+            let hdr = vo.$refs['$hdr']
+            let ctrl = vo.$refs['$ctrl']
+            if (hdr) {
+                h += hdr.offsetHeight + mb(hdr)
+            }
+            if (ctrl) {
+                h += ctrl.offsetHeight + mb(ctrl)
+            }
+            vo.hUpper = h
+        },
+
         colorOf: function(ev) {
             let vo = this
             let idx = vo.allEvents.indexOf(ev)
@@ -353,21 +403,30 @@ export default {
 
 <style scoped>
 
+/* 控制區：兩欄 grid 結構性對齊（label 欄 max-content 隨語系文字自動定寬；
+   第二欄 minmax(0,1fr) 防內容撐大），取代先前 label 寫死 64px + evt-grid margin-left 72px 之魔術數字對齊 */
 .ctrl {
     margin-bottom: 16px;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 12px 8px;
+    align-items: center;
 }
 
 .ctrl-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: contents; /* label 與 field 直接成為 .ctrl 之 grid 子項 */
 }
 
 .ctrl-label {
     font-size: 0.875rem;
     color: var(--c-2);
-    width: 64px;
-    flex-shrink: 0;
+}
+
+.ctrl-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
 .ctrl-select {
@@ -406,20 +465,23 @@ export default {
     margin-left: 4px;
 }
 
-/* 事件 chip：等寬欄 grid 對齊，避免 ragged wrap 之縮排錯落 */
+/* 事件 chip：flex-wrap 內容自然寬（用滿容器可用寬、排不下才換行），
+   置於 .ctrl grid 第二欄與上方控制項對齊；不設 max-width 上限（由容器自然約束） */
 .evt-grid {
-    margin-top: 10px;
-    margin-left: 72px;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-column: 2;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
-    max-width: 1040px;
 }
 
 .evt-chip {
     display: flex;
     align-items: center;
     box-sizing: border-box;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%; /* 安全閥：極長事件名時 chip 不超過容器寬（此時 .evt-name 之 ellipsis 才生效） */
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--bg-1);
@@ -456,15 +518,25 @@ export default {
 }
 
 .evt-name {
+    min-width: 0; /* flex item 預設 min-width:auto 會阻止收縮，明給 0 使安全閥可生效 */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.stats-table-area {
+    overflow-x: auto; /* 極端長事件名時表格自帶水平捲動，不外溢撐破 panel */
 }
 
 .stats-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.85rem;
+}
+
+.stats-table td:first-child {
+    white-space: normal; /* 事件名欄允許換行（數值欄維持 nowrap），與 chip 區同源之防溢出處置 */
+    overflow-wrap: anywhere;
 }
 
 .stats-table th,

@@ -2,7 +2,7 @@
 
 ## 觸發
 
-使用者於右側內容區點「編輯」分頁（既有 API）或左樹上方「新增API」按鈕，`LayoutContent.vue` 切到 `LayoutContentEdit.vue` 表單；填寫後點「儲存」呼叫 `$fapi.saveApi`，或於既有 API 點「刪除」經確認對話框呼叫 `$fapi.deleteApi`。成功後左樹與 docs 由後端 syncData 推送即時反映，並彈出成功 modal。
+進站預設頁為統計資訊頁，使用者點左側主選單「API」切至 API 工作區後，於右側內容區點「編輯」分頁（既有 API）或左樹上方「新增API」按鈕，`LayoutContent.vue` 切到 `LayoutContentEdit.vue` 表單；填寫後點「儲存」呼叫 `$fapi.saveApi`，或於既有 API 點「刪除」經確認對話框呼叫 `$fapi.deleteApi`。成功後左樹與 docs 由後端 syncData 推送即時反映，並彈出成功 modal。
 
 ## 重要流程
 

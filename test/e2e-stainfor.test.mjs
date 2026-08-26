@@ -1,7 +1,7 @@
 //e2e：統計資訊頁（事件頻率圖 + 事件統計表）
 //
 //重要流程（spec bullets，見 spec/流程_統計資訊.md）：
-//- E2E-001：點左側選單「統計資訊」→ 進統計頁，事件頻率圖各選取事件分系列（預設全選、各自顏色可區分）。
+//- E2E-001：進站預設頁即統計頁，事件頻率圖各選取事件分系列（預設全選、各自顏色可區分）；附版面幾何斷言（不截字/不過早換行/右界貼齊/不溢出，1440+1100 兩檔）。
 //- E2E-002：清除後選取部分事件 → 圖表只顯示所選事件（供趨勢辨認 / 危險識別之事件聚焦）。
 //- E2E-003：事件統計表（各事件為列、依最近1日多→少排序，欄位 最近1日/8時/4時/1時）。
 //
@@ -63,6 +63,7 @@ function writeSyntheticLogs() {
         ['kpfun-getWebInfor', 5],
         ['api/getUserByToken', 3],
         ['verifyClientUser', 2],
+        ['api/syncAndReplaceTabs', 2], //已知最長事件名：版面幾何斷言（截字/換行）之邊界 fixture，必含
     ]
 
     let lines = []
@@ -123,15 +124,95 @@ async function captureStatsShot(page, lang, caseName, focusSel) {
 }
 
 
-//進入統計資訊頁：開頁 → 等樹 → 點左選單「統計資訊」→ 等標題 + 圖表 canvas + 統計表列。
+//進入統計資訊頁：進站預設頁即為統計資訊（section 預設 'stats'），開頁 → 等標題 + 圖表 canvas + 統計表列。
 async function gotoStats(page, lang) {
     await page.goto(`${baseUrl}/?token=sys&lang=${lang}`, { waitUntil: 'load', timeout: 30000 })
-    await waitUntilExist(page, 'API tree rendered', () => (document.body.innerText || '').includes('取得API清單'), { timeout: 25000 })
-    await page.getByText(T[lang].menu, { exact: true }).first().click()
-    await waitUntilExist(page, `stats title (${T[lang].title})`, (m) => (document.body.innerText || '').includes(m), { timeout: 8000, arg: T[lang].title })
+    await waitUntilExist(page, `stats title (${T[lang].title})`, (m) => (document.body.innerText || '').includes(m), { timeout: 25000, arg: T[lang].title })
     await waitUntilExist(page, 'echarts canvas', () => !!document.querySelector('.stats-chart-area canvas'), { timeout: 20000 })
     await waitUntilExist(page, 'stats table rows', () => document.querySelectorAll('.stats-table-area tbody tr').length > 0, { timeout: 8000 })
     await page.waitForTimeout(1200) //等 echarts 渲染/動畫 settle
+}
+
+
+//量測事件 chip 區版面幾何（等字型與兩個 rAF 後量測；全部以 content edge 相對判準，無魔術數字）：
+//- rightGap：.evt-grid 內容右界應貼齊 .ctrl 內容右界（攔截「容器被 max-width 之類人為縮限」）
+//- prematureWrap：非末列剩餘空間應放不下「下一列第一個 chip」（攔截「放得下卻換行」）
+//- truncated：事件名不得截字，除非該 chip 已頂到容器寬（安全閥合法生效）
+//- overflow：chip 區不得水平溢出
+async function readChipGeometry(page) {
+    await page.evaluate(async () => {
+        if (document.fonts && document.fonts.ready) {
+            await document.fonts.ready
+        }
+        await new Promise((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve))
+        })
+    })
+    return await page.evaluate(() => {
+        let EPS = 1.5
+        let px = (v) => Number.parseFloat(v) || 0
+        let contentEdges = (el) => {
+            let r = el.getBoundingClientRect()
+            let s = getComputedStyle(el)
+            return {
+                left: r.left + px(s.borderLeftWidth) + px(s.paddingLeft),
+                right: r.right - px(s.borderRightWidth) - px(s.paddingRight),
+            }
+        }
+        let grid = document.querySelector('.evt-grid')
+        let ctrl = grid && grid.closest('.ctrl')
+        if (!grid || !ctrl) {
+            return { missing: true }
+        }
+        let gridE = contentEdges(grid)
+        let ctrlE = contentEdges(ctrl)
+        let gap = px(getComputedStyle(grid).columnGap) || 8
+        let rows = []
+        let curTop = null
+        Array.from(grid.querySelectorAll('.evt-chip')).forEach((c) => {
+            let r = c.getBoundingClientRect()
+            let t = Math.round(r.top)
+            if (curTop === null || t !== curTop) {
+                rows.push([])
+                curTop = t
+            }
+            rows[rows.length - 1].push({ w: r.width, right: r.right, ev: c.dataset.event || (c.innerText || '').trim() })
+        })
+        let prematureWrap = rows.slice(0, -1).map((row, i) => {
+            let slack = gridE.right - Math.max(...row.map((x) => x.right))
+            let next = rows[i + 1][0]
+            return { row: i + 1, slack: Math.round(slack), nextW: Math.round(next.w), nextEv: next.ev, bad: slack >= next.w + gap - EPS }
+        }).filter((x) => x.bad)
+        let containerW = grid.clientWidth
+        let truncated = Array.from(grid.querySelectorAll('.evt-name')).map((n) => {
+            let chip = n.closest('.evt-chip')
+            return {
+                ev: chip.dataset.event || (n.innerText || '').trim(),
+                isTrunc: n.scrollWidth > n.clientWidth + 1,
+                atCap: chip.getBoundingClientRect().width >= containerW - EPS,
+            }
+        }).filter((x) => x.isTrunc && !x.atCap).map((x) => x.ev)
+        return {
+            missing: false,
+            events: rows.flat().map((x) => x.ev),
+            rightGap: Math.round((ctrlE.right - gridE.right) * 10) / 10,
+            rowCounts: rows.map((r) => r.length),
+            prematureWrap,
+            truncated,
+            overflow: Math.round(grid.scrollWidth - grid.clientWidth),
+        }
+    })
+}
+
+
+//對 readChipGeometry 之結果套用版面斷言（label 供錯誤訊息辨識視窗寬情境）
+function assertChipGeometry(geo, label) {
+    assert.ok(!geo.missing, `[${label}] 應存在 .ctrl 與 .evt-grid`)
+    assert.ok(geo.events.includes('api/syncAndReplaceTabs'), `[${label}] 版面測試 fixture 必須含已知最長事件名`)
+    assert.ok(Math.abs(geo.rightGap) <= 1.5, `[${label}] .evt-grid 右界應貼齊控制區內容右界（實差 ${geo.rightGap}px）`)
+    assert.deepStrictEqual(geo.truncated, [], `[${label}] 事件名不應截斷：${geo.truncated.join(', ')}`)
+    assert.deepStrictEqual(geo.prematureWrap, [], `[${label}] 發生可避免的換行：${JSON.stringify(geo.prematureWrap)}`)
+    assert.ok(geo.overflow <= 1, `[${label}] chip 區不應水平溢出（實得 ${geo.overflow}px）`)
 }
 
 
@@ -200,6 +281,15 @@ describe('e2e-stainfor (統計資訊 / 事件頻率)', function() {
 
             let buf = await captureStatsShot(page, lang, 'E2E-001-chart-all', '.stats-chart-area')
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-001-chart-all.png`, buf)
+
+            //版面幾何斷言（截圖後執行，避免 viewport 切換影響截圖）：
+            //1440 主視窗（改版後 chip 應單列）→ 縮 1100 窄視窗覆蓋「換行分支」（單列時換行邏輯不會被觸發）
+            let geo = await readChipGeometry(page)
+            assertChipGeometry(geo, `${lang} 1440`)
+            await page.setViewportSize({ width: 1100, height: 900 })
+            await page.waitForTimeout(300)
+            let geoNarrow = await readChipGeometry(page)
+            assertChipGeometry(geoNarrow, `${lang} 1100`)
 
         })
 

@@ -80,6 +80,9 @@ function searchInput(page) {
 async function gotoReady(page, lang) {
     let q = (lang === 'cht' || lang === 'eng') ? `&lang=${lang}` : ''
     await page.goto(`${baseUrl}/?token=sys${q}`, { waitUntil: 'load', timeout: 30000 })
+    //進站預設頁為統計資訊：先等左選單掛載，點「API」切至 API 工作區（按鈕文字雙語皆為 API）
+    await waitUntilExist(page, 'main menu rendered', () => document.querySelectorAll('.w-mm-btn').length >= 2, { timeout: 25000 })
+    await page.locator('.w-mm-btn', { hasText: 'API' }).first().click()
     await waitUntilExist(page, 'API tree rendered', () => {
         let t = document.body.innerText || ''
         return t.includes('取得API清單') && t.includes('取得寵物清單')

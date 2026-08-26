@@ -21,6 +21,8 @@ import {
     genTempSettings,
     captureStable,
     captureStableWithBox,
+    cropRegion,
+    overlayImageAt,
     waitUntilExist,
     resetToBaseSeed,
     assertOrRegenBaseline,
@@ -39,8 +41,8 @@ let LANGS = ['eng', 'cht']
 //  csLogin ：hang /api/main → getUserByToken 成功進 csLogin，但 webInfor 永不載入、停已登入
 //  loaded  ：正常載入 → 主畫面
 let T = {
-    eng: { docs: 'Docs', win: 'eng', connecting: 'Connecting', loggedIn: 'Logged in', errConn: 'Unable to connect', loggedOut: 'Logged out' },
-    cht: { docs: '文件', win: 'cht', connecting: '連線中', loggedIn: '已登入', errConn: '無法連線', loggedOut: '已登出' },
+    eng: { staTitle: 'Statistics Information', timeRange: 'Time range', win: 'eng', connecting: 'Connecting', loggedIn: 'Logged in', errConn: 'Unable to connect', loggedOut: 'Logged out' },
+    cht: { staTitle: '統計資訊', timeRange: '時間範圍', win: 'cht', connecting: '連線中', loggedIn: '已登入', errConn: '無法連線', loggedOut: '已登出' },
 }
 
 
@@ -83,16 +85,47 @@ function ensureIndexTmpl() {
 }
 
 
-//不帶 ?lang= 載入（純靠 server 注入之初始語系），等樹渲染 + 指定語系 UI 套用到位。
+//E2E-003 全頁截圖之「圖表區/統計表區」貼圖覆蓋（同 e2e-stainfor 機制、無紅框版）：
+//進站預設頁為統計頁後，主畫面含 live 圖表（x 軸日期相對今日漂移、canvas GPU 非決定性）與
+//統計表計數（隨後端執行期 log 累積漂移），不凍結則 compare 必炸；語系斷言仍讀 live DOM。
+async function captureInitMainShot(page, lang, caseName) {
+    let buf = await captureStable(page) //全頁乾淨截圖、不畫紅框（spec：整體主畫面基準）
+    let regions = [
+        { key: 'chart', sel: '.stats-chart-area' },
+        { key: 'table', sel: '.stats-table-area' },
+    ]
+    for (let rg of regions) {
+        let rect = await page.evaluate((s) => {
+            let el = document.querySelector(s)
+            if (!el) {
+                return null
+            }
+            let r = el.getBoundingClientRect()
+            return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height }
+        }, rg.sel)
+        if (!rect) {
+            continue
+        }
+        let refPath = path.join(`./test/pics/${FLOW}`, `_staref-${lang}-${caseName}-${rg.key}.png`)
+        if (!fs.existsSync(refPath)) {
+            fs.mkdirSync(path.dirname(refPath), { recursive: true })
+            let cropped = await cropRegion(buf, rect) //bootstrap：裁該區小圖存 ref（刪檔可重產）
+            fs.writeFileSync(refPath, cropped)
+        }
+        let refBuf = fs.readFileSync(refPath)
+        buf = await overlayImageAt(buf, refBuf, Math.max(0, rect.x), Math.max(0, rect.y))
+    }
+    return buf
+}
+
+
+//不帶 ?lang= 載入（純靠 server 注入之初始語系）。進站預設頁為統計資訊頁：
+//等該語系統計頁標題（Layout 掛載 + 語系套用）+ 圖表 canvas（資料到位、畫面穩定）。
 async function gotoReadyNoLang(page, lang) {
     await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'load', timeout: 30000 })
-    await waitUntilExist(page, 'API tree rendered', () => {
-        let t = document.body.innerText || ''
-        return t.includes('取得API清單') && t.includes('取得寵物清單')
-    }, { timeout: 25000 })
-    //等該語系 UI 套用（getWebInfor 回來後 setLang 依 window 注入語系重渲染）
-    await waitUntilExist(page, `UI lang applied (${T[lang].docs})`, (m) => (document.body.innerText || '').includes(m), { timeout: 8000, arg: T[lang].docs })
-    await page.waitForTimeout(300)
+    await waitUntilExist(page, `stats title (${T[lang].staTitle})`, (m) => (document.body.innerText || '').includes(m), { timeout: 25000, arg: T[lang].staTitle })
+    await waitUntilExist(page, 'echarts canvas', () => !!document.querySelector('.stats-chart-area canvas'), { timeout: 20000 })
+    await page.waitForTimeout(1200) //等 echarts 渲染/動畫 settle
 }
 
 
@@ -158,7 +191,7 @@ describe('e2e-init (初始畫面語系 / server 注入)', function() {
             assert.ok(info.body.includes(T[lang].connecting), `連線中畫面應含該語系「${T[lang].connecting}」（實際: ${info.body.slice(0, 120)}）`)
             assert.ok(!info.body.includes(other.connecting), `連線中畫面不應含另一語系「${other.connecting}」`)
             assert.ok(!info.body.includes(T[lang].loggedIn), `應仍停連線中、尚未進已登入「${T[lang].loggedIn}」`)
-            assert.ok(!info.body.includes(T[lang].docs), `應仍停連線中、尚未顯示主畫面「${T[lang].docs}」`)
+            assert.ok(!info.body.includes(T[lang].staTitle), `應仍停連線中、尚未顯示主畫面「${T[lang].staTitle}」`)
 
             let buf = await captureStateScreen(page, T[lang].connecting)
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-001-connecting.png`, buf)
@@ -184,24 +217,27 @@ describe('e2e-init (初始畫面語系 / server 注入)', function() {
             assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
             assert.ok(info.body.includes(T[lang].loggedIn), `已登入畫面應含該語系「${T[lang].loggedIn}」（實際: ${info.body.slice(0, 120)}）`)
             assert.ok(!info.body.includes(other.loggedIn), `已登入畫面不應含另一語系「${other.loggedIn}」`)
-            assert.ok(!info.body.includes(T[lang].docs), `應仍停已登入、尚未顯示主畫面「${T[lang].docs}」`)
+            assert.ok(!info.body.includes(T[lang].staTitle), `應仍停已登入、尚未顯示主畫面「${T[lang].staTitle}」`)
 
             let buf = await captureStateScreen(page, T[lang].loggedIn)
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-002-logged-in.png`, buf)
 
         })
 
-        //E2E-003 連線建立後主畫面：正常載入 → 等樹 + 該語系 UI → 驗 window 注入語系 + 主畫面該語系文字。
+        //E2E-003 連線建立後主畫面：正常載入 → 進站預設頁即統計資訊頁 → 驗 window 注入語系 + 統計頁該語系文字。
         it(`E2E-003 [${lang}] 連線後主畫面語系（server settings.language 注入、不帶 ?lang=）`, async function() {
 
             await restartBackend(genTempSettings({ language: lang }))
             await gotoReadyNoLang(page, lang)
 
             let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
+            let other = T[lang === 'eng' ? 'cht' : 'eng']
             assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
-            assert.ok(info.body.includes(T[lang].docs), `主畫面分頁應顯示該語系「${T[lang].docs}」`)
+            assert.ok(info.body.includes(T[lang].staTitle), `主畫面（統計資訊頁）應顯示該語系標題「${T[lang].staTitle}」`)
+            assert.ok(info.body.includes(T[lang].timeRange), `統計頁控制列應顯示該語系「${T[lang].timeRange}」`)
+            assert.ok(!info.body.includes(other.staTitle) || T[lang].staTitle.includes(other.staTitle), `不應含另一語系標題「${other.staTitle}」`)
 
-            let buf = await captureStable(page)
+            let buf = await captureInitMainShot(page, lang, 'E2E-003-page-loaded')
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-003-page-loaded.png`, buf)
 
         })
@@ -231,7 +267,7 @@ describe('e2e-init (初始畫面語系 / server 注入)', function() {
             assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
             assert.ok(info.body.includes(T[lang].errConn), `連線錯誤畫面應含該語系「${T[lang].errConn}」（實際: ${info.body.slice(0, 120)}）`)
             assert.ok(!info.body.includes(other.errConn), `連線錯誤畫面不應含另一語系「${other.errConn}」`)
-            assert.ok(!info.body.includes(T[lang].docs), `應仍停狀態畫面、尚未顯示主畫面「${T[lang].docs}」`)
+            assert.ok(!info.body.includes(T[lang].staTitle), `應仍停狀態畫面、尚未顯示主畫面「${T[lang].staTitle}」`)
 
             let buf = await captureStateScreen(page, T[lang].errConn)
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-004-err-conn.png`, buf)
@@ -260,7 +296,7 @@ describe('e2e-init (初始畫面語系 / server 注入)', function() {
             assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
             assert.ok(info.body.includes(T[lang].loggedOut), `已登出畫面應含該語系「${T[lang].loggedOut}」（實際: ${info.body.slice(0, 120)}）`)
             assert.ok(!info.body.includes(other.loggedOut), `已登出畫面不應含另一語系「${other.loggedOut}」`)
-            assert.ok(!info.body.includes(T[lang].docs), `應仍停狀態畫面、尚未顯示主畫面「${T[lang].docs}」`)
+            assert.ok(!info.body.includes(T[lang].staTitle), `應仍停狀態畫面、尚未顯示主畫面「${T[lang].staTitle}」`)
 
             let buf = await captureStateScreen(page, T[lang].loggedOut)
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-005-logged-out.png`, buf)

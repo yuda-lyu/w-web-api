@@ -23,7 +23,7 @@ npm i w-web-api
 ```alias
 import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
 import WWebApi from './server/WWebApi.mjs'
-import getSettings from './g.getSettings.mjs'
+import getSettings from './g_getSettings.mjs'
 
 
 //st

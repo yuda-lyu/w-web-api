@@ -1,6 +1,6 @@
 import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
 import WWebApi from './server/WWebApi.mjs'
-import getSettings from './g.getSettings.mjs'
+import getSettings from './g_getSettings.mjs'
 import get from 'lodash-es/get.js'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import axios from 'axios'
@@ -8,7 +8,7 @@ import JSON5 from 'json5'
 import fs from 'fs'
 
 
-//st（db 等系統參數由 g.getSettings 提供，供 g.mOrm 共用）
+//st（db 等系統參數由 g_getSettings 提供，供 g_mOrm 共用）
 let st = getSettings()
 
 //pathSettings：app 設定檔路徑，預設 ./settings.json；可由 `node srv.mjs <path>` 覆寫

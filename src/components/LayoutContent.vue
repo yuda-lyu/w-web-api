@@ -316,11 +316,11 @@ export default {
             panelHeight: 0,
 
             //左側垂直主選單
-            section: 'api', //'api' | 'stats'
+            section: 'stats', //'api' | 'stats'; 進站預設頁為統計資訊
             widthMainMenu: 76,
             mainMenus: [
-                { id: 'api', textKey: 'mmApi', icon: mdiCloudBraces },
                 { id: 'stats', textKey: 'mmStaInfor', icon: mdiChartBar },
+                { id: 'api', textKey: 'mmApi', icon: mdiCloudBraces },
             ],
 
             drawer: true,

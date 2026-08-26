@@ -17,7 +17,7 @@ import { PNG } from 'pngjs'
 import JSON5 from 'json5'
 import sharp from 'sharp'
 import ds from '../src/schema/index.mjs'
-import { woItems } from '../g.mOrm.mjs'
+import { woItems } from '../g_mOrm.mjs'
 
 //baseline 產製模式：mocha 帶 --baseline 或 env E2E_REGEN=1 時寫檔；否則 pixelmatch 容差比對。
 let REGEN = process.argv.includes('--baseline') || process.env.E2E_REGEN === '1'
