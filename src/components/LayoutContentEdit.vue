@@ -285,6 +285,10 @@ export default {
             errJsonField: '',
             errSave: '',
 
+            //submitting: 元件層雙擊 / 重入防護 (CLAUDE.md 三層防護之第 1 層)。本頁按鈕為原生 <button>（保留既有 UI 與 baseline，不換 WButtonCircle），
+            //故以旗標取代 promiseUnlock：同步第 2 次點擊直接 return；非同步期間另有頁面層 updateLoading overlay，後端層有 pmKeyMutex
+            submitting: false,
+
             methodItems: ['get', 'post', 'put', 'del'],
             authTypeItems: ['none', 'bearer', 'apikey', 'basic'],
 
@@ -340,9 +344,13 @@ export default {
 
         onClickSave: function() {
             let vo = this
+            if (vo.submitting) {
+                return //元件層: 同步雙擊第 2 次直接擋掉
+            }
+            vo.submitting = true
             vo.submitSave()
                 .catch(function(err) { console.log('catch', err); vo.$alert(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' }) })
-                .finally(function() { vo.$ui.updateLoading(false) })
+                .finally(function() { vo.submitting = false; vo.$ui.updateLoading(false) })
         },
 
         submitSave: function() {
@@ -411,6 +419,10 @@ export default {
 
         doDelete: function() {
             let vo = this
+            if (vo.submitting) {
+                return //元件層: 重入防護 (confirm modal 關閉後之連點)
+            }
+            vo.submitting = true
             let core = async function() {
 
                 // 1) 清空錯誤
@@ -436,7 +448,7 @@ export default {
             }
             core()
                 .catch(function(err) { console.log('catch', err); vo.$alert(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' }) })
-                .finally(function() { vo.$ui.updateLoading(false) })
+                .finally(function() { vo.submitting = false; vo.$ui.updateLoading(false) })
         },
 
         onClickCancel: function() {

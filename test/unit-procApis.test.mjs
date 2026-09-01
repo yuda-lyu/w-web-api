@@ -69,4 +69,37 @@ describe('unit-procApis (錯誤路徑 + 正常路徑)', function() {
         assert.deepStrictEqual(calls[0], ['u1', 'apis', 'del', { id: 'id-1' }])
     })
 
+    //後端層雙擊 / 並發防護（CLAUDE.md 三層之第 3 層）：同 key 之寫入以 pmKeyMutex 序列化，procOrm 呼叫不得重疊；不同 key 可並行
+    it('saveApi/deleteApi: 同 key 並發 → 序列化執行（procOrm 不重疊）；不同 key 不互相阻塞', async function() {
+        let active = 0
+        let maxActive = 0
+        let order = []
+        let procOrm = async (userId, table, method, arg) => {
+            active += 1
+            maxActive = Math.max(maxActive, active)
+            order.push(method + ':' + (Array.isArray(arg) ? arg[0].id : arg.id))
+            await new Promise((resolve) => setTimeout(resolve, 60))
+            active -= 1
+            return 'ok'
+        }
+        let { saveApi, deleteApi } = procApis({ procOrm, ds })
+        //同 id 並發 save ×2 + del ×1（del 為不同 key，可與 save 並行）
+        let rs = await Promise.allSettled([
+            saveApi('u1', { id: 'same-id', name: 'a', url: 'http://a', method: 'GET' }),
+            saveApi('u1', { id: 'same-id', name: 'b', url: 'http://b', method: 'GET' }),
+            deleteApi('u1', 'other-id'),
+        ])
+        assert.ok(rs.every((r) => r.status === 'fulfilled' && r.value === 'ok'), '三者皆成功（序列化非拒絕）')
+        assert.strictEqual(order.filter((s) => s.startsWith('save:same-id')).length, 2)
+        //同 key 兩次 save 不得重疊：允許的最大並行 = save 其一 + 不同 key 的 del
+        assert.ok(maxActive <= 2, `同 key 應序列化，實測最大並行 ${maxActive}`)
+        //新增筆（無 id）以 name 為 key：同名並發亦序列化
+        active = 0; maxActive = 0
+        await Promise.all([
+            saveApi('u1', { name: 'dup', url: 'http://a', method: 'GET' }),
+            saveApi('u1', { name: 'dup', url: 'http://b', method: 'GET' }),
+        ])
+        assert.strictEqual(maxActive, 1, '同名新增應序列化')
+    })
+
 })

@@ -16,11 +16,17 @@ import pixelmatch from 'pixelmatch'
 import { PNG } from 'pngjs'
 import JSON5 from 'json5'
 import sharp from 'sharp'
+import { chromium } from 'playwright'
+import { fileURLToPath } from 'url'
 import ds from '../src/schema/index.mjs'
 import { woItems } from '../g_mOrm.mjs'
 
 //baseline 產製模式：mocha 帶 --baseline 或 env E2E_REGEN=1 時寫檔；否則 pixelmatch 容差比對。
 let REGEN = process.argv.includes('--baseline') || process.env.E2E_REGEN === '1'
+//診斷閘門紀律：診斷 env 生效時絕不可寫正式 baseline（技能 references/pixel-mismatch-diagnosis.md §6）
+if (REGEN && (process.env.E2E_BARE || process.env.E2E_DIAG)) {
+    throw new Error('拒絕在診斷 env (E2E_BARE / E2E_DIAG) 下寫入正式 baseline')
+}
 
 //一律 127.0.0.1（避開 Windows IPv6 Happy-Eyeballs 回退延遲，詳全域 CLAUDE.md §6.3）
 let baseUrl = 'http://127.0.0.1:11005'
@@ -37,6 +43,10 @@ let chromiumLaunchArgs = [
     '--disable-skia-runtime-opts',
     '--disable-partial-raster',
 ]
+//全專案唯一 chromium.launch 出口（技能 §3 C1）；測試端 / regen 端 / 探查腳本一律走此 wrapper，旗標組單一 source of truth。
+async function launchBrowser() {
+    return await chromium.launch({ headless: true, args: chromiumLaunchArgs })
+}
 //成功訊息用 confirm modal（停留、可穩定截圖）而非 toast（插入後又移除、截圖時序不穩），同 SSO。
 
 let serverProc = null
@@ -111,17 +121,39 @@ async function startServersOnce() {
 }
 
 
-//產臨時 settings 檔：讀 ./settings.json（JSON5）套 overrides，寫純 JSON 至 ./tmp/，回傳路徑。
+//產臨時 settings 檔：讀 ./settings.json（JSON5）套 overrides，寫純 JSON 至 test/_tmp/（gitignore），回傳路徑。
 //供 e2e 以不同 server 設定重啟後端（如 init 改 server 初始語系）。
+//落 test/_tmp/ 不落 ./tmp/：後者為 AI 代理暫存區隨時會被整個清除，後端讀不到 settings 會啟動失敗；三專案統一此目錄名。
+//測完即刪：本進程產生者由 cleanup() 一併刪除。
+let tmpSettingsSeq = 0
+let tmpSettingsFiles = []
 function genTempSettings(overrides = {}) {
     let base = JSON5.parse(fs.readFileSync('./settings.json', 'utf8'))
     let merged = { ...base, ...overrides }
-    if (!fs.existsSync('./tmp')) {
-        fs.mkdirSync('./tmp', { recursive: true })
+    let tmpDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '_tmp')
+    if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true })
     }
-    let p = `./tmp/settings-e2e-${Date.now()}.json`
+    let p = path.join(tmpDir, `settings-e2e-${process.pid}-${tmpSettingsSeq++}.json`)
     fs.writeFileSync(p, JSON.stringify(merged, null, 2))
+    tmpSettingsFiles.push(p)
     return p
+}
+function cleanupTempSettings() {
+    for (let p of tmpSettingsFiles) {
+        try {
+            fs.rmSync(p, { force: true })
+        }
+        catch (err) { /* ignore */ }
+    }
+    tmpSettingsFiles = []
+    try {
+        let tmpDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '_tmp')
+        if (fs.existsSync(tmpDir) && fs.readdirSync(tmpDir).length === 0) {
+            fs.rmdirSync(tmpDir)
+        }
+    }
+    catch (err) { /* ignore */ }
 }
 
 
@@ -183,6 +215,7 @@ function cleanup() {
         killProc(serverProc)
         serverProc = null
     }
+    cleanupTempSettings()
 }
 
 process.on('exit', cleanup)
@@ -228,8 +261,9 @@ async function waitDrawerReady(page) {
 
 //pixel baseline 截圖統一 helper：retry 至連續兩張一致再回傳，治 cold-start / CJK glyph
 //lazy rasterization / GPU init / paint timing。所有 baseline 端與比對端都用它，不用裸 screenshot。
+//opts.strict：regen 端用——重試耗盡仍未 settle 時 throw（拒絕把未穩定畫面寫成 baseline）；未指定時 REGEN 模式預設 strict。
 async function captureStable(page, opts = {}) {
-    let { maxRetries = 8, intervalMs = 200, initialWaitMs = 1500 } = opts
+    let { maxRetries = 8, intervalMs = 200, initialWaitMs = 1500, strict = REGEN } = opts
     let shotOpts = { fullPage: true, animations: 'disabled' }
 
     //park mouse 到 (0,0)：給滑鼠「移出（mouseleave）」事件，消除點擊後殘留 hover state 造成的 byte 不穩。
@@ -284,7 +318,10 @@ async function captureStable(page, opts = {}) {
         }
         prev = curr
     }
-    //未 settle 也回傳最後一張，後續 baseline 之 pixelmatch 容差比對失敗會揭露真實 flake
+    //未 settle：strict（regen）拒絕寫入；否則回傳最後一張，後續 baseline 之 pixelmatch 容差比對失敗會揭露真實 flake
+    if (strict) {
+        throw new Error(`captureStable ${maxRetries} 次仍未 settle（regen 拒絕寫入未穩定畫面）`)
+    }
     return prev
 }
 
@@ -325,6 +362,28 @@ async function typeIntoInput(page, locator, value) {
     }
     let final = await locator.inputValue()
     throw new Error(`typeIntoInput ${maxAttempts} 次仍漏字: 預期「${value}」, 最終「${final}」`)
+}
+
+
+//導頁至 API 工作區並等就緒（apitest / display / edit 三檔逐字相同，收斂於此，技能 §3「helper 不重複」）。
+//以 ?lang= 指定語系載入初始畫面（對齊 w-web-sso；前端 getLang 之 URL ?lang= 最高優先）。lang 省略則預設 eng。
+//進站預設頁為統計資訊：先等左選單掛載，點「API」切至 API 工作區（按鈕文字雙語皆為 API）。
+//此步等的是「登入 → webInfor → Layout 掛載」整條 ready 鏈（非單一元素），高負載時較慢，故給 40s。
+//注意：init 之 gotoReadyNoLang（不帶 ?lang=，驗 server 注入語系）與 stainfor 之 gotoStats（進站預設頁本身即
+//統計頁，不切 API 工作區）目的不同，各自保留獨立定義，不併入此函式。
+async function gotoApiWorkspace(page, lang) {
+    let q = (lang === 'cht' || lang === 'eng') ? `&lang=${lang}` : ''
+    await page.goto(`${baseUrl}/?token=sys${q}`, { waitUntil: 'load', timeout: 30000 })
+    await waitUntilExist(page, 'app ready (main menu rendered)', () => document.querySelectorAll('.w-mm-btn').length >= 2, { timeout: 40000 })
+    await page.locator('.w-mm-btn', { hasText: 'API' }).first().click()
+    await waitUntilExist(page, 'API tree rendered', () => {
+        let t = document.body.innerText || ''
+        return t.includes('取得API清單') && t.includes('取得寵物清單')
+    }, { timeout: 25000 })
+    //等指定語系 UI 套用到位（cht 看「文件」分頁、eng/預設看「Docs」）
+    let marker = (lang === 'cht') ? '文件' : 'Docs'
+    await waitUntilExist(page, `UI lang applied (${marker})`, (m) => (document.body.innerText || '').includes(m), { timeout: 8000, arg: marker })
+    await page.waitForTimeout(300)
 }
 
 
@@ -483,27 +542,10 @@ async function captureStableWithBox(page, target, opts = {}) {
             }
         }
     }
-    //畫紅框（多個取聯集；四邊夾在視窗內避免貼邊元素框線跑出畫面而少邊）+ 遮黑非決定性區域
-    await page.evaluate((arg) => {
-        let rs = arg.rs
-        let ms = arg.ms
-        let M = 3
-        let vw = window.innerWidth
-        let vh = window.innerHeight
-        if (rs.length > 0) {
-            let left = Math.min(...rs.map((r) => r.x))
-            let top = Math.min(...rs.map((r) => r.y))
-            let right = Math.max(...rs.map((r) => r.x + r.width))
-            let bottom = Math.max(...rs.map((r) => r.y + r.height))
-            let bl = Math.max(M, left - 6)
-            let bt = Math.max(M, top - 6)
-            let br = Math.min(vw - M, right + 6)
-            let bb = Math.min(vh - M, bottom + 6)
-            let box = document.createElement('div')
-            box.id = '__e2e_box__'
-            box.style.cssText = `position:fixed; left:${bl}px; top:${bt}px; width:${br - bl}px; height:${bb - bt}px; border:5px solid #f26; box-sizing:border-box; z-index:2147483647; pointer-events:none; border-radius:4px;`
-            document.body.appendChild(box)
-        }
+    //遮罩區（viewport 座標）：字串 → 元素 bbox；{ sel, fixedWidth } → 錨定元素右緣往左固定寬（右對齊且位數浮動之值，如 durationMs，
+    //若依元素自身寬遮則黑塊邊界跟著浮動 → flake；錨右緣固定寬度才穩定）
+    let maskRects = await page.evaluate((ms) => {
+        let out = []
         ms.forEach((s) => {
             let sel = (typeof s === 'string') ? s : s.sel
             let e = document.querySelector(sel)
@@ -513,28 +555,70 @@ async function captureStableWithBox(page, target, opts = {}) {
             let r = e.getBoundingClientRect()
             let left = r.left
             let width = r.width
-            //固定寬度遮罩（錨定元素右緣往左延伸 fixedWidth）：用於右對齊且寬度浮動的非決定性數值
-            //（如 durationMs 位數變動會使元素左緣浮動 → 黑塊邊界跟著移 → byte flake；錨右緣固定寬度才穩定）
             if (typeof s === 'object' && s.fixedWidth) {
                 width = s.fixedWidth
                 left = (r.left + r.width) - width
             }
-            let m = document.createElement('div')
-            m.className = '__e2e_mask__'
-            m.style.cssText = `position:fixed; left:${left}px; top:${r.top}px; width:${width}px; height:${r.height}px; background:#000; z-index:2147483646; pointer-events:none;`
-            document.body.appendChild(m)
+            out.push({ x: left, y: r.top, w: width, h: r.height })
         })
-    }, { rs: rects, ms: mask })
-    await page.waitForTimeout(150)
-    let buf = await captureStable(page)
-    await page.evaluate(() => {
-        let b = document.getElementById('__e2e_box__')
-        if (b) {
-            b.remove()
-        }
-        document.querySelectorAll('.__e2e_mask__').forEach((m) => m.remove())
-    })
+        return out
+    }, mask)
+    //fullPage 截圖座標 = viewport rect + scroll offset
+    let env = await page.evaluate(() => ({ sx: window.scrollX, sy: window.scrollY }))
+    //先截圖再以 sharp 後製：遮罩 → 紅框（框疊在遮罩之上永遠可見）。2026-09-01 起改為截圖後合成，不再注入 DOM：
+    //插入後又移除的暫時 DOM 偶發使整頁光柵化偏 1px（本專案 toast 殷鑑，技能 §8.3），量測工具不得改動被測頁 layer tree。
+    let buf = await captureStable(page, opts)
+    if (maskRects.length > 0) {
+        buf = await maskRegions(buf, maskRects.map((r) => ({ x: r.x + env.sx, y: r.y + env.sy, w: r.w, h: r.h })))
+    }
+    if (rects.length > 0) {
+        buf = await composeBox(buf, {
+            left: Math.min(...rects.map((r) => r.x)) + env.sx,
+            top: Math.min(...rects.map((r) => r.y)) + env.sy,
+            right: Math.max(...rects.map((r) => r.x + r.width)) + env.sx,
+            bottom: Math.max(...rects.map((r) => r.y + r.height)) + env.sy,
+        })
+    }
     return buf
+}
+
+
+//對截圖 buffer 的指定矩形填色（sharp composite；clamp 至 buffer 內）。用於 DOM 層凍不到的動態內容；預設黑色一眼可辨「刻意遮蔽」。
+async function maskRegions(buf, rects, color = { r: 0, g: 0, b: 0 }) {
+    let meta = await sharp(buf).metadata()
+    let composite = rects
+        .map((r) => {
+            let left = Math.max(0, Math.round(r.x))
+            let top = Math.max(0, Math.round(r.y))
+            let width = Math.min(Math.round(r.w), meta.width - left)
+            let height = Math.min(Math.round(r.h), meta.height - top)
+            return { left, top, width, height }
+        })
+        .filter((c) => c.width > 0 && c.height > 0)
+        .map((c) => ({ input: { create: { width: c.width, height: c.height, channels: 3, background: color } }, left: c.left, top: c.top }))
+    if (composite.length === 0) {
+        return buf
+    }
+    return await sharp(buf).composite(composite).png().toBuffer()
+}
+
+
+//把紅框（#f26 / 5px / 圓角 4）以 sharp 疊到截圖 buffer（截圖後合成，不注入 DOM）。box 為 buffer 座標之目標區 { left, top, right, bottom }；
+//外擴 6、四邊夾在 buffer 內（M=3）；stroke 置中於路徑故外緣落在 bl..br / bt..bb，等效原 DOM 版 border-box 之 5px 內縮框線。
+async function composeBox(buf, box) {
+    let meta = await sharp(buf).metadata()
+    let M = 3
+    let bl = Math.max(M, box.left - 6)
+    let bt = Math.max(M, box.top - 6)
+    let br = Math.min(meta.width - M, box.right + 6)
+    let bb = Math.min(meta.height - M, box.bottom + 6)
+    if (br - bl <= 5 || bb - bt <= 5) {
+        return buf
+    }
+    let svg = `<svg width="${meta.width}" height="${meta.height}" xmlns="http://www.w3.org/2000/svg">` +
+        `<rect x="${bl + 2.5}" y="${bt + 2.5}" width="${br - bl - 5}" height="${bb - bt - 5}" fill="none" stroke="#f26" stroke-width="5" rx="4" ry="4"/>` +
+        `</svg>`
+    return await sharp(buf).composite([{ input: Buffer.from(svg), top: 0, left: 0 }]).png().toBuffer()
 }
 
 
@@ -612,10 +696,13 @@ export {
     waitMutationSettled,
     waitUntilExist,
     typeIntoInput,
+    gotoApiWorkspace,
     resetToBaseSeed,
     assertOrRegenBaseline,
     woItems,
     REGEN,
     baseUrl,
     chromiumLaunchArgs,
+    launchBrowser,
+    composeBox,
 }

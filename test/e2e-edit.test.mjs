@@ -9,18 +9,17 @@
 //assert：UI user-facing 觀察（樹/文件文字）+ DB 副作用 + pixel baseline。多語 eng/cht 皆跑。
 //
 import assert from 'assert'
-import { chromium } from 'playwright'
 import {
     startServersOnce,
     captureStableWithBox,
     waitMutationSettled,
     waitUntilExist,
     typeIntoInput,
+    gotoApiWorkspace,
     resetToBaseSeed,
     assertOrRegenBaseline,
     woItems,
-    baseUrl,
-    chromiumLaunchArgs,
+    launchBrowser,
 } from './e2e-setup.mjs'
 
 
@@ -44,22 +43,7 @@ async function waitSaveModal(page, lang) {
 }
 
 
-//以 ?lang= 指定語系載入初始畫面（對齊 w-web-sso；前端 getLang 之 URL ?lang= 最高優先）。lang 省略則預設 eng。
-async function gotoReady(page, lang) {
-    let q = (lang === 'cht' || lang === 'eng') ? `&lang=${lang}` : ''
-    await page.goto(`${baseUrl}/?token=sys${q}`, { waitUntil: 'load', timeout: 30000 })
-    //進站預設頁為統計資訊：先等左選單掛載，點「API」切至 API 工作區（按鈕文字雙語皆為 API）
-    await waitUntilExist(page, 'main menu rendered', () => document.querySelectorAll('.w-mm-btn').length >= 2, { timeout: 25000 })
-    await page.locator('.w-mm-btn', { hasText: 'API' }).first().click()
-    await waitUntilExist(page, 'API tree rendered', () => {
-        let t = document.body.innerText || ''
-        return t.includes('取得API清單') && t.includes('取得寵物清單')
-    }, { timeout: 25000 })
-    //等指定語系 UI 套用到位（cht 看「文件」分頁、eng/預設看「Docs」）
-    let marker = (lang === 'cht') ? '文件' : 'Docs'
-    await waitUntilExist(page, `UI lang applied (${marker})`, (m) => (document.body.innerText || '').includes(m), { timeout: 8000, arg: marker })
-    await page.waitForTimeout(300)
-}
+//導頁至 API 工作區改用共用 gotoApiWorkspace（收斂自本檔、e2e-apitest、e2e-display 逐字相同之舊 gotoReady；見 e2e-setup.mjs）。
 
 //依「label 元素」定位編輯表單某欄位列 / 其 input。
 //不可用 .bk-row 的 hasText(label)：hint 說明文字可能含其他 label 字串（如 testBaseUrl 之 eng hint 含 'API url'）
@@ -95,8 +79,8 @@ describe('e2e-edit (API 編輯)', function() {
         await resetToBaseSeed()
         //每 case 全新 browser（對齊 SSO eye-toggle E2E-017/018 之 per-case fresh）：避免共用 browser 跨 case
         //累積的 glyph atlas / raster 狀態，在 WTree 內容剛好 6px 溢出的虛擬渲染邊界偶發整棵樹 ~6px 位移。
-        //chromiumLaunchArgs=確定性渲染組（關 GPU/subpixel 字形 AA），消 eng 截圖 byte 不穩。
-        browser = await chromium.launch({ headless: true, args: chromiumLaunchArgs })
+        //launchBrowser() 內建確定性渲染組（關 GPU/subpixel 字形 AA），消 eng 截圖 byte 不穩。
+        browser = await launchBrowser()
         ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
         page = await ctx.newPage()
     })
@@ -116,7 +100,7 @@ describe('e2e-edit (API 編輯)', function() {
     for (let lang of LANGS) {
 
         it(`E2E-001 [${lang}] 編輯既有 API 改名後儲存`, async function() {
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             let newName = `取得API清單-改-${lang}`
 
@@ -158,7 +142,7 @@ describe('e2e-edit (API 編輯)', function() {
         })
 
         it(`E2E-002 [${lang}] 新增 API 填表後儲存`, async function() {
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             let newName = `E2E新增API-${lang}`
             let newUrl = 'http://localhost:11005/e2eAdd'
@@ -208,7 +192,7 @@ describe('e2e-edit (API 編輯)', function() {
         })
 
         it(`E2E-003 [${lang}] 刪除既有 API 含確認對話框`, async function() {
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //刪除前 base 筆數（供總數減一斷言）
             let baseCount = (await woItems.apis.select()).length
@@ -252,7 +236,7 @@ describe('e2e-edit (API 編輯)', function() {
 
         //E2E-004：新增表單名稱留空 → 同步檢測攔截 inline 必填紅字、不打 API、DB 不新增（錯誤處理分層之同步檢測層）
         it(`E2E-004 [${lang}] 名稱留空儲存顯示必填錯誤、不送出`, async function() {
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             let baseCount = (await woItems.apis.select()).length
 
@@ -288,7 +272,7 @@ describe('e2e-edit (API 編輯)', function() {
 
         //E2E-005：刪除確認點「取消」→ reject 'close' 靜默忽略、不刪（DB 不變、左樹仍在）。對話框共用 E2E-003-2-confirm baseline
         it(`E2E-005 [${lang}] 刪除確認點取消，靜默不刪`, async function() {
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             let baseCount = (await woItems.apis.select()).length
 

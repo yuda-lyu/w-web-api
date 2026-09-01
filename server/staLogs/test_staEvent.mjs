@@ -13,14 +13,24 @@ import staEvent from './staEvent.mjs'
 import filterVpfsByWindow from './filterVpfsByWindow.mjs'
 
 
-//tmp log 資料夾（落在主 cwd ./tmp/，集中可一鍵清；不污染真實 ./logs）
-let fdLog = './tmp/_logs-test-staEvent'
+//測試用臨時資料夾一律落在 ./test/_tmp/（與測試同層、跑完即刪；不污染真實 ./logs）
+//不可用 ./tmp/：該處為 AI 代理之暫存區，隨時會被整個清除，測試資料放那裡會被無預警刪掉
+let fdTmpRoot = './test/_tmp'
+let fdLog = `${fdTmpRoot}/_logs-test-staEvent`
+
+//移除 ./test/_tmp 本身（僅在已空時；非空代表尚有其他測試之臨時資料，留著）
+function rmTmpRootIfEmpty() {
+    try {
+        fs.rmdirSync(fdTmpRoot)
+    }
+    catch (e) {} //ENOTEMPTY / ENOENT 皆屬正常
+}
 
 //以「當前小時正中（:30）」為錨點，避免測試剛好跨小時邊界導致 bucket 飄移
 let anchor = ot().startOf('hour')
-let tNow = anchor.add(30, 'minute')         //本小時 bucket
-let tPrev = anchor.subtract(30, 'minute')   //前一小時 bucket
-let tOld = anchor.subtract(30, 'day')       //30 天前（超出 timeLength=7，應被排除）
+let tNow = anchor.add(30, 'minute') //本小時 bucket
+let tPrev = anchor.subtract(30, 'minute') //前一小時 bucket
+let tOld = anchor.subtract(30, 'day') //30 天前（超出 timeLength=7，應被排除）
 
 let fmtHr = 'YYYY-MM-DDTHH'
 let keyNow = tNow.format(fmtHr)
@@ -112,7 +122,7 @@ function testFilterVpfsByWindowDirect() {
 //實際開檔讀行），證明 filterVpfsByWindow.mjs:22 之 slice 防線在 staEvent.mjs:57 呼叫處確實生效，
 //而非僅單元測試層級成立。
 async function testGranularityAdaptiveIntegration() {
-    let fdLog2 = './tmp/_logs-test-staEvent-granularity'
+    let fdLog2 = `${fdTmpRoot}/_logs-test-staEvent-granularity`
     fs.rmSync(fdLog2, { recursive: true, force: true })
     fs.mkdirSync(fdLog2, { recursive: true })
 
@@ -185,6 +195,8 @@ async function main() {
     testFilterVpfsByWindowDirect()
     await testGranularityAdaptiveIntegration()
 
+    rmTmpRootIfEmpty()
+
     console.log('=== test_staEvent PASS ===')
     console.log(`hr buckets: ${rs.length}, 本小時=${JSON.stringify(bNow.data)}, 前一小時=${JSON.stringify(bPrev.data)}`)
 }
@@ -193,6 +205,10 @@ async function main() {
 main().catch((err) => {
     console.error('=== test_staEvent FAIL ===')
     console.error(err)
-    try { fs.rmSync(fdLog, { recursive: true, force: true }) } catch (e) {}
+    try {
+        fs.rmSync(fdLog, { recursive: true, force: true })
+        rmTmpRootIfEmpty()
+    }
+    catch (e) {}
     process.exit(1)
 })

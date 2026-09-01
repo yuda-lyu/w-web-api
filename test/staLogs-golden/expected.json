@@ -1,0 +1,2134 @@
+{
+  "hr": [
+    {
+      "time": "2026-08-24T12",
+      "data": {
+        "count": 8,
+        "kpfun-getStaEvent": 3,
+        "verifyClientUser": 1,
+        "boundary-plus1": 1,
+        "spill-a": 1,
+        "spill-b": 1,
+        "spill-c": 1
+      }
+    },
+    {
+      "time": "2026-08-24T13",
+      "data": {
+        "count": 15,
+        "api/getUserByToken": 3,
+        "verifyAppUser": 4,
+        "api/syncAndReplaceTabs": 3,
+        "verifyClientUser": 2,
+        "kpfun-getStaEvent": 3
+      }
+    },
+    {
+      "time": "2026-08-24T14",
+      "data": {
+        "count": 15,
+        "verifyConn": 3,
+        "verifyClientUser": 3,
+        "kpfun-getWebInfor": 1,
+        "api/getUserByToken": 2,
+        "api/syncAndReplaceTabs": 2,
+        "verifyAppUser": 3,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-24T15",
+      "data": {
+        "count": 14,
+        "api/getUserByToken": 1,
+        "kpfun-getWebInfor": 5,
+        "kpfun-getStaEvent": 1,
+        "verifyConn": 3,
+        "api/syncAndReplaceTabs": 3,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-24T16",
+      "data": {
+        "count": 15,
+        "kpfun-getStaEvent": 4,
+        "verifyClientUser": 4,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 1,
+        "kpfun-getWebInfor": 3,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-24T17",
+      "data": {
+        "count": 8,
+        "verifyConn": 3,
+        "verifyClientUser": 2,
+        "api/syncAndReplaceTabs": 2,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-24T18",
+      "data": {
+        "count": 19,
+        "api/getUserByToken": 4,
+        "kpfun-getStaEvent": 1,
+        "verifyClientUser": 5,
+        "api/syncAndReplaceTabs": 3,
+        "kpfun-getWebInfor": 2,
+        "verifyConn": 2,
+        "verifyAppUser": 2
+      }
+    },
+    {
+      "time": "2026-08-24T19",
+      "data": {
+        "count": 16,
+        "verifyAppUser": 3,
+        "verifyConn": 3,
+        "api/getUserByToken": 5,
+        "verifyClientUser": 2,
+        "kpfun-getStaEvent": 1,
+        "api/syncAndReplaceTabs": 2
+      }
+    },
+    {
+      "time": "2026-08-24T20",
+      "data": {
+        "count": 18,
+        "api/getUserByToken": 5,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 3,
+        "kpfun-getStaEvent": 3,
+        "verifyClientUser": 2,
+        "api/syncAndReplaceTabs": 1,
+        "verifyAppUser": 2
+      }
+    },
+    {
+      "time": "2026-08-24T21",
+      "data": {
+        "count": 14,
+        "kpfun-getWebInfor": 6,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 3,
+        "kpfun-getStaEvent": 2,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-24T22",
+      "data": {
+        "count": 17,
+        "api/syncAndReplaceTabs": 7,
+        "kpfun-getWebInfor": 1,
+        "verifyConn": 3,
+        "kpfun-getStaEvent": 1,
+        "verifyClientUser": 3,
+        "api/getUserByToken": 1,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-24T23",
+      "data": {
+        "count": 9,
+        "verifyAppUser": 1,
+        "verifyClientUser": 2,
+        "kpfun-getWebInfor": 2,
+        "api/getUserByToken": 2,
+        "kpfun-getStaEvent": 1,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-25T00",
+      "data": {
+        "count": 18,
+        "kpfun-getStaEvent": 5,
+        "verifyConn": 4,
+        "verifyAppUser": 4,
+        "api/getUserByToken": 3,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-25T01",
+      "data": {
+        "count": 10,
+        "kpfun-getStaEvent": 1,
+        "verifyClientUser": 1,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 3,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-25T02",
+      "data": {
+        "count": 11,
+        "verifyConn": 1,
+        "verifyAppUser": 3,
+        "kpfun-getStaEvent": 2,
+        "api/getUserByToken": 4,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-25T03",
+      "data": {
+        "count": 9,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getWebInfor": 3,
+        "verifyClientUser": 2,
+        "verifyAppUser": 2,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-25T04",
+      "data": {
+        "count": 8,
+        "verifyAppUser": 1,
+        "api/syncAndReplaceTabs": 1,
+        "verifyClientUser": 1,
+        "verifyConn": 3,
+        "kpfun-getStaEvent": 1,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-25T05",
+      "data": {
+        "count": 15,
+        "kpfun-getWebInfor": 4,
+        "api/syncAndReplaceTabs": 2,
+        "verifyClientUser": 2,
+        "kpfun-getStaEvent": 2,
+        "verifyConn": 3,
+        "verifyAppUser": 2
+      }
+    },
+    {
+      "time": "2026-08-25T06",
+      "data": {
+        "count": 12,
+        "kpfun-getStaEvent": 6,
+        "verifyConn": 1,
+        "verifyAppUser": 2,
+        "api/getUserByToken": 1,
+        "api/syncAndReplaceTabs": 1,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-25T07",
+      "data": {
+        "count": 12,
+        "kpfun-getStaEvent": 2,
+        "api/syncAndReplaceTabs": 3,
+        "kpfun-getWebInfor": 1,
+        "verifyConn": 3,
+        "verifyClientUser": 1,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-25T08",
+      "data": {
+        "count": 12,
+        "kpfun-getWebInfor": 3,
+        "verifyConn": 4,
+        "verifyClientUser": 4,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-25T09",
+      "data": {
+        "count": 9,
+        "verifyConn": 1,
+        "verifyAppUser": 1,
+        "kpfun-getWebInfor": 2,
+        "api/getUserByToken": 3,
+        "api/syncAndReplaceTabs": 2
+      }
+    },
+    {
+      "time": "2026-08-25T10",
+      "data": {
+        "count": 14,
+        "verifyClientUser": 1,
+        "kpfun-getStaEvent": 1,
+        "kpfun-getWebInfor": 4,
+        "api/getUserByToken": 3,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 3
+      }
+    },
+    {
+      "time": "2026-08-25T11",
+      "data": {
+        "count": 15,
+        "verifyClientUser": 5,
+        "verifyConn": 3,
+        "kpfun-getWebInfor": 1,
+        "api/getUserByToken": 3,
+        "verifyAppUser": 2,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-25T12",
+      "data": {
+        "count": 18,
+        "verifyAppUser": 5,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 3,
+        "kpfun-getStaEvent": 3,
+        "api/syncAndReplaceTabs": 2,
+        "api/getUserByToken": 2,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-25T13",
+      "data": {
+        "count": 9,
+        "verifyAppUser": 3,
+        "verifyConn": 3,
+        "verifyClientUser": 1,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-25T14",
+      "data": {
+        "count": 8,
+        "kpfun-getWebInfor": 2,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 1,
+        "kpfun-getStaEvent": 2,
+        "verifyConn": 1,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-25T15",
+      "data": {
+        "count": 11,
+        "verifyConn": 3,
+        "verifyClientUser": 3,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 2,
+        "kpfun-getStaEvent": 1,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-25T16",
+      "data": {
+        "count": 14,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 3,
+        "kpfun-getStaEvent": 4,
+        "kpfun-getWebInfor": 1,
+        "api/getUserByToken": 3,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-25T17",
+      "data": {
+        "count": 10,
+        "kpfun-getStaEvent": 1,
+        "api/syncAndReplaceTabs": 1,
+        "verifyClientUser": 2,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 1,
+        "kpfun-getWebInfor": 1,
+        "verifyConn": 3
+      }
+    },
+    {
+      "time": "2026-08-25T18",
+      "data": {
+        "count": 15,
+        "verifyConn": 2,
+        "verifyAppUser": 2,
+        "verifyClientUser": 4,
+        "kpfun-getStaEvent": 1,
+        "api/getUserByToken": 2,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getWebInfor": 3
+      }
+    },
+    {
+      "time": "2026-08-25T19",
+      "data": {
+        "count": 17,
+        "kpfun-getWebInfor": 3,
+        "api/syncAndReplaceTabs": 4,
+        "verifyConn": 3,
+        "api/getUserByToken": 2,
+        "verifyClientUser": 1,
+        "verifyAppUser": 3,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-25T20",
+      "data": {
+        "count": 15,
+        "api/getUserByToken": 2,
+        "kpfun-getStaEvent": 4,
+        "kpfun-getWebInfor": 1,
+        "verifyAppUser": 3,
+        "verifyClientUser": 3,
+        "api/syncAndReplaceTabs": 2
+      }
+    },
+    {
+      "time": "2026-08-25T21",
+      "data": {
+        "count": 14,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getStaEvent": 2,
+        "verifyClientUser": 4,
+        "api/getUserByToken": 2,
+        "verifyConn": 2,
+        "verifyAppUser": 3
+      }
+    },
+    {
+      "time": "2026-08-25T22",
+      "data": {
+        "count": 17,
+        "verifyConn": 2,
+        "api/getUserByToken": 5,
+        "kpfun-getStaEvent": 3,
+        "verifyClientUser": 3,
+        "kpfun-getWebInfor": 2,
+        "api/syncAndReplaceTabs": 2
+      }
+    },
+    {
+      "time": "2026-08-25T23",
+      "data": {
+        "count": 10,
+        "api/getUserByToken": 1,
+        "verifyClientUser": 2,
+        "kpfun-getWebInfor": 2,
+        "kpfun-getStaEvent": 1,
+        "verifyAppUser": 3,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-26T00",
+      "data": {
+        "count": 17,
+        "api/syncAndReplaceTabs": 6,
+        "kpfun-getStaEvent": 4,
+        "verifyClientUser": 1,
+        "kpfun-getWebInfor": 3,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 1,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-26T01",
+      "data": {
+        "count": 12,
+        "kpfun-getWebInfor": 1,
+        "verifyClientUser": 3,
+        "verifyAppUser": 2,
+        "kpfun-getStaEvent": 2,
+        "api/getUserByToken": 2,
+        "verifyConn": 1,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-26T02",
+      "data": {
+        "count": 15,
+        "api/getUserByToken": 2,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getStaEvent": 4,
+        "verifyConn": 3,
+        "verifyClientUser": 1,
+        "kpfun-getWebInfor": 3
+      }
+    },
+    {
+      "time": "2026-08-26T03",
+      "data": {
+        "count": 13,
+        "verifyAppUser": 2,
+        "kpfun-getWebInfor": 4,
+        "api/getUserByToken": 2,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getStaEvent": 2,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-26T04",
+      "data": {
+        "count": 16,
+        "kpfun-getWebInfor": 2,
+        "verifyClientUser": 2,
+        "verifyAppUser": 3,
+        "api/getUserByToken": 2,
+        "verifyConn": 3,
+        "api/syncAndReplaceTabs": 3,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-26T05",
+      "data": {
+        "count": 17,
+        "verifyConn": 2,
+        "verifyClientUser": 2,
+        "api/syncAndReplaceTabs": 5,
+        "kpfun-getWebInfor": 3,
+        "kpfun-getStaEvent": 2,
+        "verifyAppUser": 2,
+        "iso-string-time": 1
+      }
+    },
+    {
+      "time": "2026-08-26T06",
+      "data": {
+        "count": 16,
+        "api/getUserByToken": 6,
+        "kpfun-getStaEvent": 3,
+        "verifyConn": 1,
+        "kpfun-getWebInfor": 1,
+        "api/syncAndReplaceTabs": 2,
+        "verifyClientUser": 2,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-26T07",
+      "data": {
+        "count": 16,
+        "verifyConn": 3,
+        "kpfun-getStaEvent": 4,
+        "verifyClientUser": 4,
+        "verifyAppUser": 2,
+        "api/getUserByToken": 1,
+        "kpfun-getWebInfor": 1,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-26T08",
+      "data": {
+        "count": 13,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getStaEvent": 2,
+        "verifyClientUser": 4,
+        "kpfun-getWebInfor": 2,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 1,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-26T09",
+      "data": {
+        "count": 14,
+        "kpfun-getStaEvent": 3,
+        "verifyAppUser": 1,
+        "kpfun-getWebInfor": 2,
+        "verifyClientUser": 4,
+        "api/getUserByToken": 1,
+        "api/syncAndReplaceTabs": 3
+      }
+    },
+    {
+      "time": "2026-08-26T10",
+      "data": {
+        "count": 12,
+        "kpfun-getWebInfor": 4,
+        "verifyClientUser": 1,
+        "api/getUserByToken": 1,
+        "api/syncAndReplaceTabs": 2,
+        "verifyAppUser": 2,
+        "kpfun-getStaEvent": 1,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-26T11",
+      "data": {
+        "count": 18,
+        "verifyConn": 3,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getStaEvent": 4,
+        "verifyAppUser": 4,
+        "kpfun-getWebInfor": 2,
+        "api/getUserByToken": 3
+      }
+    },
+    {
+      "time": "2026-08-26T12",
+      "data": {
+        "count": 12,
+        "verifyConn": 2,
+        "api/syncAndReplaceTabs": 1,
+        "verifyAppUser": 3,
+        "kpfun-getStaEvent": 3,
+        "kpfun-getWebInfor": 1,
+        "api/getUserByToken": 2
+      }
+    },
+    {
+      "time": "2026-08-26T13",
+      "data": {
+        "count": 18,
+        "verifyAppUser": 5,
+        "kpfun-getWebInfor": 1,
+        "verifyClientUser": 3,
+        "kpfun-getStaEvent": 2,
+        "api/syncAndReplaceTabs": 2,
+        "api/getUserByToken": 3,
+        "verifyConn": 2
+      }
+    },
+    {
+      "time": "2026-08-26T14",
+      "data": {
+        "count": 15,
+        "kpfun-getWebInfor": 2,
+        "kpfun-getStaEvent": 5,
+        "verifyConn": 1,
+        "verifyClientUser": 4,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-26T15",
+      "data": {
+        "count": 12,
+        "api/getUserByToken": 2,
+        "api/syncAndReplaceTabs": 1,
+        "verifyClientUser": 1,
+        "verifyAppUser": 3,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 3
+      }
+    },
+    {
+      "time": "2026-08-26T16",
+      "data": {
+        "count": 10,
+        "verifyAppUser": 3,
+        "verifyConn": 2,
+        "kpfun-getStaEvent": 4,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-26T17",
+      "data": {
+        "count": 10,
+        "verifyClientUser": 2,
+        "api/syncAndReplaceTabs": 3,
+        "api/getUserByToken": 1,
+        "verifyConn": 2,
+        "kpfun-getStaEvent": 1,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-26T18",
+      "data": {
+        "count": 13,
+        "api/syncAndReplaceTabs": 3,
+        "verifyAppUser": 1,
+        "kpfun-getWebInfor": 2,
+        "kpfun-getStaEvent": 2,
+        "verifyClientUser": 2,
+        "api/getUserByToken": 2,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-26T19",
+      "data": {
+        "count": 8,
+        "kpfun-getStaEvent": 3,
+        "verifyClientUser": 3,
+        "verifyConn": 1,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-26T20",
+      "data": {
+        "count": 9,
+        "api/getUserByToken": 1,
+        "verifyClientUser": 3,
+        "kpfun-getStaEvent": 3,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-26T21",
+      "data": {
+        "count": 18,
+        "verifyAppUser": 3,
+        "api/getUserByToken": 1,
+        "api/syncAndReplaceTabs": 4,
+        "kpfun-getStaEvent": 3,
+        "verifyConn": 3,
+        "kpfun-getWebInfor": 1,
+        "verifyClientUser": 3
+      }
+    },
+    {
+      "time": "2026-08-26T22",
+      "data": {
+        "count": 10,
+        "api/getUserByToken": 3,
+        "verifyConn": 2,
+        "verifyAppUser": 1,
+        "verifyClientUser": 1,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-26T23",
+      "data": {
+        "count": 8,
+        "verifyAppUser": 2,
+        "api/getUserByToken": 1,
+        "verifyClientUser": 2,
+        "kpfun-getStaEvent": 2,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-27T00",
+      "data": {
+        "count": 6,
+        "kpfun-getStaEvent": 2,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 1,
+        "verifyConn": 1,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-27T01",
+      "data": {
+        "count": 12,
+        "api/syncAndReplaceTabs": 2,
+        "verifyAppUser": 2,
+        "api/getUserByToken": 3,
+        "kpfun-getStaEvent": 2,
+        "verifyClientUser": 1,
+        "verifyConn": 2
+      }
+    },
+    {
+      "time": "2026-08-27T02",
+      "data": {
+        "count": 13,
+        "api/syncAndReplaceTabs": 4,
+        "verifyConn": 2,
+        "kpfun-getStaEvent": 3,
+        "api/getUserByToken": 2,
+        "kpfun-getWebInfor": 1,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-27T03",
+      "data": {
+        "count": 9,
+        "kpfun-getStaEvent": 1,
+        "kpfun-getWebInfor": 2,
+        "api/syncAndReplaceTabs": 1,
+        "verifyConn": 2,
+        "verifyClientUser": 3
+      }
+    },
+    {
+      "time": "2026-08-27T04",
+      "data": {
+        "count": 7,
+        "api/syncAndReplaceTabs": 1,
+        "api/getUserByToken": 4,
+        "verifyConn": 1,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-27T05",
+      "data": {
+        "count": 9,
+        "verifyAppUser": 3,
+        "kpfun-getStaEvent": 2,
+        "verifyClientUser": 1,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-27T06",
+      "data": {
+        "count": 12,
+        "verifyClientUser": 3,
+        "api/syncAndReplaceTabs": 3,
+        "api/getUserByToken": 2,
+        "kpfun-getWebInfor": 2,
+        "kpfun-getStaEvent": 2
+      }
+    },
+    {
+      "time": "2026-08-27T07",
+      "data": {
+        "count": 12,
+        "verifyClientUser": 2,
+        "api/getUserByToken": 4,
+        "verifyAppUser": 1,
+        "verifyConn": 4,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-27T08",
+      "data": {
+        "count": 12,
+        "kpfun-getStaEvent": 4,
+        "kpfun-getWebInfor": 3,
+        "api/syncAndReplaceTabs": 2,
+        "verifyClientUser": 1,
+        "verifyConn": 2
+      }
+    },
+    {
+      "time": "2026-08-27T09",
+      "data": {
+        "count": 15,
+        "kpfun-getWebInfor": 2,
+        "verifyClientUser": 1,
+        "api/syncAndReplaceTabs": 3,
+        "verifyConn": 4,
+        "verifyAppUser": 2,
+        "kpfun-getStaEvent": 2,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-27T10",
+      "data": {
+        "count": 16,
+        "api/getUserByToken": 3,
+        "api/syncAndReplaceTabs": 5,
+        "kpfun-getWebInfor": 3,
+        "kpfun-getStaEvent": 3,
+        "verifyAppUser": 1,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-27T11",
+      "data": {
+        "count": 15,
+        "verifyConn": 1,
+        "kpfun-getWebInfor": 3,
+        "verifyClientUser": 3,
+        "verifyAppUser": 4,
+        "api/syncAndReplaceTabs": 1,
+        "api/getUserByToken": 3
+      }
+    },
+    {
+      "time": "2026-08-27T12",
+      "data": {
+        "count": 8,
+        "verifyClientUser": 2,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 1,
+        "kpfun-getStaEvent": 2,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-27T13",
+      "data": {
+        "count": 15,
+        "api/getUserByToken": 3,
+        "kpfun-getStaEvent": 3,
+        "verifyAppUser": 2,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getWebInfor": 3,
+        "verifyConn": 3
+      }
+    },
+    {
+      "time": "2026-08-27T14",
+      "data": {
+        "count": 13,
+        "kpfun-getWebInfor": 2,
+        "verifyClientUser": 4,
+        "verifyConn": 1,
+        "verifyAppUser": 3,
+        "kpfun-getStaEvent": 3
+      }
+    },
+    {
+      "time": "2026-08-27T15",
+      "data": {
+        "count": 20,
+        "kpfun-getStaEvent": 4,
+        "api/syncAndReplaceTabs": 4,
+        "verifyClientUser": 3,
+        "kpfun-getWebInfor": 4,
+        "verifyConn": 2,
+        "api/getUserByToken": 3
+      }
+    },
+    {
+      "time": "2026-08-27T16",
+      "data": {
+        "count": 11,
+        "api/syncAndReplaceTabs": 1,
+        "api/getUserByToken": 5,
+        "kpfun-getWebInfor": 3,
+        "verifyConn": 1,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-27T17",
+      "data": {
+        "count": 13,
+        "kpfun-getStaEvent": 1,
+        "verifyConn": 2,
+        "api/syncAndReplaceTabs": 2,
+        "verifyClientUser": 2,
+        "kpfun-getWebInfor": 4,
+        "api/getUserByToken": 1,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-27T18",
+      "data": {
+        "count": 8,
+        "verifyConn": 1,
+        "kpfun-getStaEvent": 1,
+        "api/syncAndReplaceTabs": 4,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-27T19",
+      "data": {
+        "count": 12,
+        "verifyAppUser": 1,
+        "verifyClientUser": 2,
+        "verifyConn": 4,
+        "kpfun-getWebInfor": 2,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getStaEvent": 2
+      }
+    },
+    {
+      "time": "2026-08-27T20",
+      "data": {
+        "count": 12,
+        "kpfun-getStaEvent": 2,
+        "api/getUserByToken": 2,
+        "kpfun-getWebInfor": 3,
+        "verifyAppUser": 1,
+        "verifyClientUser": 1,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-27T21",
+      "data": {
+        "count": 6,
+        "api/getUserByToken": 3,
+        "kpfun-getStaEvent": 1,
+        "kpfun-getWebInfor": 2
+      }
+    },
+    {
+      "time": "2026-08-27T22",
+      "data": {
+        "count": 15,
+        "verifyConn": 1,
+        "verifyAppUser": 4,
+        "kpfun-getWebInfor": 3,
+        "verifyClientUser": 1,
+        "api/syncAndReplaceTabs": 3,
+        "api/getUserByToken": 2,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-27T23",
+      "data": {
+        "count": 14,
+        "api/getUserByToken": 4,
+        "verifyConn": 2,
+        "verifyClientUser": 3,
+        "verifyAppUser": 2,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-28T00",
+      "data": {
+        "count": 14,
+        "verifyClientUser": 3,
+        "verifyAppUser": 1,
+        "api/syncAndReplaceTabs": 3,
+        "kpfun-getWebInfor": 4,
+        "kpfun-getStaEvent": 2,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-28T01",
+      "data": {
+        "count": 9,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 3,
+        "kpfun-getStaEvent": 2,
+        "kpfun-getWebInfor": 2,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-28T02",
+      "data": {
+        "count": 10,
+        "api/getUserByToken": 3,
+        "kpfun-getStaEvent": 2,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 1,
+        "verifyAppUser": 1,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-28T03",
+      "data": {
+        "count": 10,
+        "kpfun-getWebInfor": 3,
+        "api/getUserByToken": 2,
+        "kpfun-getStaEvent": 1,
+        "verifyConn": 2,
+        "verifyAppUser": 2
+      }
+    },
+    {
+      "time": "2026-08-28T04",
+      "data": {
+        "count": 14,
+        "api/syncAndReplaceTabs": 1,
+        "api/getUserByToken": 2,
+        "verifyConn": 3,
+        "verifyAppUser": 2,
+        "verifyClientUser": 3,
+        "kpfun-getWebInfor": 2,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-28T05",
+      "data": {
+        "count": 6,
+        "verifyConn": 3,
+        "kpfun-getWebInfor": 1,
+        "kpfun-getStaEvent": 1,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-28T06",
+      "data": {
+        "count": 11,
+        "api/getUserByToken": 5,
+        "api/syncAndReplaceTabs": 4,
+        "kpfun-getStaEvent": 2
+      }
+    },
+    {
+      "time": "2026-08-28T07",
+      "data": {
+        "count": 10,
+        "kpfun-getStaEvent": 2,
+        "api/syncAndReplaceTabs": 3,
+        "verifyAppUser": 2,
+        "verifyClientUser": 2,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-28T08",
+      "data": {
+        "count": 12,
+        "api/getUserByToken": 4,
+        "verifyClientUser": 2,
+        "verifyAppUser": 1,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 2,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-28T09",
+      "data": {
+        "count": 14,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getWebInfor": 3,
+        "verifyConn": 3,
+        "verifyAppUser": 2,
+        "kpfun-getStaEvent": 2,
+        "verifyClientUser": 2
+      }
+    },
+    {
+      "time": "2026-08-28T10",
+      "data": {
+        "count": 15,
+        "kpfun-getStaEvent": 3,
+        "kpfun-getWebInfor": 6,
+        "api/getUserByToken": 3,
+        "verifyAppUser": 1,
+        "api/syncAndReplaceTabs": 2
+      }
+    },
+    {
+      "time": "2026-08-28T11",
+      "data": {
+        "count": 15,
+        "api/getUserByToken": 5,
+        "verifyAppUser": 1,
+        "verifyClientUser": 3,
+        "verifyConn": 3,
+        "kpfun-getStaEvent": 2,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-28T12",
+      "data": {
+        "count": 16,
+        "kpfun-getWebInfor": 2,
+        "verifyClientUser": 2,
+        "api/syncAndReplaceTabs": 2,
+        "api/getUserByToken": 3,
+        "verifyConn": 3,
+        "verifyAppUser": 4
+      }
+    },
+    {
+      "time": "2026-08-28T13",
+      "data": {
+        "count": 10,
+        "kpfun-getStaEvent": 2,
+        "kpfun-getWebInfor": 4,
+        "api/getUserByToken": 1,
+        "verifyConn": 2,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-28T14",
+      "data": {
+        "count": 17,
+        "verifyConn": 3,
+        "api/syncAndReplaceTabs": 3,
+        "kpfun-getWebInfor": 2,
+        "verifyClientUser": 2,
+        "verifyAppUser": 2,
+        "api/getUserByToken": 1,
+        "kpfun-getStaEvent": 4
+      }
+    },
+    {
+      "time": "2026-08-28T15",
+      "data": {
+        "count": 17,
+        "kpfun-getWebInfor": 6,
+        "kpfun-getStaEvent": 5,
+        "api/getUserByToken": 1,
+        "verifyAppUser": 2,
+        "api/syncAndReplaceTabs": 3
+      }
+    },
+    {
+      "time": "2026-08-28T16",
+      "data": {
+        "count": 11,
+        "api/syncAndReplaceTabs": 1,
+        "verifyClientUser": 3,
+        "kpfun-getWebInfor": 1,
+        "api/getUserByToken": 1,
+        "verifyAppUser": 4,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-28T17",
+      "data": {
+        "count": 16,
+        "kpfun-getStaEvent": 5,
+        "verifyConn": 2,
+        "verifyClientUser": 2,
+        "api/syncAndReplaceTabs": 1,
+        "verifyAppUser": 3,
+        "api/getUserByToken": 1,
+        "kpfun-getWebInfor": 2
+      }
+    },
+    {
+      "time": "2026-08-28T18",
+      "data": {
+        "count": 10,
+        "verifyClientUser": 3,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 3,
+        "verifyAppUser": 2
+      }
+    },
+    {
+      "time": "2026-08-28T19",
+      "data": {
+        "count": 15,
+        "api/getUserByToken": 3,
+        "kpfun-getStaEvent": 2,
+        "api/syncAndReplaceTabs": 3,
+        "verifyConn": 1,
+        "kpfun-getWebInfor": 2,
+        "verifyClientUser": 1,
+        "verifyAppUser": 3
+      }
+    },
+    {
+      "time": "2026-08-28T20",
+      "data": {
+        "count": 11,
+        "verifyClientUser": 1,
+        "api/getUserByToken": 3,
+        "kpfun-getWebInfor": 3,
+        "verifyAppUser": 3,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-28T21",
+      "data": {
+        "count": 18,
+        "verifyClientUser": 4,
+        "kpfun-getStaEvent": 2,
+        "kpfun-getWebInfor": 3,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 3,
+        "verifyConn": 2,
+        "api/syncAndReplaceTabs": 2
+      }
+    },
+    {
+      "time": "2026-08-28T22",
+      "data": {
+        "count": 8,
+        "api/getUserByToken": 2,
+        "verifyClientUser": 1,
+        "api/syncAndReplaceTabs": 3,
+        "kpfun-getStaEvent": 1,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-28T23",
+      "data": {
+        "count": 11,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getWebInfor": 1,
+        "verifyConn": 3,
+        "verifyAppUser": 3,
+        "verifyClientUser": 2,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-29T00",
+      "data": {
+        "count": 17,
+        "verifyClientUser": 4,
+        "verifyAppUser": 2,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getStaEvent": 3,
+        "verifyConn": 3,
+        "api/getUserByToken": 3
+      }
+    },
+    {
+      "time": "2026-08-29T01",
+      "data": {
+        "count": 13,
+        "verifyAppUser": 1,
+        "kpfun-getStaEvent": 4,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getWebInfor": 3,
+        "api/getUserByToken": 1,
+        "verifyConn": 1,
+        "verifyClientUser": 2
+      }
+    },
+    {
+      "time": "2026-08-29T02",
+      "data": {
+        "count": 13,
+        "verifyAppUser": 4,
+        "verifyClientUser": 3,
+        "kpfun-getWebInfor": 2,
+        "api/getUserByToken": 2,
+        "verifyConn": 2
+      }
+    },
+    {
+      "time": "2026-08-29T03",
+      "data": {
+        "count": 11,
+        "verifyAppUser": 3,
+        "verifyClientUser": 1,
+        "api/getUserByToken": 1,
+        "kpfun-getStaEvent": 3,
+        "api/syncAndReplaceTabs": 1,
+        "verifyConn": 2
+      }
+    },
+    {
+      "time": "2026-08-29T04",
+      "data": {
+        "count": 10,
+        "api/syncAndReplaceTabs": 3,
+        "verifyConn": 1,
+        "api/getUserByToken": 2,
+        "kpfun-getWebInfor": 1,
+        "kpfun-getStaEvent": 2,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-29T05",
+      "data": {
+        "count": 13,
+        "verifyAppUser": 5,
+        "api/getUserByToken": 3,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getWebInfor": 1,
+        "verifyConn": 1,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-29T06",
+      "data": {
+        "count": 16,
+        "verifyConn": 3,
+        "verifyClientUser": 6,
+        "api/syncAndReplaceTabs": 2,
+        "verifyAppUser": 2,
+        "kpfun-getStaEvent": 1,
+        "api/getUserByToken": 2
+      }
+    },
+    {
+      "time": "2026-08-29T07",
+      "data": {
+        "count": 7,
+        "kpfun-getWebInfor": 2,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 1,
+        "verifyClientUser": 1,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-29T08",
+      "data": {
+        "count": 9,
+        "kpfun-getWebInfor": 2,
+        "kpfun-getStaEvent": 1,
+        "api/getUserByToken": 1,
+        "verifyConn": 2,
+        "verifyAppUser": 1,
+        "verifyClientUser": 1,
+        "notes-event": 1
+      }
+    },
+    {
+      "time": "2026-08-29T09",
+      "data": {
+        "count": 17,
+        "kpfun-getWebInfor": 2,
+        "verifyAppUser": 4,
+        "kpfun-getStaEvent": 3,
+        "verifyConn": 2,
+        "api/syncAndReplaceTabs": 1,
+        "verifyClientUser": 3,
+        "api/getUserByToken": 2
+      }
+    },
+    {
+      "time": "2026-08-29T10",
+      "data": {
+        "count": 15,
+        "verifyClientUser": 3,
+        "verifyAppUser": 2,
+        "verifyConn": 2,
+        "api/syncAndReplaceTabs": 3,
+        "kpfun-getStaEvent": 2,
+        "kpfun-getWebInfor": 1,
+        "api/getUserByToken": 2
+      }
+    },
+    {
+      "time": "2026-08-29T11",
+      "data": {
+        "count": 14,
+        "api/getUserByToken": 3,
+        "verifyConn": 4,
+        "kpfun-getWebInfor": 2,
+        "kpfun-getStaEvent": 3,
+        "verifyAppUser": 1,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-29T12",
+      "data": {
+        "count": 13,
+        "verifyAppUser": 2,
+        "kpfun-getStaEvent": 1,
+        "api/getUserByToken": 2,
+        "kpfun-getWebInfor": 3,
+        "api/syncAndReplaceTabs": 2,
+        "verifyClientUser": 3
+      }
+    },
+    {
+      "time": "2026-08-29T13",
+      "data": {
+        "count": 17,
+        "verifyConn": 3,
+        "kpfun-getWebInfor": 3,
+        "verifyAppUser": 1,
+        "verifyClientUser": 2,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getStaEvent": 2,
+        "api/getUserByToken": 4
+      }
+    },
+    {
+      "time": "2026-08-29T14",
+      "data": {
+        "count": 12,
+        "api/getUserByToken": 3,
+        "verifyAppUser": 1,
+        "verifyClientUser": 1,
+        "verifyConn": 4,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getWebInfor": 2
+      }
+    },
+    {
+      "time": "2026-08-29T15",
+      "data": {
+        "count": 13,
+        "api/getUserByToken": 4,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 1,
+        "kpfun-getStaEvent": 2,
+        "kpfun-getWebInfor": 2,
+        "verifyClientUser": 2
+      }
+    },
+    {
+      "time": "2026-08-29T16",
+      "data": {
+        "count": 9,
+        "verifyAppUser": 1,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 2,
+        "api/getUserByToken": 1,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-29T17",
+      "data": {
+        "count": 18,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 5,
+        "verifyAppUser": 3,
+        "api/syncAndReplaceTabs": 3,
+        "api/getUserByToken": 2,
+        "kpfun-getStaEvent": 3
+      }
+    },
+    {
+      "time": "2026-08-29T18",
+      "data": {
+        "count": 11,
+        "kpfun-getStaEvent": 3,
+        "verifyClientUser": 1,
+        "kpfun-getWebInfor": 2,
+        "api/syncAndReplaceTabs": 2,
+        "api/getUserByToken": 2,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-29T19",
+      "data": {
+        "count": 19,
+        "api/syncAndReplaceTabs": 5,
+        "verifyAppUser": 3,
+        "kpfun-getStaEvent": 5,
+        "verifyConn": 4,
+        "kpfun-getWebInfor": 1,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-29T20",
+      "data": {
+        "count": 16,
+        "kpfun-getStaEvent": 7,
+        "verifyAppUser": 2,
+        "verifyClientUser": 4,
+        "kpfun-getWebInfor": 2,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-29T21",
+      "data": {
+        "count": 13,
+        "kpfun-getStaEvent": 4,
+        "verifyAppUser": 5,
+        "kpfun-getWebInfor": 2,
+        "api/getUserByToken": 1,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-29T22",
+      "data": {
+        "count": 14,
+        "verifyConn": 6,
+        "kpfun-getStaEvent": 3,
+        "api/syncAndReplaceTabs": 2,
+        "api/getUserByToken": 1,
+        "kpfun-getWebInfor": 1,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-29T23",
+      "data": {
+        "count": 14,
+        "api/syncAndReplaceTabs": 4,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 4,
+        "verifyAppUser": 3,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-30T00",
+      "data": {
+        "count": 6,
+        "verifyClientUser": 2,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 1,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-30T01",
+      "data": {
+        "count": 17,
+        "kpfun-getWebInfor": 5,
+        "api/syncAndReplaceTabs": 3,
+        "verifyClientUser": 4,
+        "kpfun-getStaEvent": 1,
+        "verifyConn": 1,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-30T02",
+      "data": {
+        "count": 11,
+        "kpfun-getWebInfor": 2,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getStaEvent": 4,
+        "verifyClientUser": 2,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-30T03",
+      "data": {
+        "count": 17,
+        "verifyConn": 1,
+        "verifyClientUser": 3,
+        "verifyAppUser": 7,
+        "kpfun-getWebInfor": 2,
+        "api/getUserByToken": 2,
+        "api/syncAndReplaceTabs": 2
+      }
+    },
+    {
+      "time": "2026-08-30T04",
+      "data": {
+        "count": 7,
+        "kpfun-getWebInfor": 1,
+        "verifyConn": 2,
+        "api/syncAndReplaceTabs": 1,
+        "verifyAppUser": 1,
+        "api/getUserByToken": 2
+      }
+    },
+    {
+      "time": "2026-08-30T05",
+      "data": {
+        "count": 13,
+        "verifyConn": 3,
+        "verifyAppUser": 4,
+        "kpfun-getWebInfor": 1,
+        "verifyClientUser": 3,
+        "kpfun-getStaEvent": 1,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-30T06",
+      "data": {
+        "count": 12,
+        "kpfun-getWebInfor": 2,
+        "verifyConn": 2,
+        "kpfun-getStaEvent": 4,
+        "verifyClientUser": 2,
+        "api/syncAndReplaceTabs": 1,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-30T07",
+      "data": {
+        "count": 8,
+        "api/syncAndReplaceTabs": 2,
+        "api/getUserByToken": 1,
+        "kpfun-getWebInfor": 2,
+        "verifyConn": 1,
+        "verifyClientUser": 1,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-30T08",
+      "data": {
+        "count": 12,
+        "verifyClientUser": 1,
+        "api/getUserByToken": 2,
+        "kpfun-getStaEvent": 1,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getWebInfor": 4,
+        "verifyConn": 1,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-30T09",
+      "data": {
+        "count": 14,
+        "verifyClientUser": 2,
+        "api/syncAndReplaceTabs": 2,
+        "api/getUserByToken": 4,
+        "verifyAppUser": 2,
+        "kpfun-getStaEvent": 3,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-30T10",
+      "data": {
+        "count": 15,
+        "api/syncAndReplaceTabs": 4,
+        "verifyClientUser": 5,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 3,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-30T11",
+      "data": {
+        "count": 16,
+        "kpfun-getWebInfor": 3,
+        "verifyConn": 3,
+        "api/getUserByToken": 5,
+        "kpfun-getStaEvent": 2,
+        "verifyAppUser": 3
+      }
+    },
+    {
+      "time": "2026-08-30T12",
+      "data": {
+        "count": 14,
+        "kpfun-getStaEvent": 5,
+        "verifyClientUser": 1,
+        "api/getUserByToken": 2,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 2,
+        "api/syncAndReplaceTabs": 2
+      }
+    },
+    {
+      "time": "2026-08-30T13",
+      "data": {
+        "count": 16,
+        "kpfun-getStaEvent": 2,
+        "verifyConn": 3,
+        "verifyAppUser": 2,
+        "api/getUserByToken": 2,
+        "api/syncAndReplaceTabs": 3,
+        "verifyClientUser": 3,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-30T14",
+      "data": {
+        "count": 17,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 1,
+        "verifyClientUser": 4,
+        "verifyAppUser": 3,
+        "api/getUserByToken": 4,
+        "kpfun-getStaEvent": 1,
+        "kpfun-getWebInfor": 2
+      }
+    },
+    {
+      "time": "2026-08-30T15",
+      "data": {
+        "count": 16,
+        "kpfun-getWebInfor": 1,
+        "api/syncAndReplaceTabs": 5,
+        "verifyAppUser": 5,
+        "verifyConn": 2,
+        "kpfun-getStaEvent": 1,
+        "verifyClientUser": 1,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-30T16",
+      "data": {
+        "count": 12,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getWebInfor": 3,
+        "verifyAppUser": 3,
+        "verifyConn": 2,
+        "kpfun-getStaEvent": 1,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-30T17",
+      "data": {
+        "count": 16,
+        "kpfun-getWebInfor": 3,
+        "kpfun-getStaEvent": 2,
+        "api/getUserByToken": 2,
+        "api/syncAndReplaceTabs": 4,
+        "verifyAppUser": 3,
+        "verifyConn": 1,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-30T18",
+      "data": {
+        "count": 11,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 3,
+        "api/syncAndReplaceTabs": 2,
+        "api/getUserByToken": 1,
+        "verifyAppUser": 3
+      }
+    },
+    {
+      "time": "2026-08-30T19",
+      "data": {
+        "count": 9,
+        "kpfun-getWebInfor": 4,
+        "verifyClientUser": 1,
+        "verifyAppUser": 1,
+        "verifyConn": 3
+      }
+    },
+    {
+      "time": "2026-08-30T20",
+      "data": {
+        "count": 14,
+        "verifyClientUser": 5,
+        "kpfun-getWebInfor": 3,
+        "kpfun-getStaEvent": 2,
+        "verifyConn": 2,
+        "verifyAppUser": 1,
+        "api/syncAndReplaceTabs": 1
+      }
+    },
+    {
+      "time": "2026-08-30T21",
+      "data": {
+        "count": 10,
+        "kpfun-getWebInfor": 4,
+        "verifyConn": 2,
+        "api/syncAndReplaceTabs": 2,
+        "verifyClientUser": 1,
+        "verifyAppUser": 1
+      }
+    },
+    {
+      "time": "2026-08-30T22",
+      "data": {
+        "count": 12,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getStaEvent": 2,
+        "verifyAppUser": 3,
+        "api/getUserByToken": 2,
+        "kpfun-getWebInfor": 1,
+        "verifyClientUser": 1,
+        "verifyConn": 1
+      }
+    },
+    {
+      "time": "2026-08-30T23",
+      "data": {
+        "count": 9,
+        "verifyAppUser": 1,
+        "verifyConn": 1,
+        "api/syncAndReplaceTabs": 1,
+        "api/getUserByToken": 1,
+        "kpfun-getWebInfor": 3,
+        "verifyClientUser": 2
+      }
+    },
+    {
+      "time": "2026-08-31T00",
+      "data": {
+        "count": 11,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 2,
+        "verifyAppUser": 1,
+        "kpfun-getStaEvent": 1,
+        "api/syncAndReplaceTabs": 3,
+        "api/getUserByToken": 2
+      }
+    },
+    {
+      "time": "2026-08-31T01",
+      "data": {
+        "count": 10,
+        "verifyAppUser": 3,
+        "api/syncAndReplaceTabs": 3,
+        "verifyConn": 2,
+        "api/getUserByToken": 1,
+        "kpfun-getWebInfor": 1
+      }
+    },
+    {
+      "time": "2026-08-31T02",
+      "data": {
+        "count": 15,
+        "verifyConn": 2,
+        "kpfun-getWebInfor": 5,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getStaEvent": 4,
+        "api/getUserByToken": 2,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-31T03",
+      "data": {
+        "count": 13,
+        "api/getUserByToken": 4,
+        "api/syncAndReplaceTabs": 1,
+        "kpfun-getWebInfor": 3,
+        "verifyAppUser": 2,
+        "kpfun-getStaEvent": 1,
+        "verifyClientUser": 2
+      }
+    },
+    {
+      "time": "2026-08-31T04",
+      "data": {
+        "count": 9,
+        "verifyAppUser": 1,
+        "verifyConn": 1,
+        "kpfun-getStaEvent": 2,
+        "api/syncAndReplaceTabs": 2,
+        "kpfun-getWebInfor": 3
+      }
+    },
+    {
+      "time": "2026-08-31T05",
+      "data": {
+        "count": 17,
+        "verifyAppUser": 1,
+        "kpfun-getStaEvent": 2,
+        "verifyConn": 3,
+        "api/syncAndReplaceTabs": 5,
+        "verifyClientUser": 2,
+        "kpfun-getWebInfor": 3,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-31T06",
+      "data": {
+        "count": 12,
+        "kpfun-getWebInfor": 4,
+        "api/getUserByToken": 6,
+        "verifyAppUser": 2
+      }
+    },
+    {
+      "time": "2026-08-31T07",
+      "data": {
+        "count": 10,
+        "kpfun-getWebInfor": 2,
+        "verifyConn": 2,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 1,
+        "kpfun-getStaEvent": 1,
+        "verifyClientUser": 2
+      }
+    },
+    {
+      "time": "2026-08-31T08",
+      "data": {
+        "count": 16,
+        "verifyClientUser": 3,
+        "api/syncAndReplaceTabs": 3,
+        "verifyAppUser": 1,
+        "kpfun-getWebInfor": 2,
+        "verifyConn": 1,
+        "api/getUserByToken": 5,
+        "kpfun-getStaEvent": 1
+      }
+    },
+    {
+      "time": "2026-08-31T09",
+      "data": {
+        "count": 8,
+        "verifyAppUser": 3,
+        "api/syncAndReplaceTabs": 1,
+        "api/getUserByToken": 1,
+        "kpfun-getWebInfor": 2,
+        "verifyClientUser": 1
+      }
+    },
+    {
+      "time": "2026-08-31T10",
+      "data": {
+        "count": 13,
+        "api/syncAndReplaceTabs": 3,
+        "verifyConn": 1,
+        "kpfun-getWebInfor": 3,
+        "kpfun-getStaEvent": 5,
+        "api/getUserByToken": 1
+      }
+    },
+    {
+      "time": "2026-08-31T11",
+      "data": {
+        "count": 8,
+        "api/getUserByToken": 2,
+        "verifyAppUser": 1,
+        "api/syncAndReplaceTabs": 2,
+        "verifyConn": 1,
+        "verifyClientUser": 1,
+        "notes-event": 1
+      }
+    },
+    {
+      "time": "2026-08-31T12",
+      "data": {
+        "count": 15,
+        "kpfun-getStaEvent": 3,
+        "kpfun-getWebInfor": 4,
+        "verifyAppUser": 3,
+        "verifyClientUser": 3,
+        "verifyConn": 2
+      }
+    },
+    {
+      "time": "2026-09-01T13",
+      "data": {
+        "count": 1,
+        "future-1d": 1
+      }
+    }
+  ],
+  "day": [
+    {
+      "time": "2026-08-24",
+      "data": {
+        "count": 168,
+        "kpfun-getStaEvent": 21,
+        "verifyClientUser": 27,
+        "boundary-plus1": 1,
+        "spill-a": 1,
+        "spill-b": 1,
+        "spill-c": 1,
+        "api/getUserByToken": 26,
+        "verifyAppUser": 18,
+        "api/syncAndReplaceTabs": 25,
+        "verifyConn": 24,
+        "kpfun-getWebInfor": 23
+      }
+    },
+    {
+      "time": "2026-08-25",
+      "data": {
+        "count": 303,
+        "kpfun-getStaEvent": 45,
+        "verifyConn": 50,
+        "verifyAppUser": 48,
+        "api/getUserByToken": 44,
+        "api/syncAndReplaceTabs": 34,
+        "kpfun-getWebInfor": 40,
+        "verifyClientUser": 42
+      }
+    },
+    {
+      "time": "2026-08-26",
+      "data": {
+        "count": 322,
+        "api/syncAndReplaceTabs": 48,
+        "kpfun-getStaEvent": 61,
+        "verifyClientUser": 49,
+        "kpfun-getWebInfor": 40,
+        "verifyAppUser": 44,
+        "api/getUserByToken": 41,
+        "verifyConn": 38,
+        "iso-string-time": 1
+      }
+    },
+    {
+      "time": "2026-08-27",
+      "data": {
+        "count": 285,
+        "kpfun-getStaEvent": 42,
+        "verifyAppUser": 32,
+        "api/getUserByToken": 47,
+        "verifyConn": 40,
+        "api/syncAndReplaceTabs": 45,
+        "verifyClientUser": 34,
+        "kpfun-getWebInfor": 45
+      }
+    },
+    {
+      "time": "2026-08-28",
+      "data": {
+        "count": 300,
+        "verifyClientUser": 37,
+        "verifyAppUser": 44,
+        "api/syncAndReplaceTabs": 40,
+        "kpfun-getWebInfor": 53,
+        "kpfun-getStaEvent": 42,
+        "verifyConn": 37,
+        "api/getUserByToken": 47
+      }
+    },
+    {
+      "time": "2026-08-29",
+      "data": {
+        "count": 324,
+        "verifyClientUser": 42,
+        "verifyAppUser": 47,
+        "api/syncAndReplaceTabs": 42,
+        "kpfun-getStaEvent": 54,
+        "verifyConn": 48,
+        "api/getUserByToken": 45,
+        "kpfun-getWebInfor": 45,
+        "notes-event": 1
+      }
+    },
+    {
+      "time": "2026-08-30",
+      "data": {
+        "count": 304,
+        "kpfun-getWebInfor": 53,
+        "verifyAppUser": 50,
+        "verifyConn": 38,
+        "verifyClientUser": 46,
+        "api/syncAndReplaceTabs": 46,
+        "api/getUserByToken": 38,
+        "kpfun-getStaEvent": 33
+      }
+    },
+    {
+      "time": "2026-08-31",
+      "data": {
+        "count": 157,
+        "verifyConn": 17,
+        "kpfun-getWebInfor": 34,
+        "verifyAppUser": 19,
+        "kpfun-getStaEvent": 20,
+        "api/syncAndReplaceTabs": 24,
+        "api/getUserByToken": 27,
+        "verifyClientUser": 15,
+        "notes-event": 1
+      }
+    },
+    {
+      "time": "2026-09-01",
+      "data": {
+        "count": 1,
+        "future-1d": 1
+      }
+    }
+  ]
+}

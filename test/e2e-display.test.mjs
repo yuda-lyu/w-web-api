@@ -17,17 +17,16 @@
 //雙語 eng/cht 皆跑（E2E-008 語系切換本身單輪）。
 //
 import assert from 'assert'
-import { chromium } from 'playwright'
 import {
     startServersOnce,
     captureStable,
     captureStableWithBox,
     waitUntilExist,
     typeIntoInput,
+    gotoApiWorkspace,
     resetToBaseSeed,
     assertOrRegenBaseline,
-    baseUrl,
-    chromiumLaunchArgs,
+    launchBrowser,
 } from './e2e-setup.mjs'
 
 
@@ -75,23 +74,7 @@ function searchInput(page) {
 
 //導頁 + 等 app 就緒。marker 用「取得寵物清單」（只出現在左側 tree，非預設選取的 docs 名稱），
 //確保等到「tree 已完整渲染」而非僅 docs 面板（docs 顯示第一筆「取得API清單」會過早滿足）。
-//以 ?lang= 指定語系載入初始畫面（對齊 w-web-sso：前端 getLang 之 URL ?lang= 為最高優先）。
-//lang 省略時不帶 ?lang=（預設 eng）。載入後等該語系 UI 實際套用到位（getWebInfor 回來後 setLang 依 URL 重渲染）。
-async function gotoReady(page, lang) {
-    let q = (lang === 'cht' || lang === 'eng') ? `&lang=${lang}` : ''
-    await page.goto(`${baseUrl}/?token=sys${q}`, { waitUntil: 'load', timeout: 30000 })
-    //進站預設頁為統計資訊：先等左選單掛載，點「API」切至 API 工作區（按鈕文字雙語皆為 API）
-    await waitUntilExist(page, 'main menu rendered', () => document.querySelectorAll('.w-mm-btn').length >= 2, { timeout: 25000 })
-    await page.locator('.w-mm-btn', { hasText: 'API' }).first().click()
-    await waitUntilExist(page, 'API tree rendered', () => {
-        let t = document.body.innerText || ''
-        return t.includes('取得API清單') && t.includes('取得寵物清單')
-    }, { timeout: 25000 })
-    //等指定語系 UI 套用：cht 看「文件」分頁、eng（或預設）看「Docs」
-    let marker = (lang === 'cht') ? '文件' : 'Docs'
-    await waitUntilExist(page, `UI lang applied (${marker})`, (m) => (document.body.innerText || '').includes(m), { timeout: 8000, arg: marker })
-    await page.waitForTimeout(300)
-}
+//導頁至 API 工作區改用共用 gotoApiWorkspace（收斂自本檔、e2e-apitest、e2e-edit 逐字相同之舊 gotoReady；見 e2e-setup.mjs）。
 
 
 
@@ -137,8 +120,8 @@ describe('e2e-display (API 展示)', function() {
         await resetToBaseSeed()
         //每 case 全新 browser（對齊 SSO eye-toggle E2E-017/018 之 per-case fresh）：避免共用 browser 跨 case
         //累積的 glyph atlas / raster 狀態，在 WTree 內容剛好 6px 溢出的虛擬渲染邊界偶發整棵樹 ~6px 位移。
-        //chromiumLaunchArgs=確定性渲染組（關 GPU/subpixel 字形 AA），消 eng 截圖 byte 不穩。
-        browser = await chromium.launch({ headless: true, args: chromiumLaunchArgs })
+        //launchBrowser() 內建確定性渲染組（關 GPU/subpixel 字形 AA），消 eng 截圖 byte 不穩。
+        browser = await launchBrowser()
         ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
         page = await ctx.newPage()
     })
@@ -162,7 +145,7 @@ describe('e2e-display (API 展示)', function() {
         it(`E2E-001 [${lang}] 載入顯示 API 樹與第一筆文件`, async function() {
 
             //act：導頁就緒（cht 再切語系）
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //assert（user-facing 觀察）：
             let txt = await page.evaluate(() => document.body.innerText || '')
@@ -188,7 +171,7 @@ describe('e2e-display (API 展示)', function() {
         it(`E2E-002 [${lang}] 左樹分類階層與方法 badge`, async function() {
 
             //act：載入頁面（同 E2E-001 起點，不再額外互動）
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //assert（user-facing 觀察，scope 到左側樹避免撈到右側 docs）：
             let tree = await getTreeText(page)
@@ -222,7 +205,7 @@ describe('e2e-display (API 展示)', function() {
         //⑤看左樹只剩貓咪 ⑥清空還原。搜尋框為 v-model → 用 typeIntoInput(Pattern D)。
         it(`E2E-003 [${lang}] 左樹搜尋過濾`, async function() {
 
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //act：於搜尋框 typeIntoInput 'cats'（真鍵盤輸入路徑）
             let sInp = searchInput(page)
@@ -269,7 +252,7 @@ describe('e2e-display (API 展示)', function() {
         //⑤看右側 docs 標頭更新為該 POST 筆 ⑥純讀取。
         it(`E2E-004 [${lang}] 點選樹節點切換右側文件`, async function() {
 
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //act：於左樹點「新增狗狗資訊」葉節點（真滑鼠點擊 @click=ckItem）
             await page.getByText('新增狗狗資訊', { exact: true }).first().click({ timeout: 8000 })
@@ -306,7 +289,7 @@ describe('e2e-display (API 展示)', function() {
         //⑤無輸入 ⑥純展示。獨立產製 E2E-005-header.png（標頭）與 E2E-005-pills.png（pills）。
         it(`E2E-005 [${lang}] 文件標頭與 metadata pills`, async function() {
 
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //assert（預設第一筆「取得API清單」）：
             let info = await page.evaluate(() => ({
@@ -346,7 +329,7 @@ describe('e2e-display (API 展示)', function() {
         //E2E-006-input.png / E2E-006-output.png / E2E-006-request.png / E2E-006-response.png。
         it(`E2E-006 [${lang}] 輸入/輸出參數與請求/回應程式碼區`, async function() {
 
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //等 docs 參數區（.dsec-h 標題）與程式碼 rail（cURL/回應 pre）渲染完成再斷言（偵測-driven）
             await waitUntilExist(page, 'docs 參數/程式碼區渲染', (t) => {
@@ -401,7 +384,7 @@ describe('e2e-display (API 展示)', function() {
         //⑤點 Test 分頁→docs 標頭消失 ⑥點 Docs 分頁→docs 標頭回來。純分頁切換互動，不另產 baseline。
         it(`E2E-007 [${lang}] Docs/Edit/Test 分頁預設與切換`, async function() {
 
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //assert：三分頁皆存在、預設 Docs active（docs 標頭 op-title 可見）——spec 驗證1
             let segInit = await page.evaluate(() => ({
@@ -441,7 +424,7 @@ describe('e2e-display (API 展示)', function() {
     //⑤看分頁/pills 轉中文 ⑥再切「English」看恢復英文。不另產 baseline。
     it('E2E-008 語系切換即時重渲染（單輪）', async function() {
 
-        await gotoReady(page)
+        await gotoApiWorkspace(page)
 
         //assert：eng 時分頁顯示 Docs/Edit/Test、pills 標籤為英文——spec 驗證1
         let engInfo = await page.evaluate(() => ({
@@ -491,7 +474,7 @@ describe('e2e-display (API 展示)', function() {
         //⑤截收合態 ⑥點「展開」鈕→左樹恢復可見。
         it(`E2E-009 [${lang}] 左側抽屜顯隱`, async function() {
 
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //初始：左樹搜尋框可見（drawer 展開）
             let sInp = searchInput(page)

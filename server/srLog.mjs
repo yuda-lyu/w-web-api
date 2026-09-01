@@ -1,5 +1,7 @@
 import get from 'lodash-es/get.js'
 import isestr from 'wsemi/src/isestr.mjs'
+import ispint from 'wsemi/src/ispint.mjs'
+import cint from 'wsemi/src/cint.mjs'
 import WSyslog from 'w-syslog/src/WSyslog.mjs'
 
 
@@ -18,10 +20,17 @@ let init = (opt = {}) => {
         interval = 'hr'
     }
 
-    let srLog = WSyslog({
-        fdLog,
-        interval,
-    })
+    //numKeep, settings 之 logNumKeep (opt-in): 未給採 w-syslog 預設 (hr: 365*24, day: 365), 有給但非正整數視為設定錯誤
+    let numKeep = get(opt, 'logNumKeep', null)
+    let o = { fdLog, interval }
+    if (numKeep !== null && numKeep !== undefined && numKeep !== '') {
+        if (!ispint(numKeep)) {
+            throw new Error(`invalid logNumKeep[${numKeep}], must be positive integer`)
+        }
+        o.numKeep = cint(numKeep)
+    }
+
+    let srLog = WSyslog(o)
 
     return srLog
 }

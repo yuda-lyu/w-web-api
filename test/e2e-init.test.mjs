@@ -14,7 +14,6 @@
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
-import { chromium } from 'playwright'
 import {
     startServersOnce,
     restartBackend,
@@ -27,7 +26,8 @@ import {
     resetToBaseSeed,
     assertOrRegenBaseline,
     baseUrl,
-    chromiumLaunchArgs,
+    launchBrowser,
+    REGEN,
 } from './e2e-setup.mjs'
 
 
@@ -108,6 +108,11 @@ async function captureInitMainShot(page, lang, caseName) {
         }
         let refPath = path.join(`./test/pics/${FLOW}`, `_staref-${lang}-${caseName}-${rg.key}.png`)
         if (!fs.existsSync(refPath)) {
+            //自舉限 REGEN（技能 §7.1「只在授權的 REGEN 中自舉，正常測試缺檔即 fail」）：
+            //正常測試模式下 ref 不存在代表尚未授權產製，不可靜默用當次截圖頂替（會把當次偶發畫面凍結為「參考真相」）。
+            if (!REGEN) {
+                throw new Error(`per-item ref 不存在: ${refPath}（請以 --baseline 產製）`)
+            }
             fs.mkdirSync(path.dirname(refPath), { recursive: true })
             let cropped = await cropRegion(buf, rect) //bootstrap：裁該區小圖存 ref（刪檔可重產）
             fs.writeFileSync(refPath, cropped)
@@ -123,7 +128,7 @@ async function captureInitMainShot(page, lang, caseName) {
 //等該語系統計頁標題（Layout 掛載 + 語系套用）+ 圖表 canvas（資料到位、畫面穩定）。
 async function gotoReadyNoLang(page, lang) {
     await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'load', timeout: 30000 })
-    await waitUntilExist(page, `stats title (${T[lang].staTitle})`, (m) => (document.body.innerText || '').includes(m), { timeout: 25000, arg: T[lang].staTitle })
+    await waitUntilExist(page, `app ready (stats title ${T[lang].staTitle})`, (m) => (document.body.innerText || '').includes(m), { timeout: 40000, arg: T[lang].staTitle })
     await waitUntilExist(page, 'echarts canvas', () => !!document.querySelector('.stats-chart-area canvas'), { timeout: 20000 })
     await page.waitForTimeout(1200) //等 echarts 渲染/動畫 settle
 }
@@ -151,7 +156,7 @@ describe('e2e-init (初始畫面語系 / server 注入)', function() {
     beforeEach(async function() {
         this.timeout(180000)
         await resetToBaseSeed()
-        browser = await chromium.launch({ headless: true, args: chromiumLaunchArgs })
+        browser = await launchBrowser()
         ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
         page = await ctx.newPage()
     })

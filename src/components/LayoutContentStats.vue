@@ -7,12 +7,11 @@
             <div style="font-size:0.875rem; color:var(--c-3); margin-top:4px;">{{$t('statisticsInformationDescription')}}</div>
         </div>
 
-        <!-- 控制區（事件選擇 + 時間範圍；把各事件分出來、可區分選取，供趨勢辨認 / 危險識別）
-             結構性對齊：.ctrl 為兩欄 grid（label 欄寬 max-content 自動隨語系文字），.ctrl-row 以
-             display:contents 使 label 與 field 直接成為 grid 子項，中英文自動對齊，免寫死 label 寬度 -->
+        <!-- 控制區（時間範圍）：.ctrl 為兩欄 grid（label 欄寬 max-content 自動隨語系文字），
+             .ctrl-row 以 display:contents 使 label 與 field 直接成為 grid 子項，中英文自動對齊。
+             事件之顯示/隱藏切換由 echarts 圖例（legend）提供，不另建 checkbox（功能重複）。 -->
         <div ref="$ctrl" class="ctrl">
 
-            <!-- 第一列：時間範圍 -->
             <div class="ctrl-row">
                 <span class="ctrl-label">{{$t('timeRange')}}</span>
                 <div class="ctrl-field">
@@ -25,49 +24,28 @@
                 </div>
             </div>
 
-            <!-- 第二列：選擇事件 標題 + 全選/清除 -->
-            <div class="ctrl-row">
-                <span class="ctrl-label">{{$t('selectEvents')}}</span>
-                <div class="ctrl-field">
-                    <button class="evt-sel-btn stats-sel-all" @click="selectAllEvents">{{$t('selectAll')}}</button>
-                    <button class="evt-sel-btn stats-sel-none" @click="selectNoneEvents">{{$t('selectNone')}}</button>
-                    <span class="evt-count">{{selectedEvents.length}}/{{allEvents.length}}</span>
-                </div>
-            </div>
-
-            <!-- 第三列：事件 chip（flex-wrap 內容自然寬；chip 依內容取寬、排滿可用寬才換行） -->
-            <div class="evt-grid">
-                <label
-                    v-for="ev in allEvents"
-                    :key="ev"
-                    class="evt-chip"
-                    :class="{on: selectedEvents.includes(ev)}"
-                    :data-event="ev"
-                >
-                    <input type="checkbox" class="stats-evt-cb" :value="ev" v-model="selectedEvents" />
-                    <span class="evt-dot" :style="`background:${colorOf(ev)};`"></span>
-                    <span class="evt-name">{{ev}}</span>
-                </label>
-            </div>
-
-        </div>
-
-        <!-- loading -->
-        <div v-if="loading" style="padding:12px 0; font-size:0.875rem; color:var(--c-3);">
-            {{$t('waitingData')}}
         </div>
 
         <!-- 錯誤 -->
-        <div v-else-if="errMsg" style="padding:12px 0; font-size:0.875rem; color:var(--danger);">
+        <div v-if="errMsg" style="padding:12px 0; font-size:0.875rem; color:var(--danger);">
             {{errMsg}}
         </div>
 
+        <!-- 先到先畫（ADR-028）：圖表區與統計表區骨架立即渲染，資料未到前各自以轉圈佔位（圖區與圖同高，不跳版）；載入後 DOM 與先前一致 -->
         <template v-else>
 
-            <!-- 圖表區（event 展示區；各選取事件各一系列、各自顏色，可區分趨勢） -->
+            <!-- 圖表區（event 展示區；各事件各一系列、各自顏色，可區分趨勢；點圖例可切換個別事件顯示） -->
             <div class="stats-chart-area">
                 <div
-                    v-if="hasNoData"
+                    v-if="loading"
+                    style="display:flex; align-items:center; justify-content:center; gap:8px; color:var(--c-3); font-size:0.875rem;"
+                    :style="`height:${chartHeight}px;`"
+                >
+                    <WIconLoading :name="'cir-rotate'" :size="24" :color="'#9aa1ac'"></WIconLoading>
+                    <span>{{$t('waitingData')}}</span>
+                </div>
+                <div
+                    v-else-if="hasNoData"
                     style="display:flex; align-items:center; justify-content:center; color:var(--c-3); font-size:0.875rem;"
                     :style="`height:${chartHeight}px;`"
                 >
@@ -83,7 +61,11 @@
             <!-- 事件統計表（各事件為列，依最近1日總數多→少排序；欄位 1日/8時/4時/1時） -->
             <div class="stats-table-area">
                 <div style="font-size:1rem; font-weight:600; color:var(--c-1); margin:18px 0 8px;">{{$t('eventStatsTable')}}</div>
-                <div v-if="eventRows.length === 0" style="font-size:0.875rem; color:var(--c-3); padding:8px 0;">
+                <div v-if="loading" style="display:flex; align-items:center; gap:8px; font-size:0.875rem; color:var(--c-3); padding:8px 0;">
+                    <WIconLoading :name="'cir-rotate'" :size="20" :color="'#9aa1ac'"></WIconLoading>
+                    <span>{{$t('waitingData')}}</span>
+                </div>
+                <div v-else-if="eventRows.length === 0" style="font-size:0.875rem; color:var(--c-3); padding:8px 0;">
                     {{$t('noStaData')}}
                 </div>
                 <table v-else class="stats-table">
@@ -126,19 +108,19 @@ import reduce from 'lodash-es/reduce.js'
 import size from 'lodash-es/size.js'
 import isearr from 'wsemi/src/isearr.mjs'
 import WEchartsVue from 'w-echarts-vue/src/components/WEchartsVue.vue'
+import WIconLoading from 'w-component-vue/src/components/WIconLoading.vue'
 
-
-//固定色票（依事件在 allEvents 之索引取色，使同一事件顏色穩定、圖表與表格與 chip 一致）
+//固定色票（依事件在 allEvents 之索引取色，使同一事件顏色穩定、圖表（含圖例）與統計表一致）
 let COLORS = [
     '#3b82f6', '#ef4444', '#10b981', '#f97316', '#8b5cf6',
     '#6366f1', '#eab308', '#ec4899', '#14b8a6', '#a855f7',
     '#0ea5e9', '#f43f5e', '#22c55e', '#d97706', '#7c3aed',
 ]
 
-
 export default {
     components: {
         WEchartsVue,
+        WIconLoading,
     },
     props: {
         height: {
@@ -149,12 +131,10 @@ export default {
     data: function() {
         return {
             freq: [],
-            selectedEvents: [],   //使用者選取要畫的事件（預設載入後全選）
-            eventsInited: false,  //是否已用實際資料初始化過 selectedEvents
             timeGroup: '1hr',
             loading: false,
             errMsg: '',
-            hUpper: 0, //標題列+控制區實佔高度（ResizeObserver 量測，供 chartHeight 計算；chip 換行數/語系皆會使其變化）
+            hUpper: 0, //標題列+控制區實佔高度（ResizeObserver 量測，供 chartHeight 計算；語系導致控制列換行時會變化）
         }
     },
     mounted: function() {
@@ -246,12 +226,11 @@ export default {
             })
         },
 
-        //實際要畫的系列 = 選取且存在於資料中的事件
+        //實際要畫的系列 = 資料中所有事件（各事件一系列、各自顏色）；
+        //個別事件之顯示/隱藏由 echarts 圖例（legend）切換，不另維護選取狀態
         seriesKeys: function() {
             let vo = this
-            return vo.selectedEvents.filter(function(e) {
-                return vo.allEvents.includes(e)
-            })
+            return vo.allEvents
         },
 
         hasNoData: function() {
@@ -331,16 +310,6 @@ export default {
         },
 
     },
-    watch: {
-        freq: function() {
-            let vo = this
-            //首次取得資料時，預設全選所有事件（使各事件一開始即分系列、可區分）
-            if (!vo.eventsInited && vo.allEvents.length > 0) {
-                vo.selectedEvents = vo.allEvents.slice()
-                vo.eventsInited = true
-            }
-        },
-    },
     methods: {
 
         //量測標題列+控制區實佔高（offsetHeight + margin-bottom），存入 hUpper 供 chartHeight 計算
@@ -370,16 +339,6 @@ export default {
             return COLORS[idx % COLORS.length]
         },
 
-        selectAllEvents: function() {
-            let vo = this
-            vo.selectedEvents = vo.allEvents.slice()
-        },
-
-        selectNoneEvents: function() {
-            let vo = this
-            vo.selectedEvents = []
-        },
-
         load: function() {
             let vo = this
             vo.loading = true
@@ -404,7 +363,7 @@ export default {
 <style scoped>
 
 /* 控制區：兩欄 grid 結構性對齊（label 欄 max-content 隨語系文字自動定寬；
-   第二欄 minmax(0,1fr) 防內容撐大），取代先前 label 寫死 64px + evt-grid margin-left 72px 之魔術數字對齊 */
+   第二欄 minmax(0,1fr) 防內容撐大），取代先前 label 寫死 64px 之魔術數字對齊 */
 .ctrl {
     margin-bottom: 16px;
     display: grid;
@@ -444,70 +403,6 @@ export default {
     border-color: var(--accent);
 }
 
-.evt-sel-btn {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-1);
-    color: var(--c-2);
-    font-size: 0.8rem;
-    padding: 3px 12px;
-    cursor: pointer;
-}
-
-.evt-sel-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.evt-count {
-    font-size: 0.78rem;
-    color: var(--c-3);
-    margin-left: 4px;
-}
-
-/* 事件 chip：flex-wrap 內容自然寬（用滿容器可用寬、排不下才換行），
-   置於 .ctrl grid 第二欄與上方控制項對齊；不設 max-width 上限（由容器自然約束） */
-.evt-grid {
-    grid-column: 2;
-    min-width: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.evt-chip {
-    display: flex;
-    align-items: center;
-    box-sizing: border-box;
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 100%; /* 安全閥：極長事件名時 chip 不超過容器寬（此時 .evt-name 之 ellipsis 才生效） */
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-1);
-    padding: 5px 10px;
-    font-size: 0.82rem;
-    color: var(--c-2);
-    cursor: pointer;
-    transition: border-color .12s, background .12s, color .12s;
-}
-
-.evt-chip:hover {
-    border-color: var(--accent);
-}
-
-.evt-chip.on {
-    color: var(--c-1);
-    border-color: var(--accent);
-    background: rgba(0, 153, 255, 0.06);
-}
-
-.evt-chip .stats-evt-cb {
-    cursor: pointer;
-    margin: 0 6px 0 0;
-    flex-shrink: 0;
-}
-
 .evt-dot {
     display: inline-block;
     width: 9px;
@@ -515,13 +410,6 @@ export default {
     border-radius: 2px;
     margin-right: 6px;
     flex-shrink: 0;
-}
-
-.evt-name {
-    min-width: 0; /* flex item 預設 min-width:auto 會阻止收縮，明給 0 使安全閥可生效 */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .stats-table-area {
@@ -535,7 +423,7 @@ export default {
 }
 
 .stats-table td:first-child {
-    white-space: normal; /* 事件名欄允許換行（數值欄維持 nowrap），與 chip 區同源之防溢出處置 */
+    white-space: normal; /* 事件名欄允許換行（數值欄維持 nowrap），防極長事件名撐破表格 */
     overflow-wrap: anywhere;
 }
 

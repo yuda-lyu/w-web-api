@@ -9,17 +9,16 @@
 //
 import assert from 'assert'
 import http from 'http'
-import { chromium } from 'playwright'
 import {
     startServersOnce,
     captureStableWithBox,
     waitUntilExist,
     typeIntoInput,
+    gotoApiWorkspace,
     resetToBaseSeed,
     assertOrRegenBaseline,
     woItems,
-    baseUrl,
-    chromiumLaunchArgs,
+    launchBrowser,
 } from './e2e-setup.mjs'
 import ds from '../src/schema/index.mjs'
 
@@ -128,22 +127,7 @@ async function waitEchoValue(page, val) {
 }
 
 
-//以 ?lang= 指定語系載入初始畫面（對齊 w-web-sso；前端 getLang 之 URL ?lang= 最高優先）。lang 省略則預設 eng。
-async function gotoReady(page, lang) {
-    let q = (lang === 'cht' || lang === 'eng') ? `&lang=${lang}` : ''
-    await page.goto(`${baseUrl}/?token=sys${q}`, { waitUntil: 'load', timeout: 30000 })
-    //進站預設頁為統計資訊：先等左選單掛載，點「API」切至 API 工作區（按鈕文字雙語皆為 API）
-    await waitUntilExist(page, 'main menu rendered', () => document.querySelectorAll('.w-mm-btn').length >= 2, { timeout: 25000 })
-    await page.locator('.w-mm-btn', { hasText: 'API' }).first().click()
-    await waitUntilExist(page, 'API tree rendered', () => {
-        let t = document.body.innerText || ''
-        return t.includes('取得API清單') && t.includes('取得寵物清單')
-    }, { timeout: 25000 })
-    //等指定語系 UI 套用到位（cht 看「文件」分頁、eng/預設看「Docs」）
-    let marker = (lang === 'cht') ? '文件' : 'Docs'
-    await waitUntilExist(page, `UI lang applied (${marker})`, (m) => (document.body.innerText || '').includes(m), { timeout: 8000, arg: marker })
-    await page.waitForTimeout(300)
-}
+//導頁至 API 工作區改用共用 gotoApiWorkspace（收斂自本檔、e2e-display、e2e-edit 逐字相同之舊 gotoReady；見 e2e-setup.mjs）。
 
 
 describe('e2e-apitest (API 測試 / proxy)', function() {
@@ -164,8 +148,8 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
         //每個 case 從相同 base seed 起跑（hermetic）
         await resetToBaseSeed()
         //每 case 全新 browser（對齊 SSO eye-toggle E2E-017/018 之 per-case fresh）：避免共用 browser 跨 case
-        //累積的 glyph atlas / raster 狀態於虛擬渲染邊界偶發位移。chromiumLaunchArgs=確定性渲染組。
-        browser = await chromium.launch({ headless: true, args: chromiumLaunchArgs })
+        //累積的 glyph atlas / raster 狀態於虛擬渲染邊界偶發位移。launchBrowser() 內建確定性渲染組。
+        browser = await launchBrowser()
         ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
         page = await ctx.newPage()
     })
@@ -185,7 +169,7 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
 
     //導頁就緒 + 於左樹點選指定 API + 切「測試」分頁，回傳網址輸入 Locator。
     async function selectApiAndOpenTest(page, lang, apiName) {
-        await gotoReady(page, lang)
+        await gotoApiWorkspace(page, lang)
         await waitUntilExist(page, `tree has ${apiName}`, (n) => (document.body.innerText || '').includes(n), { timeout: 10000, arg: apiName })
         await page.getByText(apiName, { exact: true }).first().click({ timeout: 8000 })
         await waitUntilExist(page, `docs selected ${apiName}`, (n) => {
@@ -201,7 +185,7 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
     for (let lang of LANGS) {
 
         it(`E2E-001 [${lang}] 測試 API 送出請求顯示回應`, async function() {
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             //act：點「測試」分頁
             await page.getByText(T[lang].test, { exact: true }).first().click({ timeout: 8000 })
@@ -247,7 +231,7 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
 
         //E2E-002：Request URL 留空送出 → 同步檢測短路、err-bar 必填紅字、不打網路、回應區維持「尚無回應」
         it(`E2E-002 [${lang}] 請求網址留空送出顯示必填錯誤、不打網路`, async function() {
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             await page.getByText(T[lang].test, { exact: true }).first().click({ timeout: 8000 })
             let urlInp = page.getByPlaceholder(T[lang].urlPh)
@@ -282,7 +266,7 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
 
         //E2E-003：非 http(s) 字串送出 → 前端僅檢非空放行 → 後端 reject err-key 'errReqUrlInvalid' → 前端依 lang 反查顯示在地化錯誤（eng/cht 各異）
         it(`E2E-003 [${lang}] 非 http(s) 網址送出，後端拒絕並顯示錯誤`, async function() {
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
 
             await page.getByText(T[lang].test, { exact: true }).first().click({ timeout: 8000 })
             let urlInp = page.getByPlaceholder(T[lang].urlPh)
@@ -396,7 +380,7 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
         //E2E-007：於建構器新增 Query/Header 列並勾選/取消勾選 → 改網址為 echo → 送出 → 回應驗參數生效、未勾選之列不納入
         it(`E2E-007 [${lang}] 建構器新增 Query/Header 列送出參數生效`, async function() {
             //預設所選 API（取得API清單，GET），直接切測試分頁
-            await gotoReady(page, lang)
+            await gotoApiWorkspace(page, lang)
             await page.getByText(T[lang].test, { exact: true }).first().click({ timeout: 8000 })
             let urlInp = page.getByPlaceholder(T[lang].urlPh)
             await urlInp.waitFor({ state: 'visible', timeout: 8000 })

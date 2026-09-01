@@ -1,19 +1,19 @@
 {
   "name": "w-web-api",
-  "version": "1.0.77",
+  "version": "1.0.78",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "axios": "^1.18.1",
     "json5": "^2.2.3",
-    "w-component-vue": "^2.5.6",
-    "w-data-collector": "^1.0.33",
-    "w-echarts-vue": "^1.0.5",
-    "w-md2html": "^1.0.47",
-    "w-serv-hapi": "^1.0.83",
-    "w-serv-orm": "^1.0.50",
-    "w-syslog": "^1.0.22",
-    "w-ui-loginout": "^1.0.21",
-    "wsemi": "^1.8.80"
+    "w-component-vue": "^2.5.8",
+    "w-data-collector": "^1.0.34",
+    "w-echarts-vue": "^1.0.6",
+    "w-md2html": "^1.0.48",
+    "w-serv-hapi": "^1.0.84",
+    "w-serv-orm": "^1.0.51",
+    "w-syslog": "^1.0.23",
+    "w-ui-loginout": "^1.0.22",
+    "wsemi": "^1.8.81"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^5.0.8",
@@ -28,16 +28,18 @@
     "eslint-plugin-vue": "^9.10.0",
     "vue": "^2.7.16",
     "vuex": "^3.6.2",
-    "w-orm-lmdb": "^1.0.27",
+    "w-orm-lmdb": "^1.0.28",
     "w-package-tools": "^1.1.15",
     "w-package-tools-e2e": "^1.0.0",
-    "w-screenctl": "^1.0.15"
+    "w-screenctl": "^1.0.16"
   },
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "test:unit": "node server/staLogs/test_staEvent.mjs",
-    "test": "node server/staLogs/test_staEvent.mjs && mocha --timeout 300000",
+    "test:unit": "node server/staLogs/test_staEvent.mjs && mocha test/unit-*.test.mjs --timeout 300000",
+    "test:apiunit": "node server/staLogs/test_staEvent.mjs && mocha test/unit-*.test.mjs test/api-*.test.mjs --timeout 300000",
+    "test:e2e": "node test/run-e2e-isolated.mjs",
+    "test": "npm run test:apiunit && npm run test:e2e",
     "lint": "vue-cli-service lint",
     "deploy": "gh-pages -d docs"
   },

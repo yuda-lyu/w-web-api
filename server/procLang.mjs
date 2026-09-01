@@ -2,7 +2,6 @@ import get from 'lodash-es/get.js'
 import each from 'lodash-es/each.js'
 import iseobj from 'wsemi/src/iseobj.mjs'
 
-
 let kpLang = {
 
     csIng: {
@@ -25,7 +24,6 @@ let kpLang = {
         eng: 'Login denied',
         cht: '拒絕登入',
     },
-
 
     systemMessage: {
         eng: 'System message',
@@ -178,7 +176,6 @@ let kpLang = {
         cht: '回傳數據範例',
     },
 
-
     //--- API 管理（展示/編輯/測試）---
 
     docInput: {
@@ -225,18 +222,6 @@ let kpLang = {
     statisticsInformationDescription: {
         eng: 'Frequency of backend logged events (APIs, kpFunExt, connection verification).',
         cht: '後端各事件（API、kpFunExt、連線驗證）之發生頻率統計。',
-    },
-    selectEvents: {
-        eng: 'Select events',
-        cht: '選擇事件',
-    },
-    selectAll: {
-        eng: 'All',
-        cht: '全選',
-    },
-    selectNone: {
-        eng: 'Clear',
-        cht: '清除',
     },
     eventStatsTable: {
         eng: 'Event Statistics',
@@ -555,7 +540,6 @@ let kpLang = {
 
 }
 
-
 let init = (opt = {}) => {
 
     //kpLangExt
@@ -639,6 +623,5 @@ let init = (opt = {}) => {
 
     return r
 }
-
 
 export default init

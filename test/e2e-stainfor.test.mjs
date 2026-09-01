@@ -1,8 +1,8 @@
 //e2e：統計資訊頁（事件頻率圖 + 事件統計表）
 //
 //重要流程（spec bullets，見 spec/流程_統計資訊.md）：
-//- E2E-001：進站預設頁即統計頁，事件頻率圖各選取事件分系列（預設全選、各自顏色可區分）；附版面幾何斷言（不截字/不過早換行/右界貼齊/不溢出，1440+1100 兩檔）。
-//- E2E-002：清除後選取部分事件 → 圖表只顯示所選事件（供趨勢辨認 / 危險識別之事件聚焦）。
+//- E2E-001：進站預設頁即統計頁，事件頻率圖各事件分系列（各自顏色可區分）。
+//  （個別事件之顯示/隱藏改由 echarts 圖例提供，屬套件內建功能且繪於 canvas 無 DOM 可斷言，不另立 case，詳 spec）
 //- E2E-003：事件統計表（各事件為列、依最近1日多→少排序，欄位 最近1日/8時/4時/1時）。
 //
 //hermetic：以合成 log 寫入測試專用 logFd，restartBackend 令後端讀之 → getStaEvent 回確定性資料 → 圖/表渲染。
@@ -14,7 +14,6 @@ import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import ot from 'dayjs'
-import { chromium } from 'playwright'
 import {
     startServersOnce,
     restartBackend,
@@ -26,7 +25,8 @@ import {
     resetToBaseSeed,
     assertOrRegenBaseline,
     baseUrl,
-    chromiumLaunchArgs,
+    launchBrowser,
+    REGEN,
 } from './e2e-setup.mjs'
 
 
@@ -34,16 +34,13 @@ let FLOW = 'stainfor'
 let LANGS = ['eng', 'cht']
 
 let T = {
-    eng: { menu: 'Statistics', title: 'Statistics Information', timeRange: 'Time range', selectEvents: 'Select events', colEvent: 'Event', col1day: 'Last 1 day', tableTitle: 'Event Statistics', opt1day: '1 day' },
-    cht: { menu: '統計資訊', title: '統計資訊', timeRange: '時間範圍', selectEvents: '選擇事件', colEvent: '事件', col1day: '最近1日', tableTitle: '事件統計表', opt1day: '1天' },
+    eng: { menu: 'Statistics', title: 'Statistics Information', timeRange: 'Time range', colEvent: 'Event', col1day: 'Last 1 day', tableTitle: 'Event Statistics', opt1day: '1 day' },
+    cht: { menu: '統計資訊', title: '統計資訊', timeRange: '時間範圍', colEvent: '事件', col1day: '最近1日', tableTitle: '事件統計表', opt1day: '1天' },
 }
 
 //測試專用 log 資料夾（與 srLog/staEvent 共用之 logFd）
-let SYNTH_FD = './tmp/_logs-e2e-stats'
-
-//E2E-002 聚焦選取之事件（須存在於合成 log）
-let PICK_EVENTS = ['verifyConn', 'kpfun-getApisList']
-
+//落 test/_tmp/（跑完即刪）不落 ./tmp/：後者為 AI 代理暫存區隨時會被整個清除
+let SYNTH_FD = './test/_tmp/_logs-e2e-stats'
 
 function logLine(t, event, extra = {}) {
     return JSON.stringify({ level: 30, time: t.valueOf(), pid: 1, hostname: 'e2e', event, ...extra })
@@ -95,7 +92,7 @@ async function rectOf(page, sel) {
 //截圖 + 貼圖覆蓋（取代黑框；參考 w-web-sso e2e-stainfor）：
 //統計頁之「圖表區」與「統計表區」兩者皆為動態（canvas GPU 漂移 + x 軸日期 + 計數隨 log 累積漂移），
 //且兩區常同時（或局部）出現在截圖內，故**每個 case 一律同時凍結兩區**——否則焦點外那區的動態內容（如圖表
-//案底部露出的統計表那列計數）會漂移而 byte 不穩（殷鑑：cht E2E-002 底部統計表計數 diff 258px）。
+//案底部露出的統計表那列計數）會漂移而 byte 不穩（殷鑑：曾因只凍圖表區而底部統計表計數 diff 258px）。
 //紅框只標焦點區（focusSel）：focus 區之 ref 含紅框（外擴 pad）；非 focus 區 ref 為裁切原尺寸（無框）。
 //ref 皆只存「該區那一塊裁切小圖」（非整頁，`_staref-*.png` 不算 baseline）；其餘整頁（選單/標題/控制區）live 比對。
 async function captureStatsShot(page, lang, caseName, focusSel) {
@@ -113,6 +110,11 @@ async function captureStatsShot(page, lang, caseName, focusSel) {
         let r = { x: rect.x - pad, y: rect.y - pad, w: rect.w + pad * 2, h: rect.h + pad * 2 }
         let refPath = path.join(`./test/pics/${FLOW}`, `_staref-${lang}-${caseName}-${rg.key}.png`)
         if (!fs.existsSync(refPath)) {
+            //自舉限 REGEN（技能 §7.1「只在授權的 REGEN 中自舉，正常測試缺檔即 fail」）：
+            //正常測試模式下 ref 不存在代表尚未授權產製，不可靜默用當次截圖頂替（會把當次偶發畫面凍結為「參考真相」）。
+            if (!REGEN) {
+                throw new Error(`per-item ref 不存在: ${refPath}（請以 --baseline 產製）`)
+            }
             fs.mkdirSync(path.dirname(refPath), { recursive: true })
             let cropped = await cropRegion(buf, r) //bootstrap：裁該區小圖存 ref（刪檔可重產）
             fs.writeFileSync(refPath, cropped)
@@ -127,92 +129,10 @@ async function captureStatsShot(page, lang, caseName, focusSel) {
 //進入統計資訊頁：進站預設頁即為統計資訊（section 預設 'stats'），開頁 → 等標題 + 圖表 canvas + 統計表列。
 async function gotoStats(page, lang) {
     await page.goto(`${baseUrl}/?token=sys&lang=${lang}`, { waitUntil: 'load', timeout: 30000 })
-    await waitUntilExist(page, `stats title (${T[lang].title})`, (m) => (document.body.innerText || '').includes(m), { timeout: 25000, arg: T[lang].title })
+    await waitUntilExist(page, `app ready (stats title ${T[lang].title})`, (m) => (document.body.innerText || '').includes(m), { timeout: 40000, arg: T[lang].title })
     await waitUntilExist(page, 'echarts canvas', () => !!document.querySelector('.stats-chart-area canvas'), { timeout: 20000 })
     await waitUntilExist(page, 'stats table rows', () => document.querySelectorAll('.stats-table-area tbody tr').length > 0, { timeout: 8000 })
     await page.waitForTimeout(1200) //等 echarts 渲染/動畫 settle
-}
-
-
-//量測事件 chip 區版面幾何（等字型與兩個 rAF 後量測；全部以 content edge 相對判準，無魔術數字）：
-//- rightGap：.evt-grid 內容右界應貼齊 .ctrl 內容右界（攔截「容器被 max-width 之類人為縮限」）
-//- prematureWrap：非末列剩餘空間應放不下「下一列第一個 chip」（攔截「放得下卻換行」）
-//- truncated：事件名不得截字，除非該 chip 已頂到容器寬（安全閥合法生效）
-//- overflow：chip 區不得水平溢出
-async function readChipGeometry(page) {
-    await page.evaluate(async () => {
-        if (document.fonts && document.fonts.ready) {
-            await document.fonts.ready
-        }
-        await new Promise((resolve) => {
-            requestAnimationFrame(() => requestAnimationFrame(resolve))
-        })
-    })
-    return await page.evaluate(() => {
-        let EPS = 1.5
-        let px = (v) => Number.parseFloat(v) || 0
-        let contentEdges = (el) => {
-            let r = el.getBoundingClientRect()
-            let s = getComputedStyle(el)
-            return {
-                left: r.left + px(s.borderLeftWidth) + px(s.paddingLeft),
-                right: r.right - px(s.borderRightWidth) - px(s.paddingRight),
-            }
-        }
-        let grid = document.querySelector('.evt-grid')
-        let ctrl = grid && grid.closest('.ctrl')
-        if (!grid || !ctrl) {
-            return { missing: true }
-        }
-        let gridE = contentEdges(grid)
-        let ctrlE = contentEdges(ctrl)
-        let gap = px(getComputedStyle(grid).columnGap) || 8
-        let rows = []
-        let curTop = null
-        Array.from(grid.querySelectorAll('.evt-chip')).forEach((c) => {
-            let r = c.getBoundingClientRect()
-            let t = Math.round(r.top)
-            if (curTop === null || t !== curTop) {
-                rows.push([])
-                curTop = t
-            }
-            rows[rows.length - 1].push({ w: r.width, right: r.right, ev: c.dataset.event || (c.innerText || '').trim() })
-        })
-        let prematureWrap = rows.slice(0, -1).map((row, i) => {
-            let slack = gridE.right - Math.max(...row.map((x) => x.right))
-            let next = rows[i + 1][0]
-            return { row: i + 1, slack: Math.round(slack), nextW: Math.round(next.w), nextEv: next.ev, bad: slack >= next.w + gap - EPS }
-        }).filter((x) => x.bad)
-        let containerW = grid.clientWidth
-        let truncated = Array.from(grid.querySelectorAll('.evt-name')).map((n) => {
-            let chip = n.closest('.evt-chip')
-            return {
-                ev: chip.dataset.event || (n.innerText || '').trim(),
-                isTrunc: n.scrollWidth > n.clientWidth + 1,
-                atCap: chip.getBoundingClientRect().width >= containerW - EPS,
-            }
-        }).filter((x) => x.isTrunc && !x.atCap).map((x) => x.ev)
-        return {
-            missing: false,
-            events: rows.flat().map((x) => x.ev),
-            rightGap: Math.round((ctrlE.right - gridE.right) * 10) / 10,
-            rowCounts: rows.map((r) => r.length),
-            prematureWrap,
-            truncated,
-            overflow: Math.round(grid.scrollWidth - grid.clientWidth),
-        }
-    })
-}
-
-
-//對 readChipGeometry 之結果套用版面斷言（label 供錯誤訊息辨識視窗寬情境）
-function assertChipGeometry(geo, label) {
-    assert.ok(!geo.missing, `[${label}] 應存在 .ctrl 與 .evt-grid`)
-    assert.ok(geo.events.includes('api/syncAndReplaceTabs'), `[${label}] 版面測試 fixture 必須含已知最長事件名`)
-    assert.ok(Math.abs(geo.rightGap) <= 1.5, `[${label}] .evt-grid 右界應貼齊控制區內容右界（實差 ${geo.rightGap}px）`)
-    assert.deepStrictEqual(geo.truncated, [], `[${label}] 事件名不應截斷：${geo.truncated.join(', ')}`)
-    assert.deepStrictEqual(geo.prematureWrap, [], `[${label}] 發生可避免的換行：${JSON.stringify(geo.prematureWrap)}`)
-    assert.ok(geo.overflow <= 1, `[${label}] chip 區不應水平溢出（實得 ${geo.overflow}px）`)
 }
 
 
@@ -239,7 +159,7 @@ describe('e2e-stainfor (統計資訊 / 事件頻率)', function() {
     beforeEach(async function() {
         this.timeout(180000)
         await resetToBaseSeed()
-        browser = await chromium.launch({ headless: true, args: chromiumLaunchArgs })
+        browser = await launchBrowser()
         ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
         page = await ctx.newPage()
     })
@@ -253,65 +173,33 @@ describe('e2e-stainfor (統計資訊 / 事件頻率)', function() {
 
     for (let lang of LANGS) {
 
-        //E2E-001：進統計頁 → 事件頻率圖各事件分系列（預設全選、可區分）
-        it(`E2E-001 [${lang}] 事件頻率圖各事件分系列（預設全選）`, async function() {
+        //E2E-001：進統計頁 → 事件頻率圖各事件分系列（各自顏色可區分）
+        it(`E2E-001 [${lang}] 事件頻率圖各事件分系列`, async function() {
 
             await gotoStats(page, lang)
 
             let info = await page.evaluate((tt) => {
                 let menuActive = Array.from(document.querySelectorAll('.w-mm-btn'))
                     .some((b) => b.classList.contains('on') && (b.innerText || '').includes(tt.menu))
-                let allCb = Array.from(document.querySelectorAll('.stats-evt-cb'))
-                let checked = allCb.filter((c) => c.checked)
+                //統計表逐事件成列：圖表系列與表列同源於 allEvents，故表列是「各事件各成一系列」之 DOM 可觀察證據
+                let evRows = Array.from(document.querySelectorAll('.stats-table-area tbody tr'))
+                    .map((tr) => tr.dataset.event).filter((x) => !!x)
                 return {
                     body: document.body.innerText || '',
                     menuActive,
-                    cbCount: allCb.length,
-                    checkedCount: checked.length,
+                    evRows,
                     hasCanvas: !!document.querySelector('.stats-chart-area canvas'),
                 }
             }, T[lang])
             assert.ok(info.menuActive, '左選單「統計資訊」應為 active')
             assert.ok(info.body.includes(T[lang].title), `應顯示標題「${T[lang].title}」`)
-            assert.ok(info.body.includes(T[lang].selectEvents), `應顯示「${T[lang].selectEvents}」事件選擇`)
             assert.ok(info.body.includes(T[lang].timeRange), `應顯示「${T[lang].timeRange}」`)
-            assert.ok(info.cbCount >= 2, `事件 checkbox 應 >= 2（實得 ${info.cbCount}）`)
-            assert.strictEqual(info.checkedCount, info.cbCount, '預設應全選所有事件（各事件分系列、可區分）')
+            assert.ok(info.evRows.length >= 2, `應辨識出 >= 2 種事件使各自分系列（實得 ${info.evRows.length}）`)
+            assert.ok(info.evRows.includes('api/syncAndReplaceTabs'), '應含已知最長事件名（版面邊界 fixture）')
             assert.ok(info.hasCanvas, '事件頻率圖 canvas 應存在')
 
             let buf = await captureStatsShot(page, lang, 'E2E-001-chart-all', '.stats-chart-area')
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-001-chart-all.png`, buf)
-
-            //版面幾何斷言（截圖後執行，避免 viewport 切換影響截圖）：
-            //1440 主視窗（改版後 chip 應單列）→ 縮 1100 窄視窗覆蓋「換行分支」（單列時換行邏輯不會被觸發）
-            let geo = await readChipGeometry(page)
-            assertChipGeometry(geo, `${lang} 1440`)
-            await page.setViewportSize({ width: 1100, height: 900 })
-            await page.waitForTimeout(300)
-            let geoNarrow = await readChipGeometry(page)
-            assertChipGeometry(geoNarrow, `${lang} 1100`)
-
-        })
-
-        //E2E-002：清除後選取部分事件 → 圖表只顯示所選事件
-        it(`E2E-002 [${lang}] 選取部分事件圖表只顯示所選`, async function() {
-
-            await gotoStats(page, lang)
-
-            //清除全部 → 只勾選 PICK_EVENTS
-            await page.locator('.stats-sel-none').click()
-            for (let ev of PICK_EVENTS) {
-                await page.locator(`.evt-chip[data-event="${ev}"]`).click()
-            }
-            await page.waitForTimeout(1200) //等圖表重渲染
-
-            let checked = await page.evaluate(() => Array.from(document.querySelectorAll('.stats-evt-cb:checked')).map((c) => c.value).sort())
-            assert.deepStrictEqual(checked, [...PICK_EVENTS].sort(), `應只勾選 ${PICK_EVENTS.join('、')}`)
-            let hasCanvas = await page.evaluate(() => !!document.querySelector('.stats-chart-area canvas'))
-            assert.ok(hasCanvas, '切換後圖表 canvas 仍應存在')
-
-            let buf = await captureStatsShot(page, lang, 'E2E-002-chart-selected', '.stats-chart-area')
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-002-chart-selected.png`, buf)
 
         })
 
@@ -357,7 +245,7 @@ describe('e2e-stainfor (統計資訊 / 事件頻率)', function() {
             await page.waitForTimeout(1200) //等 resampledData 重算 + echarts 重繪 settle
 
             //語意：下拉值與所選選項顯示文字皆為「1天」；圖表 canvas 重繪後仍存在
-            //（重採樣正確性由「下拉選取 → resampledData → chartOption」綁定 + test_staEvent 守，canvas 內部不做 introspection，同 E2E-002 取捨）
+            //（重採樣正確性由「下拉選取 → resampledData → chartOption」綁定 + test_staEvent 守，canvas 內部不做 introspection）
             let info = await page.evaluate(() => {
                 let sel = document.querySelector('#timeGroupSel')
                 let selText = sel && sel.selectedIndex >= 0 ? (sel.options[sel.selectedIndex].text || '').trim() : ''
