@@ -53,8 +53,9 @@ import map from 'lodash-es/map.js'
 import keys from 'lodash-es/keys.js'
 import j2o from 'wsemi/src/j2o.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
+import isobj from 'wsemi/src/isobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
-import isearr from 'wsemi/src/isearr.mjs'
+import isarr from 'wsemi/src/isarr.mjs'
 import ispint from 'wsemi/src/ispint.mjs'
 import isErr from 'wsemi/src/isErr.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
@@ -103,6 +104,7 @@ import ds from '../src/schema/index.mjs'
  * @param {String} [opt.logFd='./logs'] 輸入log紀錄儲存位置字串（srLog 寫入與統計掃描共用），預設'./logs'
  * @param {String} [opt.logInterval='hr'] 輸入log紀錄檔案拆檔時長字串，可選'hr'或'day'，預設'hr'
  * @param {Integer} [opt.logNumKeep=null] 輸入log檔保留數上限正整數，超出者自最舊刪除，未給採w-syslog預設(hr模式365*24、day模式365)，預設null
+ * @param {Function} [opt.isAllowTarget=null] 輸入測試分頁proxy之目標位址檢核函數，函數會傳入目標網址字串（首跳與轉址後每一跳皆會呼叫），回傳false即拒絕該請求（回err-key 'errReqTargetNotAllowed'），預設null（不限制）
  * @returns {Object} 回傳物件，其內server為hapi伺服器實體，wsrv為w-converhp的伺服器事件物件，wsds為w-serv-webdata的伺服器事件物件，可監聽error事件
  * @example
  *
@@ -281,6 +283,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let showLanguage = get(opt, 'showLanguage', 'y')
     let language = get(opt, 'language', 'eng')
     let logFd = get(opt, 'logFd', './logs') //srLog 寫入 + staEvent 統計共用之 log 資料夾
+    let isAllowTarget = get(opt, 'isAllowTarget', null) //測試分頁 proxy 之目標檢核（含轉址每一跳），交 procProxy；改造前 procProxy 雖支援此 hook 但建構子未接線
 
 
     //kpLangExt
@@ -313,7 +316,30 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let srLog = srLogInit(opt)
 
     //maskTok：debug console.log 不印完整 token/authorization（憑證），僅前 4 碼 + ***，避免憑證落入 stdout
-    let maskTok = (t) => isestr(t) ? (strleft(t, 4) + '***') : t
+    //陣列亦須逐元素遮罩：Hapi 對重複之 query 參數（?token=a&amp;token=b）給陣列，若只認字串則原樣印出完整憑證
+    //（複審實測 `req.query { token: [ 'ARRAYSECRET', 'x' ] }` 明文落 stdout）；此處收斂後 maskQuery 與 token 兩行同時生效。
+    let maskTok = (t) => {
+        if (isarr(t)) {
+            return t.map(maskTok)
+        }
+        return isestr(t) ? (strleft(t, 4) + '***') : t
+    }
+
+    //maskQuery：印 req.query 整包時，把其中之憑證欄位遮罩後才輸出。
+    //why：query 內含 token，直接 console.log(query) 會讓完整憑證落入 stdout，等同繞過 maskTok（原本三處
+    //「先印整包 query、下一行才印遮罩後 token」即為此情形）。回傳淺拷貝，不動原物件。
+    let maskQuery = (q) => {
+        if (!isobj(q)) {
+            return q
+        }
+        let r = { ...q }
+        for (let k of Object.keys(r)) {
+            if (k.toLowerCase() === 'token') {
+                r[k] = maskTok(r[k])
+            }
+        }
+        return r
+    }
 
     //kpFunExt 邊界統一處理：成功記 info（供 staEvent 統計呼叫頻率）；catch 後端錯誤 → srLog 該 err-key →
     //原樣 re-reject（前端依 key 查自己 lang 顯示）。event 統一加 'kpfun-' 前綴 → 專用事件、與 api/verifyConn 區分。
@@ -332,9 +358,24 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         }
     }
 
+    //HTTP route 邊界統一處理（與 kpFunExt 之 wrapErrLog 同構）：core 內任一 reject 之 err-key 皆於此記錄後原樣再拋。
+    //why：route 之錯誤路徑（token 無效、keyTable 無效、user 無效、payload 無效）原僅 console.log，不入 srLog，
+    //而統計頁與稽核讀的正是 srLog，導致認證失敗永不可見。逐點加 log 會使同一規則散落多處，故收斂於邊界。
+    let wrapRouteErrLog = (event, fn) => {
+        return async (...args) => {
+            try {
+                return await fn(...args)
+            }
+            catch (err) {
+                srLog.error({ event, err })
+                throw err
+            }
+        }
+    }
+
 
     //procProxy
-    let { proxyRequest } = procProxy({ srLog })
+    let { proxyRequest } = procProxy({ srLog, isAllowTarget })
 
 
     //procApis
@@ -461,7 +502,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         //check
         if (!iseobj(user)) {
-            console.log(`token`, token)
+            console.log(`token`, maskTok(token))
             console.log(`can not find the user from token`)
             return Promise.reject('errUserNotFound')
         }
@@ -522,8 +563,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //rows
         let rows = get(payload, 'rows', [])
 
-        //check
-        if (!isearr(rows)) {
+        //check（陣列層：非空陣列即可；逐列檢核統一於 syncAndReplaceTabs，使 [null] 與 [null,null] 皆回同一 err-key errRowInvalid，
+        //不因 wsemi isearr「僅長度 1 檢查元素」而分岔）
+        if (!isarr(rows) || rows.length === 0) {
             console.log('payload', payload)
             console.log(`invalid rows in payload`)
             return Promise.reject('errRowsInvalid')
@@ -554,6 +596,12 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     // }
 
 
+    //各資料表同步時之必填欄位（與前端編輯表單同步檢測對稱：apis 之 name／url 必填）
+    let kpRequiredFields = {
+        apis: ['name', 'url'],
+    }
+
+
     //syncAndReplaceTabs
     let syncAndReplaceTabs = async (userId, inp, keyTable) => {
 
@@ -573,11 +621,28 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         let rows = get(inp, 'rows', [])
         // console.log('rows', rows)
 
-        //check
-        if (!isearr(rows)) {
+        //check（陣列層：須為非空陣列；逐列檢核見下）
+        if (!isarr(rows) || rows.length === 0) {
             console.log('inp', inp)
             console.log('keyTable', keyTable)
             return Promise.reject('errRowsInvalid')
+        }
+
+        //逐列檢核：任一列無效即整批拒絕（回 err-key errRowInvalid），且一律在 delAll 之前，既有群組資料不動；
+        //列索引與欄位名入 srLog 供整合端查因（回呼叫端只給 key，同其他錯誤契約）。
+        //why：改造前只有陣列層 isearr（wsemi：僅長度 1 時檢查元素），[null,null]／[1,2] 可通過，下方 v.group= 即 TypeError，
+        //原始例外訊息經 pm2resolve 外洩給呼叫端；缺必填欄位之物件列則經 ltdtmapping 補空值後以空名稱進樹。
+        let rejectRow = (index, field) => {
+            srLog.error({ event: 'syncAndReplaceTabs', err: 'errRowInvalid', keyTable, group, index, field })
+            console.log(`[API]syncAndReplaceTabs/check rows[${index}]: invalid row (field: ${field})`)
+            return Promise.reject('errRowInvalid')
+        }
+
+        //逐列檢核 ①：每列須為物件（非物件列連 group 都無法寫入）
+        for (let k = 0; k &lt; rows.length; k++) {
+            if (!iseobj(rows[k])) {
+                return rejectRow(k, '(row)')
+            }
         }
 
         //save from
@@ -606,11 +671,20 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             })
         }
 
+        //逐列檢核 ②（b64 還原後）：必填欄位須為非空字串（funNew／ltdtmapping 只補預設值、不驗證）
+        let ksRequired = get(kpRequiredFields, keyTable, [])
+        for (let k = 0; k &lt; rows.length; k++) {
+            let field = ksRequired.find((f) => !isestr(rows[k][f]))
+            if (isestr(field)) {
+                return rejectRow(k, field)
+            }
+        }
+
         //ltdtmapping
         rows = ltdtmapping(rows, ds[keyTable].keys)
         // console.log('ltdtmapping rows', rows)
 
-        //delAll group
+        //delAll group（逐列檢核皆已通過，此後才動既有資料；delAll→insert 非原子屬已知限制 ADR-016）
         await woItems[keyTable].delAll({ group })
 
         //insert
@@ -673,7 +747,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check
                     if (!isestr(token)) {
-                        console.log('req.query', get(req, 'query'))
+                        console.log('req.query', maskQuery(get(req, 'query')))
                         console.log('token', maskTok(token))
                         console.log('[API]getUserByToken/check token: invalid token')
                         return Promise.reject('errTokenNoPermission')
@@ -694,7 +768,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                 }
 
                 //pm2resolve core
-                let r = await pm2resolve(core)() //w-ui-loginout接收已預設格式用pm2resolve轉過, 會提取state進行判斷
+                let r = await pm2resolve(wrapRouteErrLog('api/getUserByToken', core))() //w-ui-loginout接收已預設格式用pm2resolve轉過, 會提取state進行判斷
                 if (isErr(r.msg)) {
                     r.msg = r.msg.message
                 }
@@ -814,7 +888,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check
                     if (!isestr(token)) {
-                        console.log('req.query', get(req, 'query'))
+                        console.log('req.query', maskQuery(get(req, 'query')))
                         console.log('token', maskTok(token))
                         console.log('[API]syncAndReplaceTabs/check token: invalid token')
                         return Promise.reject('errTokenNoPermission')
@@ -825,7 +899,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check
                     if (!isestr(keyTable)) {
-                        console.log('req.query', get(req, 'query'))
+                        console.log('req.query', maskQuery(get(req, 'query')))
                         console.log('keyTable', keyTable)
                         console.log('[API]syncAndReplaceTabs/check keyTable: invalid keyTable')
                         return Promise.reject('errKeyTableInvalid')
@@ -870,7 +944,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                 }
 
                 //pm2resolve core
-                let r = await pm2resolve(core)()
+                let r = await pm2resolve(wrapRouteErrLog('api/syncAndReplaceTabs', core))()
                 if (isErr(r.msg)) {
                     r.msg = r.msg.message
                 }
@@ -910,6 +984,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                 console.log('apiType', apiType)
                 console.log('authorization', maskTok(authorization))
                 console.log('invalid token')
+                srLog.error({ event: 'verifyConn', err: 'errTokenNoPermission', apiType }) //認證失敗須入 log 供稽核/統計（CLAUDE.md「log 記錄要點」）
                 return false
             }
 
@@ -917,9 +992,17 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             //套件使用者之責——由其提供之 getUserByToken（可對非授權者回 {}）/ verifyClientUser / verifyAppUser，
             //或 WServOrm 之 useCheckUser/useExcludeWhenNotAdmin 等鉤子決定；套件不對連線層強加特定授權政策（避免越界、
             //保留使用者彈性）。詳見 spec/設計要點與取捨.md「套件授權責任」。
-            let b = await p.checkToken(token)
+            //checkToken 失敗會 throw（err-key），原本直接向上拋致認證失敗不入 log；此處攔截記錄後原樣再拋，行為不變。
+            let b
+            try {
+                b = await p.checkToken(token)
+            }
+            catch (err) {
+                srLog.error({ event: 'verifyConn', err, apiType })
+                throw err
+            }
 
-            srLog.info({ event: 'verifyConn', apiType }) //連線之 token 認證通過（checkToken 失敗會 throw 不到此）
+            srLog.info({ event: 'verifyConn', apiType }) //連線之 token 認證通過
             return b
         },
         getUserIdByToken: async (token) => { //可使用async或sync函數
@@ -969,7 +1052,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             // },
 
         },
-        fnTableTags: 'tableTags-web-api.json',
+        fpTableTags: 'tableTags-web-api.json', //w-serv-hapi 1.0.87 起正名 fpTableTags（同 sso / perm）; 舊名 fnTableTags 於 1.0.86 傳到 w-serv-webdata 時不被讀取, 實際一直寫預設 tableTags.json
     })
 
 
@@ -992,7 +1075,7 @@ export default WWebApi
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Sep 06 2026 00:58:48 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Sep 13 2026 12:02:14 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
