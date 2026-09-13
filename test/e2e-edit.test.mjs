@@ -20,15 +20,15 @@ import {
     assertOrRegenBaseline,
     woItems,
     launchBrowser,
-} from './e2e-setup.mjs'
+} from './tools/e2e-setup.mjs'
 
 
 let FLOW = 'edit'
 let LANGS = ['eng', 'cht']
 
 let T = {
-    eng: { edit: 'Edit', newApi: 'New API', yes: 'Yes', no: 'No', lblName: 'Name', lblUrl: 'API url', lblLevels: 'Levels', saved: 'Saved', deleted: 'Deleted', valRequired: 'This field is required' },
-    cht: { edit: '編輯', newApi: '新增API', yes: '確定', no: '取消', lblName: '名稱', lblUrl: 'API網址', lblLevels: '所屬階層', saved: '已儲存', deleted: '已刪除', valRequired: '此欄位必填' },
+    eng: { ok: 'OK', edit: 'Edit', newApi: 'New API', yes: 'Yes', no: 'No', lblName: 'Name', lblUrl: 'API url', lblLevels: 'Levels', saved: 'Saved', deleted: 'Deleted', valRequired: 'This field is required' },
+    cht: { ok: '確認', edit: '編輯', newApi: '新增API', yes: '確定', no: '取消', lblName: '名稱', lblUrl: 'API網址', lblLevels: '所屬階層', saved: '已儲存', deleted: '已刪除', valRequired: '此欄位必填' },
 }
 
 
@@ -40,6 +40,17 @@ async function waitSaveModal(page, lang) {
         return (document.body.innerText || '').includes(s)
     }, { timeout: 10000, arg: T[lang].saved })
     await page.waitForTimeout(300)
+}
+
+
+//點成功 modal 之「OK／確認」並等其消失。spec 之操作鏈以此步結尾（流程_編輯API.md E2E-001/002「→ 成功 modal
+//點「OK／確認」」），原測試等到 modal 出現即止，致 CheckYes 之 OK 鈕在全套 case 中零覆蓋：該鈕若失效（點了不關、
+//pm.resolve 未觸發）使用者將卡在無法關閉的彈窗，而無任何測試會發現。
+async function clickModalOk(page, lang, textShown) {
+    await page.getByText(T[lang].ok, { exact: true }).first().click({ timeout: 8000 })
+    await waitUntilExist(page, 'modal closed', (s) => {
+        return !(document.body.innerText || '').includes(s)
+    }, { timeout: 8000, arg: textShown })
 }
 
 
@@ -134,8 +145,10 @@ describe('e2e-edit (API 編輯)', function() {
             let oldOne = await findApiByName('取得API清單')
             assert.ok(!oldOne, '舊名稱「取得API清單」不應再存在（確為原地更新）')
 
-            //步驟3 出圖：改名後 docs 標頭（新名稱已反映）→ 紅框標標頭（結果）
+            //步驟3 出圖：改名後 docs 標頭（新名稱已反映）→ 紅框標標頭（結果）。
+            //依 spec 操作鏈，成功 modal 須點「OK／確認」關閉後才是本步驟之終態畫面（docs 標頭不被彈窗遮蓋）。
             await waitSaveModal(page, lang)
+            await clickModalOk(page, lang, T[lang].saved)
             await waitMutationSettled(page)
             let buf = await captureStableWithBox(page, ['.op-title', '.op-path', '.op-desc'])
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-001-3-renamed.png`, buf)
@@ -189,6 +202,10 @@ describe('e2e-edit (API 編輯)', function() {
             await waitMutationSettled(page)
             let buf = await captureStableWithBox(page, 'div[style*="overscroll-behavior"] div[tabindex="0"] > div')
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-002-3-saved.png`, buf)
+
+            //依 spec 操作鏈收尾：點「OK／確認」關閉成功 modal（本 case 之 baseline 要的正是「含 modal」之畫面，
+            //故點擊置於截圖之後；與 E2E-001 之「先關再截」相對，兩者皆依各自 spec 之視覺步驟描述）。
+            await clickModalOk(page, lang, T[lang].saved)
         })
 
         it(`E2E-003 [${lang}] 刪除既有 API 含確認對話框`, async function() {

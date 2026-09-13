@@ -8,7 +8,7 @@
 //hermetic：以合成 log 寫入測試專用 logFd，restartBackend 令後端讀之 → getStaEvent 回確定性資料 → 圖/表渲染。
 //圖表 canvas 與表格計數皆非決定性（x 軸日期相對今日漂移、canvas GPU 漂移、後端執行期 log 累積），
 //故 pixel baseline 以 .stats-chart-area / .stats-table-area 紅框標註並「貼圖覆蓋」（per-item ref 凍結真實
-//畫面、非黑塊）；語意斷言仍讀 live DOM（選單/標題/控制/canvas/表頭+列+排序），數值正確性另由 test_staEvent 保證。
+//畫面、非黑塊）；語意斷言仍讀 live DOM（選單/標題/控制/canvas/表頭+列+排序），數值正確性另由 unit-staEvent 保證。
 //
 import assert from 'assert'
 import fs from 'fs'
@@ -27,15 +27,15 @@ import {
     baseUrl,
     launchBrowser,
     REGEN,
-} from './e2e-setup.mjs'
+} from './tools/e2e-setup.mjs'
 
 
 let FLOW = 'stainfor'
 let LANGS = ['eng', 'cht']
 
 let T = {
-    eng: { menu: 'Statistics', title: 'Statistics Information', timeRange: 'Time range', colEvent: 'Event', col1day: 'Last 1 day', tableTitle: 'Event Statistics', opt1day: '1 day' },
-    cht: { menu: '統計資訊', title: '統計資訊', timeRange: '時間範圍', colEvent: '事件', col1day: '最近1日', tableTitle: '事件統計表', opt1day: '1天' },
+    eng: { menu: 'Statistics', title: 'Statistics Information', timeRange: 'Time range', colEvent: 'Event', col1day: 'Last 1 day', tableTitle: 'Event Statistics', opt1hr: '1 hour', opt1day: '1 day' },
+    cht: { menu: '統計資訊', title: '統計資訊', timeRange: '時間範圍', colEvent: '事件', col1day: '最近1日', tableTitle: '事件統計表', opt1hr: '1小時', opt1day: '1天' },
 }
 
 //測試專用 log 資料夾（與 srLog/staEvent 共用之 logFd）
@@ -236,23 +236,25 @@ describe('e2e-stainfor (統計資訊 / 事件頻率)', function() {
 
             await gotoStats(page, lang)
 
-            //預設時間範圍為 1hr
-            let before = await page.locator('#timeGroupSel').inputValue()
-            assert.strictEqual(before, '1hr', `時間範圍下拉預設應為 1hr（實得 ${before}）`)
+            //預設時間範圍為 1hr（自製下拉 WTextSelect：讀觸發區顯示之該語系文字「1 hour／1小時」）
+            let before = (await page.locator('#timeGroupSel').innerText()).trim()
+            assert.ok(before.includes(T[lang].opt1hr), `時間範圍下拉預設應顯示「${T[lang].opt1hr}」（實得「${before}」）`)
 
-            //act：native <select> 切為「1天」（selectOption 為原生下拉之 user-facing 操作，無可打字之替代）
-            await page.locator('#timeGroupSel').selectOption('1day')
+            //act：點觸發區展開清單 → 於彈出清單點「1天」（user-facing 滑鼠路徑，同 e2e-display 語系選單；
+            //原生 <select> 已改為主題化自製下拉（ADR-031），selectOption 不再適用）
+            await page.locator('#timeGroupSel').click({ timeout: 8000 })
+            await page.waitForTimeout(400)
+            await page.getByText(T[lang].opt1day, { exact: true }).first().click({ timeout: 8000 })
+            await page.mouse.move(0, 0) //離開觸發區與圖表，避免 hover 態／echarts tooltip 拍進截圖
             await page.waitForTimeout(1200) //等 resampledData 重算 + echarts 重繪 settle
 
-            //語意：下拉值與所選選項顯示文字皆為「1天」；圖表 canvas 重繪後仍存在
-            //（重採樣正確性由「下拉選取 → resampledData → chartOption」綁定 + test_staEvent 守，canvas 內部不做 introspection）
-            let info = await page.evaluate(() => {
-                let sel = document.querySelector('#timeGroupSel')
-                let selText = sel && sel.selectedIndex >= 0 ? (sel.options[sel.selectedIndex].text || '').trim() : ''
-                return { val: sel ? sel.value : '', selText, hasCanvas: !!document.querySelector('.stats-chart-area canvas') }
-            })
-            assert.strictEqual(info.val, '1day', `切換後時間範圍下拉值應為 1day（實得 ${info.val}）`)
-            assert.ok(info.selText.includes(T[lang].opt1day), `下拉所選選項應顯示該語系「${T[lang].opt1day}」（實得「${info.selText}」）`)
+            //語意：觸發區顯示所選「1天」（該語系文字）；圖表 canvas 重繪後仍存在
+            //（重採樣正確性由「下拉選取 → resampledData → chartOption」綁定 + unit-staEvent 守，canvas 內部不做 introspection）
+            let info = await page.evaluate(() => ({
+                selText: (document.querySelector('#timeGroupSel')?.innerText || '').trim(),
+                hasCanvas: !!document.querySelector('.stats-chart-area canvas'),
+            }))
+            assert.ok(info.selText.includes(T[lang].opt1day), `切換後觸發區應顯示該語系「${T[lang].opt1day}」（實得「${info.selText}」）`)
             assert.ok(info.hasCanvas, '重繪後事件頻率圖 canvas 應仍存在')
 
             //視覺：紅框 + 貼圖覆蓋圖表區（1天重採樣後之圖表，per-item ref 凍結）

@@ -2,6 +2,10 @@
 //
 //重要流程（spec bullets）：
 //- E2E-001：切到「測試」分頁 → 請求建構器由所選 API 種子帶入 → 改 URL 送出 → 回應面板顯示狀態碼。
+//- E2E-002~008：見 spec/流程_測試API.md。
+//- E2E-009：目標回傳 JSON 陣列 → 回應內容顯示為格式化 JSON（非 [object Object]）；固定陣列目標 body 決定性、做 baseline。
+//- E2E-010：請求內容為非法 JSON → 原文送達 echo（不解析不代換）；E2E-011：請求內容清空 → 不帶 body（ADR-029）。
+//- E2E-012：method='del' 之種子 API → echo 收到 DELETE（顯示層 DEL → HTTP 動詞，ADR-030）。
 //
 //act 走真實 user 路徑：點分頁、鍵盤輸入 URL、點送出。
 //assert：①送出前種子建構器穩定態 pixel baseline（deterministic）；②送出後回應狀態碼 200 之語意斷言。
@@ -19,7 +23,7 @@ import {
     assertOrRegenBaseline,
     woItems,
     launchBrowser,
-} from './e2e-setup.mjs'
+} from './tools/e2e-setup.mjs'
 import ds from '../src/schema/index.mjs'
 
 
@@ -34,10 +38,14 @@ let T = {
 
 //測試自帶 echo server（回聲收到的 method/query/headers/body）：認證帶入與建構器編輯 case 把請求
 //網址指向它，經後端 proxy round-trip 後回應面板即顯示 echo 內容，用語意斷言驗「認證/參數確實隨請求送達」。
-//固定 port（非 ephemeral）：位址列 URL 進 baseline，須決定性。後端(srv.mjs 子進程)以 axios 打 127.0.0.1
+//固定 port（非 ephemeral）：位址列 URL 進 baseline，須決定性。後端(srv.mjs 子進程)以 Node fetch 打 127.0.0.1
 //同機可達；echo server 跑在 mocha 進程內、before 起、after 關（lifecycle 對稱）。
 let ECHO_PORT = 11077
 let ECHO_URL = `http://127.0.0.1:${ECHO_PORT}/echo`
+//固定陣列目標（E2E-009）：回一個決定性 JSON 陣列（元素為物件），驗「陣列型回應顯示為格式化 JSON」；
+//與 echo 不同：內容固定、無 request 回顯，故回應 body 可入 pixel baseline。
+let ARR_URL = `http://127.0.0.1:${ECHO_PORT}/arr`
+let ARR_FIXTURE = [{ id: 1, name: 'alpha' }, { id: 2, name: 'beta' }]
 let echoServer = null
 
 function startEchoServer() {
@@ -46,13 +54,23 @@ function startEchoServer() {
             let chunks = []
             req.on('data', (c) => chunks.push(c))
             req.on('end', () => {
+                let u0 = new URL(req.url, `http://127.0.0.1:${ECHO_PORT}`)
+                if (u0.pathname === '/arr') {
+                    res.writeHead(200, { 'Content-Type': 'application/json' })
+                    res.end(JSON.stringify(ARR_FIXTURE))
+                    return
+                }
                 let raw = Buffer.concat(chunks).toString('utf8')
                 let body
                 try { body = raw ? JSON.parse(raw) : '' }
                 catch (e) { body = raw }
                 let u = new URL(req.url, `http://127.0.0.1:${ECHO_PORT}`)
+                //重複之 query 鍵回顯為陣列（改造前 forEach 覆蓋只留最後一值，無法驗「重複鍵各自送達」；E2E-013）
                 let query = {}
-                u.searchParams.forEach((v, k) => { query[k] = v })
+                for (let k of new Set(u.searchParams.keys())) {
+                    let vs = u.searchParams.getAll(k)
+                    query[k] = vs.length > 1 ? vs : vs[0]
+                }
                 let out = { ok: true, method: req.method, path: u.pathname, query, headers: req.headers, body }
                 res.writeHead(200, { 'Content-Type': 'application/json' })
                 res.end(JSON.stringify(out))
@@ -90,11 +108,11 @@ function makeAuthApi(authType, authConfig, name) {
 }
 
 
-//讀請求建構器 Headers 表（第 2 個 .kv-table）各列之 on/key/value（input value 不在 innerText, 須逐 input 讀）。
-async function readHeaderRows(page) {
-    return await page.evaluate(() => {
+//讀請求建構器 Query（idx=0）／Headers（idx=1）表各列之 on/key/value（input value 不在 innerText, 須逐 input 讀）。
+async function readKvRows(page, idx) {
+    return await page.evaluate((i) => {
         let tables = document.querySelectorAll('.kv-table')
-        let h = tables[1]
+        let h = tables[i]
         if (!h) {
             return []
         }
@@ -103,7 +121,10 @@ async function readHeaderRows(page) {
             key: (r.querySelector('.kv-col-key input') || {}).value || '',
             value: (r.querySelector('.kv-col-val input') || {}).value || '',
         }))
-    })
+    }, idx)
+}
+async function readHeaderRows(page) {
+    return await readKvRows(page, 1)
 }
 
 
@@ -407,16 +428,28 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
             //視覺：送出前編輯態、紅框標 Query 與 Headers 兩表
             await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-007-kv-edit.png`, await captureStableWithBox(page, [qTable, hTable]))
 
+            //act（刪列）：再新增第三列 query 填鍵值（勾選態）→ 點該列「×」刪除 → 表回到兩列（x 勾選、y 未勾選）。
+            //（.kv-del-btn 為建構器唯一未被任何 case 點過之可點元素；列 :key 改為列 id 後刪列不錯位——ADR-031）
+            await page.locator('.btn-addrow').nth(0).click({ timeout: 8000 })
+            await typeIntoInput(page, qTable.locator('.kv-row').nth(2).locator('.kv-col-key input'), 'zqkey')
+            await typeIntoInput(page, qTable.locator('.kv-row').nth(2).locator('.kv-col-val input'), 'zqval')
+            assert.strictEqual((await readKvRows(page, 0)).length, 3, '新增後 Query 表應為 3 列')
+            await qTable.locator('.kv-row').nth(2).locator('.kv-del-btn').click({ timeout: 8000 })
+            let qRows = await readKvRows(page, 0)
+            assert.deepStrictEqual(qRows.map((r) => r.key), ['xqkey', 'yqkey'], `刪列後 Query 表應剩 xqkey、yqkey（實得 ${JSON.stringify(qRows.map((r) => r.key))}）`)
+            assert.deepStrictEqual(qRows.map((r) => r.on), [true, false], '刪列後各列勾選狀態應維持（x 勾選、y 未勾選）')
+
             //act：送出 → 等 echo 回顯 header 值
             await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
             await waitEchoValue(page, 'xhval')
 
-            //語意：回應 body 含已勾選之 query 鍵值與 header；不含被取消勾選之列值
+            //語意：回應 body 含已勾選之 query 鍵值與 header；不含被取消勾選之列值；不含已刪除之列值
             let resp = await getRespBodyText(page)
             assert.ok(resp.includes('xqkey') && resp.includes('xqval'), '回應應含已勾選之 query 鍵值 xqkey/xqval')
             assert.ok(resp.includes('xhval'), '回應應含新增之 header 值 xhval')
             assert.ok(!resp.includes('yqval'), '被取消勾選之 query 列值 yqval 不應納入送出')
             assert.ok(!resp.includes('yqkey'), '被取消勾選之 query 列鍵 yqkey 不應納入送出')
+            assert.ok(!resp.includes('zqkey') && !resp.includes('zqval'), '已刪除之列 zqkey/zqval 不應納入送出')
         })
 
         //E2E-008：選 POST API → 出現請求內容區 → 清空並輸入 JSON body → 改網址為 echo → 送出 → 回應驗 method=POST + body
@@ -444,6 +477,183 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
             let resp = await getRespBodyText(page)
             assert.ok(resp.includes('POST'), '回應應顯示 method 為 POST')
             assert.ok(resp.includes('lucky') && resp.includes('dog'), '回應應含所輸入 JSON body 之欄位值（dog/lucky）')
+        })
+
+        //E2E-009：目標回傳 JSON 陣列 → 回應內容應為格式化 JSON（非 `[object Object],...`）。
+        //對應 spec「回應 data 型別 → 顯示形式」表之陣列列；缺陷來源：建議w-web-api調整.md 第 1 項。
+        it(`E2E-009 [${lang}] 目標回傳 JSON 陣列，回應內容顯示為格式化 JSON`, async function() {
+            await gotoApiWorkspace(page, lang)
+
+            //act：點「測試」分頁 → 網址改為固定陣列目標 → 送出
+            await page.getByText(T[lang].test, { exact: true }).first().click({ timeout: 8000 })
+            let urlInp = page.getByPlaceholder(T[lang].urlPh)
+            await urlInp.waitFor({ state: 'visible', timeout: 8000 })
+            await typeIntoInput(page, urlInp, ARR_URL)
+            await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
+            await waitUntilExist(page, 'response 200', () => (document.body.innerText || '').includes('200'), { timeout: 15000 })
+
+            //語意（spec E2E-009 驗證 1）：狀態碼 200；body 以 `[` 起頭、含縮排後之 `"name": "alpha"`（鍵值間空白＝經
+            //JSON.stringify(,2)）、為多行；不含 String(array) 之 `[object Object]`
+            let post = await page.evaluate(() => document.body.innerText || '')
+            assert.ok(post.includes('200'), '回應面板應顯示狀態碼 200')
+            let resp = (await getRespBodyText(page)).trim()
+            assert.ok(!resp.includes('[object Object]'), `陣列回應不得顯示為 [object Object]（實得「${resp.slice(0, 60)}」）`)
+            assert.ok(resp.startsWith('['), `陣列回應應以 [ 起頭（實得「${resp.slice(0, 60)}」）`)
+            assert.ok(resp.includes('"name": "alpha"') && resp.includes('"name": "beta"'), '陣列回應應為縮排 JSON（含 "name": "alpha" / "beta"）')
+            assert.ok(resp.split('\n').length > 1, '陣列回應應為多行格式化 JSON')
+
+            //視覺（spec E2E-009 驗證 2）：回應卡紅框；遮黑 durationMs（右對齊固定寬）與 headers pre（含 date）；
+            //固定陣列 body 為決定性、保留比對
+            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-009-array-response.png`, await captureStableWithBox(page, '.card', { mask: [{ sel: '.w-tnum', fixedWidth: 100 }, '.card pre.code'] }))
+        })
+
+        //E2E-010：POST API → 請求內容輸入非法 JSON → 改網址為 echo → 送出 → echo 回顯原文字串（工具不解析、不驗證、不代換）
+        //對應 spec 規則摘要「契約」之「請求內容原文送出」（ADR-029；改造前 j2o 對非法 JSON 回 {} 而靜默送出 {}）
+        it(`E2E-010 [${lang}] 請求內容為非法 JSON 仍原文送達目標`, async function() {
+            let urlInp = await selectApiAndOpenTest(page, lang, '新增狗狗資訊')
+            let bodyArea = page.locator('.body-textarea')
+            await bodyArea.waitFor({ state: 'visible', timeout: 8000 })
+
+            //act：輸入非法 JSON（鍵未加引號、尾逗號）；網址改為 echo
+            let invalid = '{dog:lucky,}'
+            await typeIntoInput(page, bodyArea, invalid)
+            await typeIntoInput(page, urlInp, ECHO_URL)
+
+            //視覺（spec E2E-010 驗證 2）：送出前編輯態、紅框標 address bar 與請求內容區
+            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-010-invalid-json-body.png`, await captureStableWithBox(page, ['.addr-bar', '.body-textarea']))
+
+            //act：送出 → 等 echo 回顯
+            await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
+            await waitEchoValue(page, 'lucky')
+
+            //語意（spec E2E-010 驗證 1）：狀態碼 200（由目標決定，工具不擋）；echo 之 body 為原文字串；未被代換為 {}
+            let post = await page.evaluate(() => document.body.innerText || '')
+            assert.ok(post.includes('200'), '回應面板應顯示狀態碼 200')
+            let resp = await getRespBodyText(page)
+            assert.ok(resp.includes(`"body": "${invalid}"`), `echo 應回顯原文字串（實得片段「${resp.slice(resp.indexOf('"body"'), resp.indexOf('"body"') + 40)}」）`)
+            assert.ok(!resp.includes('"body": {}'), '非法 JSON 不得被代換為空物件送出')
+        })
+
+        //E2E-011：POST API → 清空請求內容 → 改網址為 echo → 送出 → echo 收到空 body（工具不補內容）
+        //對應 spec 規則摘要「契約」之「空白則不帶 body」（ADR-029；改造前靜默送出 {}）
+        it(`E2E-011 [${lang}] 請求內容清空送出不帶 body`, async function() {
+            let urlInp = await selectApiAndOpenTest(page, lang, '新增狗狗資訊')
+            let bodyArea = page.locator('.body-textarea')
+            await bodyArea.waitFor({ state: 'visible', timeout: 8000 })
+
+            //act：清空請求內容；網址改為 echo
+            await typeIntoInput(page, bodyArea, '')
+            assert.strictEqual(await bodyArea.inputValue(), '', '請求內容應已清空')
+            await typeIntoInput(page, urlInp, ECHO_URL)
+
+            //視覺（spec E2E-011 驗證 2）：送出前清空態、紅框標 address bar 與請求內容區
+            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-011-empty-body.png`, await captureStableWithBox(page, ['.addr-bar', '.body-textarea']))
+
+            //act：送出 → 等 echo 回應（以 echo 固定欄位 "ok": true 作為 round-trip 完成訊號）
+            await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
+            await waitEchoValue(page, '"ok": true')
+
+            //語意（spec E2E-011 驗證 1）：狀態碼 200；echo 之 body 為空；未被補成 {}
+            let post = await page.evaluate(() => document.body.innerText || '')
+            assert.ok(post.includes('200'), '回應面板應顯示狀態碼 200')
+            let resp = await getRespBodyText(page)
+            assert.ok(resp.includes('"body": ""'), `echo 應收到空 body（實得片段「${resp.slice(resp.indexOf('"body"'), resp.indexOf('"body"') + 30)}」）`)
+            assert.ok(!resp.includes('"body": {}'), '空白請求內容不得被補成空物件送出')
+        })
+
+        //E2E-012：選 method='del' 之種子 API → 測試分頁方法欄顯示 DEL → 改網址為 echo → 送出 → echo 收到 HTTP 標準動詞 DELETE
+        //對應 spec 規則摘要「契約」之「方法代號 → HTTP 動詞」（ADR-030）。此為 DEL→DELETE 修法之使用者真實路徑；
+        //MSHARE-006 只測轉換函式、PROXY 只測後端收到 DELETE 之行為，皆未走過真瀏覽器之送出鏈。
+        it(`E2E-012 [${lang}] 選方法為 DEL 之 API 送出，目標收到 DELETE`, async function() {
+            let urlInp = await selectApiAndOpenTest(page, lang, '刪除狗狗資訊')
+
+            //語意（送出前）：方法欄顯示 DEL（顯示層代號不改）
+            let addr = await page.locator('.addr-bar').first().innerText()
+            assert.ok(addr.includes('DEL'), `方法欄應顯示 DEL（實得「${addr.slice(0, 40)}」）`)
+
+            //act：網址改為 echo
+            await typeIntoInput(page, urlInp, ECHO_URL)
+
+            //視覺（spec E2E-012 驗證 2）：送出前態、紅框標 address bar（方法欄 DEL + echo 網址）
+            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-012-del-method.png`, await captureStableWithBox(page, '.addr-bar'))
+
+            //act：送出 → 等 echo 回顯 method
+            await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
+            await waitEchoValue(page, '"method": "DELETE"')
+
+            //語意（spec E2E-012 驗證 1）：狀態碼 200；echo 收到之動詞為 DELETE 而非 DEL
+            let post = await page.evaluate(() => document.body.innerText || '')
+            assert.ok(post.includes('200'), '回應面板應顯示狀態碼 200')
+            let resp = await getRespBodyText(page)
+            assert.ok(resp.includes('"method": "DELETE"'), 'echo 應收到 HTTP 標準動詞 DELETE')
+            assert.ok(!resp.includes('"method": "DEL"'), '不得把非 HTTP 動詞 DEL 送到目標')
+        })
+
+        //E2E-013：Query／Headers 各兩列同鍵 → 送出 → echo 回顯 query 為兩值陣列、標頭為合併值（重複鍵不收斂；ADR-031）
+        //改造前以物件收斂（query[key]=value），同鍵之後列靜默覆蓋前列：使用者看到兩列卻只送出一列。
+        it(`E2E-013 [${lang}] 重複之 Query／Header 鍵皆送達目標`, async function() {
+            await gotoApiWorkspace(page, lang)
+            await page.getByText(T[lang].test, { exact: true }).first().click({ timeout: 8000 })
+            let urlInp = page.getByPlaceholder(T[lang].urlPh)
+            await urlInp.waitFor({ state: 'visible', timeout: 8000 })
+            let qTable = page.locator('.kv-table').nth(0)
+            let hTable = page.locator('.kv-table').nth(1)
+
+            //Query 兩列同鍵 dupq=dv1 / dupq=dv2
+            await typeIntoInput(page, qTable.locator('.kv-row').nth(0).locator('.kv-col-key input'), 'dupq')
+            await typeIntoInput(page, qTable.locator('.kv-row').nth(0).locator('.kv-col-val input'), 'dv1')
+            await page.locator('.btn-addrow').nth(0).click({ timeout: 8000 })
+            await typeIntoInput(page, qTable.locator('.kv-row').nth(1).locator('.kv-col-key input'), 'dupq')
+            await typeIntoInput(page, qTable.locator('.kv-row').nth(1).locator('.kv-col-val input'), 'dv2')
+            //Headers 兩列同鍵 X-Dup: ha / hb
+            for (let v of ['ha', 'hb']) {
+                await page.locator('.btn-addrow').nth(1).click({ timeout: 8000 })
+                await typeIntoInput(page, hTable.locator('.kv-row').last().locator('.kv-col-key input'), 'X-Dup')
+                await typeIntoInput(page, hTable.locator('.kv-row').last().locator('.kv-col-val input'), v)
+            }
+            await typeIntoInput(page, urlInp, ECHO_URL)
+
+            //視覺（spec E2E-013 驗證 2）：送出前編輯態（兩表各含兩列同鍵）、紅框標 Query 與 Headers 兩表
+            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-013-dup-keys.png`, await captureStableWithBox(page, [qTable, hTable]))
+
+            //act：送出 → 等 echo 回顯
+            await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
+            await waitEchoValue(page, 'hb')
+
+            //語意（spec E2E-013 驗證 1）：query 重複鍵回顯為兩值陣列（dv1、dv2 皆送達）；標頭重複鍵為 Fetch 標準合併值「ha, hb」
+            let resp = await getRespBodyText(page)
+            let seg = resp.slice(Math.max(0, resp.indexOf('"dupq"')), resp.indexOf('"dupq"') + 60)
+            assert.ok(/"dupq": \[\s*"dv1",\s*"dv2"\s*\]/.test(resp), `echo 應回顯 dupq 為 ["dv1","dv2"]（實得片段「${seg}」）`)
+            assert.ok(resp.includes('"x-dup": "ha, hb"'), 'echo 應回顯標頭 x-dup 為合併值「ha, hb」')
+        })
+
+        //E2E-014：預設標頭已明給 Content-Type 之 API → 測試分頁 Headers 只有一列 Content-Type（明給值優先、不再補 contentType 列）
+        //→ 送出 → echo 收到該值（ADR-031；改造前雙列並存，送出時被收斂／合併，皆非使用者所見）
+        it(`E2E-014 [${lang}] 預設標頭明給 Content-Type 時不重複帶入`, async function() {
+            let apiName = 'API標頭測試ContentType'
+            //funNew 預設 contentType='application/json'；defaultHeadersJson 明給 text/plain → 兩者相衝，明給者勝
+            await woItems.apis.insert([ds.apis.funNew({ name: apiName, levels: 'API', method: 'post', url: ECHO_URL, defaultHeadersJson: JSON.stringify({ 'Content-Type': 'text/plain' }) })])
+
+            await selectApiAndOpenTest(page, lang, apiName)
+
+            //語意①：Headers 表恰一列 Content-Type（不分大小寫）、值為明給之 text/plain
+            let rows = await readHeaderRows(page)
+            let ctRows = rows.filter((r) => r.key.toLowerCase() === 'content-type')
+            assert.strictEqual(ctRows.length, 1, `Headers 應只有一列 Content-Type（實得 ${ctRows.length} 列：${JSON.stringify(rows)}）`)
+            assert.strictEqual(ctRows[0].value, 'text/plain', '明給之 Content-Type 值應優先')
+
+            //視覺（spec E2E-014 驗證 2）：送出前種子態、紅框標 Headers 表
+            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-014-content-type-single.png`, await captureStableWithBox(page, page.locator('.kv-table').nth(1)))
+
+            //act：送出（POST、請求內容空）→ 等 echo 回顯
+            await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
+            await waitEchoValue(page, '"content-type"')
+
+            //語意②：echo 收到之 content-type 為 text/plain（單一值；非 'text/plain, application/json'）
+            let resp = await getRespBodyText(page)
+            let seg = resp.slice(Math.max(0, resp.indexOf('"content-type"')), resp.indexOf('"content-type"') + 50)
+            assert.ok(resp.includes('"content-type": "text/plain"'), `echo 應收到 content-type 為 text/plain（實得片段「${seg}」）`)
+            assert.ok(!resp.includes('application/json'), '不得再帶入 contentType 之預設值')
         })
 
     }

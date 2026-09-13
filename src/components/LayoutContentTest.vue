@@ -64,7 +64,7 @@
 
                 <div
                     v-for="(row, idx) in req.query"
-                    :key="idx"
+                    :key="row.id"
                     class="kv-row"
                 >
                     <div class="kv-col-ck kv-center">
@@ -123,7 +123,7 @@
 
                 <div
                     v-for="(row, idx) in req.headers"
-                    :key="idx"
+                    :key="row.id"
                     class="kv-row"
                 >
                     <div class="kv-col-ck kv-center">
@@ -239,6 +239,15 @@ let kpColorMethod = {
 }
 
 
+//mkRow：Query／Headers 表列之唯一建立點（改造前 10 處各自手寫 `{ on, key, value }` 字面值）。
+//id 為單調遞增序號、供 v-for :key（改造前 :key=idx——增刪列後 Vue 依索引重用 DOM，列之瞬時 DOM 狀態（焦點／IME 組字）會錯位）。
+let seqKvRow = 0
+function mkRow(key = '', value = '') {
+    seqKvRow += 1
+    return { id: seqKvRow, on: true, key, value }
+}
+
+
 export default {
     components: {
         WTextSelect,
@@ -246,7 +255,9 @@ export default {
     props: {
         item: {
             type: Object,
-            default: function() { return {} },
+            default: function() {
+                return {}
+            },
         },
         height: {
             type: Number,
@@ -255,12 +266,12 @@ export default {
     },
     data: function() {
         return {
-            methodItems: ['GET', 'POST', 'PUT', 'DEL'],
+            methodItems: this.$s.METHODS.map((m) => m.toUpperCase()), //顯示層大寫；單一來源 mShare.METHODS（與編輯表單共用）
             req: {
                 method: 'GET',
                 url: '',
-                query: [{ on: true, key: '', value: '' }],
-                headers: [{ on: true, key: '', value: '' }],
+                query: [mkRow()],
+                headers: [mkRow()],
                 body: '',
             },
             res: null,
@@ -320,48 +331,14 @@ export default {
             if (vo.res === null) {
                 return ''
             }
-            // 取得原始字串
-            let raw = ''
-            if (isobj(vo.res.data)) {
-                try {
-                    raw = JSON.stringify(vo.res.data, null, 2)
-                }
-                catch (e) {
-                    raw = String(vo.res.data)
-                }
+            //物件／陣列 → 縮排 JSON + 語法高亮；其餘（HTML／純文字／數字…）→ 原文（僅 escape、不上色：純文字中的數字／true 不是 JSON token）。
+            //型別表見 spec/流程_測試API.md「回應 data 型別 → 顯示形式」；高亮實作與 docs 分頁共用 mShare.jsonHighlight
+            //（改造前本處自寫規則以 &quot; 比對但 escape 未換 "，鍵值永遠不上色、只有數字／布林被上色，且對 HTML 原文亦上色）
+            let raw = vo.$s.dataToText(vo.res.data)
+            if (!vo.$s.isJsonContainer(vo.res.data)) {
+                return vo.$s.escapeHtml(raw)
             }
-            else {
-                raw = String(vo.res.data)
-            }
-            // HTML escape
-            let escaped = raw
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-            // 簡易 JSON 語法高亮（逐 token 替換）
-            // key: "xxx":
-            // string value: "xxx"
-            // number: bare number
-            // bool/null: true/false/null
-            let highlighted = escaped.replace(
-                /(&quot;[^&]*&quot;)\s*(:)|(&quot;[^&]*&quot;)|(\b-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)|(\b(?:true|false|null)\b)/g,
-                function(match, keyStr, colon, strVal, numVal, boolVal) {
-                    if (keyStr && colon) {
-                        return '<span class="k">' + keyStr + '</span>' + colon
-                    }
-                    if (strVal) {
-                        return '<span class="s">' + strVal + '</span>'
-                    }
-                    if (numVal !== undefined) {
-                        return '<span class="n">' + numVal + '</span>'
-                    }
-                    if (boolVal !== undefined) {
-                        return '<span class="b">' + boolVal + '</span>'
-                    }
-                    return match
-                }
-            )
-            return highlighted
+            return vo.$s.jsonHighlight(raw)
         },
 
     },
@@ -383,7 +360,7 @@ export default {
                 return rows
             }
             each(obj, function(v, k) {
-                rows.push({ on: true, key: k, value: String(v) })
+                rows.push(mkRow(k, String(v)))
             })
             return rows
         },
@@ -416,7 +393,7 @@ export default {
                 // { "token": "xxx" }；留空則退用 tokens 欄第一個（向後相容舊資料）
                 let token = isestr(authCfg.token) ? authCfg.token : (isestr(itm.tokens) ? itm.tokens.split(';')[0] : '')
                 if (isestr(token)) {
-                    headerRows.push({ on: true, key: 'Authorization', value: 'Bearer ' + token })
+                    headerRows.push(mkRow('Authorization', 'Bearer ' + token))
                 }
             }
             else if (authType === 'apikey') {
@@ -425,10 +402,10 @@ export default {
                 let value = isestr(authCfg.value) ? authCfg.value : ''
                 if (isestr(value)) {
                     if (authCfg.in === 'query') {
-                        queryRows.push({ on: true, key: name, value: value })
+                        queryRows.push(mkRow(name, value))
                     }
                     else {
-                        headerRows.push({ on: true, key: name, value: value })
+                        headerRows.push(mkRow(name, value))
                     }
                 }
             }
@@ -437,22 +414,25 @@ export default {
                 let u = isestr(authCfg.username) ? authCfg.username : ''
                 let p = isestr(authCfg.password) ? authCfg.password : ''
                 if (isestr(u) || isestr(p)) {
-                    headerRows.push({ on: true, key: 'Authorization', value: 'Basic ' + btoa(u + ':' + p) })
+                    headerRows.push(mkRow('Authorization', 'Basic ' + btoa(u + ':' + p)))
                 }
             }
 
-            // content-type 標頭
-            if (isestr(itm.contentType)) {
-                headerRows.push({ on: true, key: 'Content-Type', value: itm.contentType })
+            // content-type 標頭：預設標頭（defaultHeadersJson）已明給 Content-Type（不分大小寫）者以其為準、不再補一列
+            //（對標 Postman：使用者明給之標頭優先於自動標頭。改造前雙列並存：送出時同鍵收斂使後列覆蓋前列，
+            //改為有序鍵值對後兩列會被 fetch 合併成 'a, b'，皆非使用者所見）
+            let hasContentType = headerRows.some((r) => r.key.toLowerCase() === 'content-type')
+            if (isestr(itm.contentType) && !hasContentType) {
+                headerRows.push(mkRow('Content-Type', itm.contentType))
             }
 
             if (headerRows.length === 0) {
-                headerRows.push({ on: true, key: '', value: '' })
+                headerRows.push(mkRow())
             }
             vo.req.headers = headerRows
 
             if (queryRows.length === 0) {
-                queryRows.push({ on: true, key: '', value: '' })
+                queryRows.push(mkRow())
             }
             vo.req.query = queryRows
 
@@ -474,27 +454,27 @@ export default {
 
         addQueryRow: function() {
             let vo = this
-            vo.req.query.push({ on: true, key: '', value: '' })
+            vo.req.query.push(mkRow())
         },
 
         removeQueryRow: function(idx) {
             let vo = this
             vo.req.query.splice(idx, 1)
             if (vo.req.query.length === 0) {
-                vo.req.query.push({ on: true, key: '', value: '' })
+                vo.req.query.push(mkRow())
             }
         },
 
         addHeaderRow: function() {
             let vo = this
-            vo.req.headers.push({ on: true, key: '', value: '' })
+            vo.req.headers.push(mkRow())
         },
 
         removeHeaderRow: function(idx) {
             let vo = this
             vo.req.headers.splice(idx, 1)
             if (vo.req.headers.length === 0) {
-                vo.req.headers.push({ on: true, key: '', value: '' })
+                vo.req.headers.push(mkRow())
             }
         },
 
@@ -523,45 +503,33 @@ export default {
                     return
                 }
 
-                // 3) 開啟本地 loading
+                // 3) 開 loading：本地 sending（送出鈕禁用）+ 頁面層全頁 overlay（CLAUDE.md 三層雙擊防護之頁面層；
+                //    送出對目標可能有副作用（POST/PUT/DELETE），與編輯分頁之存／刪同級；改造前只有本地 sending）
                 vo.sending = true
+                vo.$ui.updateLoading(true)
 
-                // 4) 組 spec 並送出
-                let method = vo.req.method
+                // 4) 組 spec 並送出（方法代號 → HTTP 標準動詞；顯示層之 DEL 須送 DELETE，見 mShare 說明）
+                let method = vo.$s.methodToHttpVerb(vo.req.method)
 
-                let query = {}
-                each(vo.req.query, function(row) {
-                    if (row.on && isestr(row.key)) {
-                        query[row.key] = row.value
-                    }
-                })
+                //Query／Headers：僅 on 且鍵非空之列，以有序鍵值對 [[key, value], ...] 送出、重複鍵各自保留
+                //（mShare.kvRowsToPairs；改造前以物件收斂使同鍵後列靜默覆蓋前列）
+                let query = vo.$s.kvRowsToPairs(vo.req.query)
+                let headers = vo.$s.kvRowsToPairs(vo.req.headers)
 
-                let headers = {}
-                each(vo.req.headers, function(row) {
-                    if (row.on && isestr(row.key)) {
-                        headers[row.key] = row.value
-                    }
-                })
-
-                let body = undefined
+                //請求內容原文送出（同 Scalar / Postman：打什麼送什麼，不解析、不驗證、不代換；Content-Type 以標頭表為準），
+                //空白則不帶 body；GET/HEAD 不帶。見 spec/流程_測試API.md「規則摘要」契約與 ADR-029。
+                let body
                 if (method !== 'GET' && method !== 'HEAD') {
                     let rawBody = vo.req.body
-                    let ct = get(vo.item, 'contentType', '')
-                    if (isestr(ct) && ct.toLowerCase().indexOf('json') >= 0) {
-                        let parsed = j2o(rawBody)
-                        body = isobj(parsed) ? parsed : rawBody
-                    }
-                    else {
-                        body = rawBody
-                    }
+                    body = isestr(rawBody) ? rawBody : undefined
                 }
 
                 let spec = {
-                    method: method,
+                    method,
                     url: vo.req.url,
-                    headers: headers,
-                    query: query,
-                    body: body,
+                    headers,
+                    query,
+                    body,
                     timeout: 30000,
                 }
 
@@ -586,11 +554,15 @@ export default {
 
             core()
                 .catch(function(err) {
+                    //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md：失敗通知走 showCheckYes、之前先 updateLoading(false)；
+                    //非 success 之 type 顯示警示圖標）；不用會自動消失之 $alert toast（ADR-005 modal 政策）
                     console.log('catch', err)
-                    vo.$alert(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
+                    vo.$ui.updateLoading(false)
+                    vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
                 })
                 .finally(function() {
                     vo.sending = false
+                    vo.$ui.updateLoading(false)
                 })
 
         },

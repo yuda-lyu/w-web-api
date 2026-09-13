@@ -87,7 +87,7 @@
 011          okSave 為否則 return（短路）  [src/components/LayoutContentEdit.vue:391]
 012          $emit('saved') → onEditSaved 回 docs、後端 syncData 推送、genTree 重建並保留原選取  [src/components/LayoutContentEdit.vue:394][src/components/LayoutContent.vue:609-613]
 013          顯示成功 modal showCheckYes('已儲存')  [src/components/LayoutContentEdit.vue:398]
-014      .catch: 非預期例外 → $alert（兜底）  [src/components/LayoutContentEdit.vue:344]
+014      .catch: 非預期例外 → updateLoading(false) 後 showCheckYes(anUnexpectedErrorOccurred, {type:'error'})（兜底 modal，ADR-031；不用自動消失之 $alert）  [src/components/LayoutContentEdit.vue:onClickSave]
 015      .finally: 關 loading（統一一處）  [src/components/LayoutContentEdit.vue:345]
 ```
 
@@ -125,7 +125,7 @@
 009          okDel 為否則 return（短路）  [src/components/LayoutContentEdit.vue:429]
 010          $emit('deleted') → 清 apiSelect、回 docs、syncData 重建樹（被刪節點消失，改選第一筆）  [src/components/LayoutContentEdit.vue:432][src/components/LayoutContent.vue:615-620,464-470]
 011          成功 modal showCheckYes('已刪除')  [src/components/LayoutContentEdit.vue:433]
-012      .catch: 非預期例外 → $alert；.finally: 關 loading  [src/components/LayoutContentEdit.vue:438-439]
+012      .catch: 非預期例外 → updateLoading(false) 後 showCheckYes(anUnexpectedErrorOccurred, {type:'error'})（ADR-031）；.finally: 關 loading  [src/components/LayoutContentEdit.vue:doDelete]
 ```
 
 ## i18n 訊息粒度規則
@@ -136,7 +136,7 @@
 | 動作按鈕 | 找 `save` / `delete` / `cancel`、`addApi`、`tabEdit` | 表單底部按鈕、左樹新增鈕、分頁 | 每按鈕一鍵 |
 | 確認/成功 modal | 找 `confirmDeleteApi` / `saveSuccess` / `deleteSuccess`、`yes` / `no` / `ok`、`systemMessage` | WConfirm 模態 | 確認問句、成功訊息各一鍵 |
 | inline 驗證紅字 | 找 `valRequired` / `valInvalidJson` | 對應欄位下方 .bk-err | 必填、JSON 格式各一鍵 |
-| 兜底錯誤 | 找 `anUnexpectedErrorOccurred` | $alert | 非預期例外統一一鍵 |
+| 兜底錯誤 | 找 `anUnexpectedErrorOccurred` | showCheckYes modal（type:'error'，先關 loading） | 非預期例外統一一鍵 |
 
 ## 錯誤處理分層
 
@@ -145,7 +145,7 @@
 | 同步檢測 | 名稱/網址空、JSON 格式錯 | 對應欄位 inline 紅字，return 不打 API |
 | 後端 reject | saveApi/deleteApi 失敗 | errSave inline 紅字，短路不關閉表單 |
 | 刪除取消 | 確認對話框點「取消」 | reject('close')，靜默忽略不報錯 |
-| 非預期例外 | core() 未捕捉之例外 | $alert 兜底 + console.log |
+| 非預期例外 | core() 未捕捉之例外 | showCheckYes modal 兜底（type:'error'，先 updateLoading(false)）+ console.log |
 
 ## 參數來源
 

@@ -60,6 +60,26 @@ describe('unit-procApis (錯誤路徑 + 正常路徑)', function() {
         assert.strictEqual(captured.id, 'fixed-id-1', '既有 id 應被保留')
     })
 
+    //ADR-031：getApisList 經 procOrm（與 save/del 同一入口），ORM 層政策（useCheckUser / useExcludeWhenNotAdmin）才套到讀取；改造前直呼 woItems.select 繞過
+    it('getApisList: 以 ("apis","select",{}) 呼叫 procOrm 並回傳其結果（不直呼 woItems）', async function() {
+        let calls = []
+        let procOrm = async (...a) => {
+            calls.push(a)
+            return [{ id: 'x' }]
+        }
+        let woItems = {
+            apis: {
+                select: async () => {
+                    throw new Error('不得直呼 woItems.apis.select')
+                },
+            },
+        }
+        let { getApisList } = procApis({ woItems, procOrm, ds })
+        let r = await getApisList('u1')
+        assert.deepStrictEqual(r, [{ id: 'x' }])
+        assert.deepStrictEqual(calls, [['u1', 'apis', 'select', {}]])
+    })
+
     it('deleteApi: 正常 id → 以 ("apis","del",{id}) 呼叫 procOrm', async function() {
         let calls = []
         let procOrm = async (...a) => { calls.push(a); return 'ok' }

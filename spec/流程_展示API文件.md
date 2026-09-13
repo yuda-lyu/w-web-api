@@ -196,3 +196,5 @@
   - token='sys' 僅開發模式捷徑；正式須真實 token 且 isAdmin==='y'。
   - 前端不主動輪詢，資料由後端 syncData 推送驅動重渲染。
   - 語系切換經 setLang 廣播 forceUpdate，全頁即時重渲染。
+  - docs 請求區之 cURL `-X` 動詞經 `src/plugins/mShare.mjs` 之 `methodToHttpVerb` 轉換：資料層 `del` 顯示為 `DELETE`（`DEL` 非 HTTP 動詞，複製貼上即可執行；與測試分頁送出路徑共用同一函式，ADR-030）。樹之 method badge 仍顯示 `DEL`（視覺慣例）。
+  - 左樹根節點標籤由語系鍵 `treeRootAll`（eng「All」／cht「全部」）於 template 取值，非烤進樹資料，語系就地切換即時更新；樹資料之根 key 為哨符 `__treeRootAll__`，不與任何 group 名稱相撞（ADR-030）。

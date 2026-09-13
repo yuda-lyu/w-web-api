@@ -14,7 +14,9 @@ function procApis(deps = {}) {
 
 
     let getApisList = async (userId) => {
-        return await woItems.apis.select({})
+        //經 procOrm（與 save／del 同一入口）而非直呼 woItems：ORM 層政策——useCheckUser 之使用者檢核、
+        //useExcludeWhenNotAdmin 非管理員濾 isActive='n'、擴充之前後處理——才會一併套到讀取；改造前直呼 woItems 全數繞過
+        return await procOrm(userId, 'apis', 'select', {})
     }
 
 

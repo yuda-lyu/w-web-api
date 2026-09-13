@@ -83,7 +83,7 @@
                                         :style="`display:flex; align-items:center; min-height:${lineHeightTree}px; color:var(--c-3); font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;`"
                                         v-if="props.data.type!=='node'"
                                     >
-                                        {{props.data.key}}
+                                        {{treeRowText(props.data.key)}}
                                     </div>
 
                                     <div
@@ -194,7 +194,7 @@
                                             </div>
                                             <div class="card">
                                                 <div class="card-h"><span class="lab">{{$t('resTitle')}}</span><span class="st">200 OK</span></div>
-                                                <pre class="code" v-html="jsonHighlight($ui.gv(apiSelect,'outputExample'))"></pre>
+                                                <pre class="code" v-html="$s.jsonHighlight($ui.gv(apiSelect,'outputExample'))"></pre>
                                             </div>
                                         </div>
                                     </div>
@@ -286,7 +286,9 @@ import filter from 'lodash-es/filter.js'
 import cloneDeep from 'lodash-es/cloneDeep.js'
 import isobj from 'wsemi/src/isobj.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
+import dtmapping from 'wsemi/src/dtmapping.mjs'
 import convertToTree from 'wsemi/src/convertToTree.mjs'
+import ds from '../schema/index.mjs'
 import { mdiArrowLeft, mdiArrowRight, mdiCloudBraces, mdiChartBar } from '@mdi/js'
 import WButtonCircle from 'w-component-vue/src/components/WButtonCircle.vue'
 import WDrawer from 'w-component-vue/src/components/WDrawer.vue'
@@ -295,6 +297,11 @@ import MdPanel from './MdPanel.vue'
 import LayoutContentEdit from './LayoutContentEdit.vue'
 import LayoutContentTest from './LayoutContentTest.vue'
 import LayoutContentStats from './LayoutContentStats.vue'
+
+
+//樹根節點之哨符 key（非顯示文字）：顯示文字於 template 以 $t('treeRootAll') 依當前語系取得。
+//用哨符而非中文字面值，一來使語系可即時切換，二來避免與真實 group 名稱（種子資料即有名為「全部」者）相撞。
+let KEY_TREE_ROOT = '__treeRootAll__'
 
 
 export default {
@@ -449,7 +456,10 @@ export default {
             // console.log('kpTree', cloneDeep(kpTree))
 
             //convertToTree, 由預處理tree物件轉成tree物件
-            let tree = convertToTree(tr, { bindRoot: '全部' })
+            //bindRoot 用不會與真實資料相撞之哨符：樹根是 UI 產生的標籤（非資料），須隨語系切換即時改變，
+            //故不可在此把譯文烤進樹資料（語系為就地切換、不重載頁面，烤進去會停在舊語系直到樹重建）。
+            //譯文於 template 以 $t(KEY_TREE_ROOT_TEXT) 呈現。附帶修正：原值 '全部' 會與同名之 group 資料相撞。
+            let tree = convertToTree(tr, { bindRoot: KEY_TREE_ROOT })
             // console.log('tree', cloneDeep(tree))
 
             //apiSelect: 優先保留原選取(仍存在時), 否則取第一筆
@@ -486,7 +496,8 @@ export default {
 
         curlOf: function(item) {
             let vo = this
-            let method = vo.getMethod(item) || 'GET'
+            //方法代號 → HTTP 標準動詞：cURL 亦須顯示 DELETE 而非 DEL（複製貼上即可執行），與送出路徑同一述語
+            let method = vo.$s.methodToHttpVerb(vo.getMethod(item))
             let url = get(item, 'inputExample', '')
             if (!url) {
                 url = get(item, 'url', '')
@@ -501,19 +512,11 @@ export default {
             return method
         },
 
-        jsonHighlight: function(str) {
-            let s = (str === null || str === undefined) ? '' : String(str)
-            // escape HTML
-            s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            // key: "xxx":
-            s = s.replace(/("(?:[^"\\]|\\.)*")(\s*:)/g, '<span class="k">$1</span>$2')
-            // string value
-            s = s.replace(/:(\s*)("(?:[^"\\]|\\.)*")/g, ':$1<span class="s">$2</span>')
-            // number
-            s = s.replace(/([:\[,\s])(-?\d+\.?\d*)/g, '$1<span class="n">$2</span>')
-            // bool/null
-            s = s.replace(/\b(true|false|null)\b/g, '<span class="b">$1</span>')
-            return s
+        //樹之群組列顯示文字：樹根為 UI 標籤（哨符）→ 依當前語系取譯文；其餘為資料（levels 群組名）→ 原樣顯示。
+        //於 template 取值而非在 genTree 烤進資料，語系就地切換時才會即時更新。
+        treeRowText: function(key) {
+            let vo = this
+            return (key === KEY_TREE_ROOT) ? vo.$t('treeRootAll') : key
         },
 
         funActive: function(msg) {
@@ -562,8 +565,10 @@ export default {
 
         onClickAddApi: function() {
             let vo = this
-            //種子空白API(預設值, 送出時後端funNew會配id/時間)
-            vo.blankApi = {
+            //種子空白API(預設值, 送出時後端funNew會配id/時間)。
+            //以 schema 全部欄位補齊（缺者為 ''）：編輯表單以 cloneDeep(item) 為 form，Vue 2 對初始不存在之屬性無法追蹤，
+            //只列預設值時 tokens／testBaseUrl／authConfigJson／default*Json 等欄位於新增模式為非響應式（ADR-031）
+            vo.blankApi = dtmapping({
                 name: '',
                 description: '',
                 url: '',
@@ -575,7 +580,7 @@ export default {
                 state: 'ok',
                 authType: 'none',
                 contentType: 'application/json',
-            }
+            }, ds.apis.keys, '')
             vo.newMode = true
             vo.mode = 'edit'
         },

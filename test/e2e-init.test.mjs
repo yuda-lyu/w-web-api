@@ -28,7 +28,7 @@ import {
     baseUrl,
     launchBrowser,
     REGEN,
-} from './e2e-setup.mjs'
+} from './tools/e2e-setup.mjs'
 
 
 let FLOW = 'init'

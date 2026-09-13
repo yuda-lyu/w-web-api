@@ -261,4 +261,23 @@ describe('unit-staEvent-golden', function() {
         assert.deepStrictEqual(ok.rs, expected.hr, '同 key 於 reject 後重試須正常')
     })
 
+    //GOLD-040: timeLength 輸入閘（ADR-030）。非法值原會使 genPlan 之 while 迴圈因 Invalid Date 恆真而在**主執行緒**
+    //同步無窮迴圈（早於 worker 派工），單一 RPC 呼叫即凍結整個伺服器。此 case 守「非法值即 reject err-key、
+    //且合法邊界不受影響」。以 assert.throws 直測 genPlan（同步）＋ staLogs 驗 reject 之字串 key。
+    it('GOLD-040-timeLength-input-gate', async function() {
+        //合法：0（現在起算）／7（前端用值）／3650（上限）皆不 throw
+        for (let v of [0, 7, 3650]) {
+            assert.doesNotThrow(() => genPlan(v, 'hr', { fdLog, timeNow: FIXED }), `timeLength=${v} 應為合法值`)
+        }
+        //非法：非整數／負數／超上限／非數字／NaN／null 一律 throw errTimeLengthInvalid
+        for (let v of [-1, 1.5, 3651, 'abc', '7', NaN, null, 1e9]) {
+            assert.throws(() => genPlan(v, 'hr', { fdLog, timeNow: FIXED }), /errTimeLengthInvalid/, `timeLength=${JSON.stringify(v)} 應被擋下`)
+        }
+        //經 staLogs 之對外路徑：reject 值須為**字串** err-key（前端 $transErr 依 lang 反查用），非 Error 物件
+        await assert.rejects(staLogs('abc', 'hr', { fdLog, timeNow: FIXED }), (e) => e === 'errTimeLengthInvalid')
+        //合法值仍正常返回
+        let r = await staLogs(7, 'hr', { fdLog, timeNow: FIXED })
+        assert.ok(r.rs.length > 0)
+    })
+
 })

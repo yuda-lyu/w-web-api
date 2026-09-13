@@ -15,12 +15,50 @@
             <div class="ctrl-row">
                 <span class="ctrl-label">{{$t('timeRange')}}</span>
                 <div class="ctrl-field">
-                    <select id="timeGroupSel" v-model="timeGroup" class="ctrl-select">
-                        <option value="1hr">{{$t('selectItem1hr')}}</option>
-                        <option value="4hr">{{$t('selectItem4hr')}}</option>
-                        <option value="8hr">{{$t('selectItem8hr')}}</option>
-                        <option value="1day">{{$t('selectItem1day')}}</option>
-                    </select>
+                    <!-- 自製下拉（WTextSelect）取代原生 <select>：原生下拉之彈出清單選中／hover 色由 OS 決定、CSS 不可控，與本頁主題不一致（全域 §10.6-3）。
+                         色票沿用本頁既有 token 實值（scalar-ui.css :root；WShellEllipse 之顏色經 convertColor 轉 hex、不認 var()）：
+                         邊線 --border #e6e8ec、底 --bg-1 #ffffff、文字 --c-1 #1b1b1b、焦點邊線 --accent #0099ff、項目 hover 底 --bg-3 #eceef1、
+                         展開圖標 --c-3 #9aa1ac、圓角 --radius 8；字級 0.875rem 同原 .ctrl-select；展開圖標隨開闔旋轉（狀態聯動）。
+                         id 供 e2e 定位觸發區；寬度依當前語系最長選項文字計算（computed timeGroupSelWidth，同原生 select 依最長選項定寬）。
+                         清單對齊（全域 §10.6-6）：WPopup 錨在觸發區之內容元素（外框左緣 + 邊框 1 + 內距 8 = 內容左緣），故 placementDistX=-9 把清單左緣拉回外框左緣、
+                         清單寬固定為觸發區寬（關 autoFit、min/maxWidth 同 timeGroupSelWidth），項目左內距 9（= 邊框 1 + 內距 8）使項目文字左緣與觸發區文字左緣貼齊（實測 191/191）。 -->
+                    <WTextSelect
+                        id="timeGroupSel"
+                        :style="`width:${timeGroupSelWidth}px;`"
+                        :items="timeGroupItems"
+                        :value="timeGroup"
+                        :shadow="false"
+                        :borderRadius="8"
+                        :paddingStyle="{ v: 4, h: 8 }"
+                        :backgroundColor="'#ffffff'"
+                        :backgroundColorHover="'#ffffff'"
+                        :backgroundColorFocus="'#ffffff'"
+                        :borderColor="'#e6e8ec'"
+                        :borderColorHover="'#e6e8ec'"
+                        :borderColorFocus="'#0099ff'"
+                        :textColor="'#1b1b1b'"
+                        :textFontSize="'0.875rem'"
+                        :itemTextFontSize="'0.875rem'"
+                        :itemTextColor="'#1b1b1b'"
+                        :itemTextColorHover="'#1b1b1b'"
+                        :itemBackgroundColor="'#ffffff'"
+                        :itemBackgroundColorHover="'#eceef1'"
+                        :itemPaddingStyle="{ v: 6, h: 9 }"
+                        :placementDistX="-9"
+                        :autoFitMinWidth="false"
+                        :autoFitMaxWidth="false"
+                        :minWidth="timeGroupSelWidth"
+                        :maxWidth="timeGroupSelWidth"
+                        :expansionIconColor="'#9aa1ac'"
+                        @input="onInputTimeGroup"
+                    >
+                        <template v-slot:select="props">
+                            {{$t('selectItem' + props.item)}}
+                        </template>
+                        <template v-slot:item="props">
+                            {{$t('selectItem' + props.item)}}
+                        </template>
+                    </WTextSelect>
                 </div>
             </div>
 
@@ -107,8 +145,13 @@ import sumBy from 'lodash-es/sumBy.js'
 import reduce from 'lodash-es/reduce.js'
 import size from 'lodash-es/size.js'
 import isearr from 'wsemi/src/isearr.mjs'
+import isestr from 'wsemi/src/isestr.mjs'
 import WEchartsVue from 'w-echarts-vue/src/components/WEchartsVue.vue'
 import WIconLoading from 'w-component-vue/src/components/WIconLoading.vue'
+import WTextSelect from 'w-component-vue/src/components/WTextSelect.vue'
+
+//時間範圍下拉觸發區之結構寬度（不含文字）：左右內距 8+8、邊框 1+1、展開圖標 18、對稱呼吸空間 2（全域 §10.6-5；量測見 spec/流程_統計資訊.md）
+let SEL_STRUCT_WIDTH = 8 + 8 + 1 + 1 + 18 + 2
 
 //固定色票（依事件在 allEvents 之索引取色，使同一事件顏色穩定、圖表（含圖例）與統計表一致）
 let COLORS = [
@@ -121,6 +164,7 @@ export default {
     components: {
         WEchartsVue,
         WIconLoading,
+        WTextSelect,
     },
     props: {
         height: {
@@ -132,6 +176,8 @@ export default {
         return {
             freq: [],
             timeGroup: '1hr',
+            timeGroupItems: ['1hr', '4hr', '8hr', '1day'], //下拉項目為代號；顯示文字於 template 經 $t('selectItem' + 代號) 取當前語系（就地切換語系即時更新）
+            fontSel: '', //觸發區文字之實際字型（mounted 自 computed style 取得），供 timeGroupSelWidth 量文字實寬
             loading: false,
             errMsg: '',
             hUpper: 0, //標題列+控制區實佔高度（ResizeObserver 量測，供 chartHeight 計算；語系導致控制列換行時會變化）
@@ -154,6 +200,11 @@ export default {
         vo.ro = ro
         vo.updateUpperHeight()
 
+        //觸發區字型：字級 0.875rem（同原 .ctrl-select）× 根字級，字族／字重承襲本面板
+        let cs = getComputedStyle(vo.$el)
+        let rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+        vo.fontSel = `${cs.fontWeight} ${rootPx * 0.875}px ${cs.fontFamily}`
+
         vo.load()
     },
     beforeDestroy: function() {
@@ -164,6 +215,21 @@ export default {
         }
     },
     computed: {
+
+        //時間範圍下拉觸發區寬度（全域 §10.6-5：固定尺寸須計算）：當前語系「最長選項文字」實寬（canvas measureText，字型同觸發區）
+        //+ 結構寬度 SEL_STRUCT_WIDTH；語系切換即重算（$t 為響應式）。
+        //why 不寫死：原生 <select> 依最長選項自動定寬（實測 eng 85px／cht 74px），自製下拉須重現，否則另一語系右側大片留白。
+        timeGroupSelWidth: function() {
+            let vo = this
+            let texts = vo.timeGroupItems.map((k) => vo.$t('selectItem' + k))
+            let wText = 0
+            if (isestr(vo.fontSel)) {
+                let c = document.createElement('canvas').getContext('2d')
+                c.font = vo.fontSel
+                wText = Math.max(...texts.map((t) => c.measureText(t).width))
+            }
+            return Math.ceil(wText + SEL_STRUCT_WIDTH)
+        },
 
         chartHeight: function() {
             let vo = this
@@ -274,11 +340,13 @@ export default {
                 grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
                 xAxis: [{
                     type: 'category',
-                    data: map(data, function(item) { return ot(item.time).format(formatX) }),
+                    data: map(data, function(item) {
+                        return ot(item.time).format(formatX)
+                    }),
                     axisTick: { alignWithLabel: true },
                 }],
                 yAxis: [{ type: 'value' }],
-                series: series,
+                series,
             }
         },
 
@@ -328,6 +396,11 @@ export default {
                 h += ctrl.offsetHeight + mb(ctrl)
             }
             vo.hUpper = h
+        },
+
+        onInputTimeGroup: function(val) {
+            let vo = this
+            vo.timeGroup = val //→ resampledData 重採樣 → chartOption 重繪
         },
 
         colorOf: function(ev) {
@@ -388,20 +461,6 @@ export default {
     min-width: 0;
 }
 
-.ctrl-select {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-1);
-    color: var(--c-1);
-    font-size: 0.875rem;
-    padding: 4px 8px;
-    outline: none;
-    cursor: pointer;
-}
-
-.ctrl-select:focus {
-    border-color: var(--accent);
-}
 
 .evt-dot {
     display: inline-block;

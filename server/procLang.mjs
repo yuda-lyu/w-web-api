@@ -33,6 +33,10 @@ let kpLang = {
         eng: 'OK',
         cht: '確認',
     },
+    treeRootAll: {
+        eng: 'All',
+        cht: '全部',
+    },
     no: {
         eng: 'No',
         cht: '取消',
@@ -529,6 +533,10 @@ let kpLang = {
         eng: 'Invalid rows',
         cht: '資料列無效',
     },
+    errRowInvalid: { //syncAndReplaceTabs 逐列檢核：某列非物件或缺必填欄位（列索引與欄位名入 srLog）
+        eng: 'Invalid row data (each row must be an object with name and url)',
+        cht: '列資料無效（每列須為物件且 name 與 url 必填）',
+    },
     errTokenNoPermission: {
         eng: 'Token does not have permission',
         cht: 'token 沒有權限',
@@ -536,6 +544,10 @@ let kpLang = {
     errKeyTableInvalid: {
         eng: 'Invalid table',
         cht: '資料表無效',
+    },
+    errTimeLengthInvalid: {
+        eng: 'Invalid time length',
+        cht: '時間長度無效',
     },
 
 }

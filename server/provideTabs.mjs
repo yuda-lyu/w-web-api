@@ -1,4 +1,3 @@
-import axios from 'axios'
 import get from 'lodash-es/get.js'
 import genPm from 'wsemi/src/genPm.mjs'
 import haskey from 'wsemi/src/haskey.mjs'
@@ -57,16 +56,18 @@ async function provideTabs(url, keyTable, group, rows) {
     }
     // console.log('rin', rin)
 
-    //axios
-    await axios({
-        method: 'post',
-        url,
+    //fetch（Node 內建；改造前為 axios，非 2xx 由 axios 拋錯落 catch → 此處以 res.ok 判定維持同一語意）
+    await fetch(url, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        data: rin,
+        body: JSON.stringify(rin),
     })
-        .then((res) => {
+        .then(async (res) => {
             // console.log('then', res)
-            let data = get(res, 'data')
+            if (!res.ok) {
+                return Promise.reject(new Error(`Request failed with status code ${res.status}`)) //同 axios 之訊息格式與 Error 型別
+            }
+            let data = await res.json()
             let state = get(data, 'state')
             let msg = get(data, 'msg', '')
             if (state === 'success') {

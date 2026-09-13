@@ -30,6 +30,7 @@ let state = {
         email: '', //admin@example.com
         isAdmin: 'n',
     },
+    userSelf: {}, //UpdateUserSelf 寫入之使用者自身資訊；Vue 2 須於初始 state 宣告才具響應性（同 sso 之 userSelf: {}）
 
     lang: 'eng', //'eng', 'cht'
     kpText: {}, //一定要放在vuex內, 否則無法用broadcast驅動變更語系文字

@@ -3,7 +3,6 @@ import WWebApi from './server/WWebApi.mjs'
 import getSettings from './g_getSettings.mjs'
 import get from 'lodash-es/get.js'
 import iseobj from 'wsemi/src/iseobj.mjs'
-import axios from 'axios'
 import JSON5 from 'json5'
 import fs from 'fs'
 
@@ -39,6 +38,7 @@ let opt = {
     //log 資料夾與輪檔間隔（srLog 寫入 + staEvent 統計皆讀此）。e2e 可用 genTempSettings({logFd}) 指向合成 log 達 hermetic。
     logFd: get(stApp, 'logFd', './logs'),
     logInterval: get(stApp, 'logInterval', 'hr'),
+    logNumKeep: get(stApp, 'logNumKeep', null), //null=未給, srLog 採 w-syslog 預設; 給非正整數則 srLog 啟動即 throw (fail-fast)
 
     webName: {
         'eng': 'API Service',
@@ -68,9 +68,14 @@ let getUserByToken = async (token) => {
     //呼叫 SSO 解析 token -> user
     try {
         let url = `${ssoBaseUrl}/api/getSsoUserInfor?token=${encodeURIComponent(ssoAppToken)}&key=token&value=${encodeURIComponent(token)}`
-        let res = await axios.get(url)
-        let state = get(res, 'data.state', '')
-        let u = get(res, 'data.msg', null)
+        let res = await fetch(url) //Node 內建 fetch（改造前 axios）；非 2xx 視同失敗
+        if (!res.ok) {
+            console.log('SSO getSsoUserInfor HTTP', res.status)
+            return {}
+        }
+        let data = await res.json()
+        let state = get(data, 'state', '')
+        let u = get(data, 'msg', null)
         if (state !== 'success' || !iseobj(u)) {
             console.log('SSO getSsoUserInfor 失敗', state)
             return {}

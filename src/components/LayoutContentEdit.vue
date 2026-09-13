@@ -263,7 +263,9 @@ export default {
     props: {
         item: {
             type: Object,
-            default: function() { return {} },
+            default: function() {
+                return {}
+            },
         },
         height: {
             type: Number,
@@ -289,7 +291,7 @@ export default {
             //故以旗標取代 promiseUnlock：同步第 2 次點擊直接 return；非同步期間另有頁面層 updateLoading overlay，後端層有 pmKeyMutex
             submitting: false,
 
-            methodItems: ['get', 'post', 'put', 'del'],
+            methodItems: this.$s.METHODS, //單一來源 mShare.METHODS（與測試分頁共用）
             authTypeItems: ['none', 'bearer', 'apikey', 'basic'],
 
         }
@@ -349,8 +351,13 @@ export default {
             }
             vo.submitting = true
             vo.submitSave()
-                .catch(function(err) { console.log('catch', err); vo.$alert(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' }) })
-                .finally(function() { vo.submitting = false; vo.$ui.updateLoading(false) })
+                .catch(function(err) {
+                    //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md 失敗通知政策；不用自動消失之 $alert toast，ADR-005）
+                    console.log('catch', err); vo.$ui.updateLoading(false); vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
+                })
+                .finally(function() {
+                    vo.submitting = false; vo.$ui.updateLoading(false)
+                })
         },
 
         submitSave: function() {
@@ -379,7 +386,12 @@ export default {
                     let fv = vo.form[fk]
                     if (isestr(fv)) {
                         let jsonOk = true
-                        try { JSON.parse(fv) } catch (e) { jsonOk = false }
+                        try {
+                            JSON.parse(fv)
+                        }
+                        catch (e) {
+                            jsonOk = false
+                        }
                         if (!jsonOk) {
                             vo.errJsonField = fk
                             vo.errJson = fk + ': ' + vo.$t('valInvalidJson')
@@ -394,8 +406,12 @@ export default {
                 // 4) 執行 async，各自 catch + 旗標短路
                 let okSave = false
                 await vo.$fapi.saveApi(cloneDeep(vo.form))
-                    .then(function() { okSave = true })
-                    .catch(function(err) { console.log('saveApi', err); vo.errSave = vo.$transErr(err) }) //err 為後端 err-key，依 lang 反查顯示
+                    .then(function() {
+                        okSave = true
+                    })
+                    .catch(function(err) {
+                        console.log('saveApi', err); vo.errSave = vo.$transErr(err)
+                    }) //err 為後端 err-key，依 lang 反查顯示
                 if (!okSave) return
 
                 // 5) 全成功
@@ -413,8 +429,12 @@ export default {
         onClickDelete: function() {
             let vo = this
             vo.$dg.showCheckYesNo(vo.$t('confirmDeleteApi'))
-                .then(function() { vo.doDelete() })
-                .catch(function(err) { if (err === 'close') return; console.log('showCheckYesNo', err) })
+                .then(function() {
+                    vo.doDelete()
+                })
+                .catch(function(err) {
+                    if (err === 'close') return; console.log('showCheckYesNo', err)
+                })
         },
 
         doDelete: function() {
@@ -436,8 +456,12 @@ export default {
                 // 4) 執行 async
                 let okDel = false
                 await vo.$fapi.deleteApi(vo.form.id)
-                    .then(function() { okDel = true })
-                    .catch(function(err) { console.log('deleteApi', err); vo.errSave = vo.$transErr(err) }) //err 為後端 err-key，依 lang 反查顯示
+                    .then(function() {
+                        okDel = true
+                    })
+                    .catch(function(err) {
+                        console.log('deleteApi', err); vo.errSave = vo.$transErr(err)
+                    }) //err 為後端 err-key，依 lang 反查顯示
                 if (!okDel) return
 
                 // 5) 全成功
@@ -447,8 +471,13 @@ export default {
 
             }
             core()
-                .catch(function(err) { console.log('catch', err); vo.$alert(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' }) })
-                .finally(function() { vo.submitting = false; vo.$ui.updateLoading(false) })
+                .catch(function(err) {
+                    //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md 失敗通知政策；不用自動消失之 $alert toast，ADR-005）
+                    console.log('catch', err); vo.$ui.updateLoading(false); vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
+                })
+                .finally(function() {
+                    vo.submitting = false; vo.$ui.updateLoading(false)
+                })
         },
 
         onClickCancel: function() {

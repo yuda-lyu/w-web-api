@@ -1,4 +1,6 @@
-//e2e 共用基礎設施（改寫自 w-web-sso/test/e2e-setup.mjs，依 api2 架構精簡）。
+//e2e 共用基礎設施（改寫自 w-web-sso/test/tools/e2e-setup.mjs，依 api2 架構精簡）。
+//位置：test/tools/（全域 §16.4：setup / runner / 產生器不帶 .test. 中綴且放 tools/，免被 runner 抓成測試檔）。
+//路徑解析：test/pics、testPending、settings.json 以專案根（cwd）解析；test/_tmp 以本檔上一層解析。
 //
 //與 SSO 差異：
 //- api2 後端 srv.mjs 同時服務 build 後的 dist（port 11005），故 e2e 直接瀏覽 11005，
@@ -18,8 +20,8 @@ import JSON5 from 'json5'
 import sharp from 'sharp'
 import { chromium } from 'playwright'
 import { fileURLToPath } from 'url'
-import ds from '../src/schema/index.mjs'
-import { woItems } from '../g_mOrm.mjs'
+import ds from '../../src/schema/index.mjs'
+import { woItems } from '../../g_mOrm.mjs'
 
 //baseline 產製模式：mocha 帶 --baseline 或 env E2E_REGEN=1 時寫檔；否則 pixelmatch 容差比對。
 let REGEN = process.argv.includes('--baseline') || process.env.E2E_REGEN === '1'
@@ -130,7 +132,7 @@ let tmpSettingsFiles = []
 function genTempSettings(overrides = {}) {
     let base = JSON5.parse(fs.readFileSync('./settings.json', 'utf8'))
     let merged = { ...base, ...overrides }
-    let tmpDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '_tmp')
+    let tmpDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '_tmp')
     if (!fs.existsSync(tmpDir)) {
         fs.mkdirSync(tmpDir, { recursive: true })
     }
@@ -148,7 +150,7 @@ function cleanupTempSettings() {
     }
     tmpSettingsFiles = []
     try {
-        let tmpDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '_tmp')
+        let tmpDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '_tmp')
         if (fs.existsSync(tmpDir) && fs.readdirSync(tmpDir).length === 0) {
             fs.rmdirSync(tmpDir)
         }

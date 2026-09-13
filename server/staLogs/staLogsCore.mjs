@@ -28,6 +28,11 @@ let kpCache = new Map()
 let kpInflight = new Map()
 
 
+//timeLength 上限（天）：10 年。取此值之理由——超過此範圍之查詢無實務意義，且 kpTime 陣列長度為
+//timeLength×24（hr 粒度），10 年約 87600 筆仍可接受；再大則單是建陣列即造成長時間 CPU 阻塞。
+let MAX_TIME_LENGTH_DAY = 3650
+
+
 function normTimeInterval(timeInterval) {
     //非 'day' 一律視同 'hr' (原以 ==='day' 決定 fmt、==='hr' 決定 unit, 傳其他值時兩者不一致, 此處收斂為單一判斷)
     return timeInterval === 'day' ? 'day' : 'hr'
@@ -50,6 +55,15 @@ function genPlan(timeLength = 7, timeInterval = 'hr', opt = {}) {
     //now, 測試可由 opt.timeNow (epoch ms) 釘住
     let timeNow = get(opt, 'timeNow')
     let now = (typeof timeNow === 'number') ? ot(timeNow) : ot()
+
+    //timeLength 驗證（必須在 subtract 之前）。
+    //why：dayjs 對非數字、NaN、或超出 Date 可表示範圍之極大值會回 Invalid Date，而 Invalid Date 之 isAfter 恆為
+    //false，使下方 `while (!tCurr.isAfter(tEnd))` 成為**同步無窮迴圈**。該迴圈位於 staLogs 之第一行（早於 worker
+    //派工），會佔死主執行緒使整個伺服器停止回應、需重啟。getStaEvent 為對外 kpFunExt，任何已認證使用者皆可帶入
+    //任意型別，故此處為必要之輸入閘。允許 0（測試以 timeLength=0 取「現在起算」）至 MAX_TIME_LENGTH_DAY。
+    if (!Number.isInteger(timeLength) || timeLength < 0 || timeLength > MAX_TIME_LENGTH_DAY) {
+        throw new Error('errTimeLengthInvalid')
+    }
 
     //tStart
     let tStart = now.subtract(timeLength, 'day')
@@ -398,8 +412,15 @@ async function run(plan, opt = {}) {
 function staLogs(timeLength = 7, timeInterval = 'hr', opt = {}) {
     //非 async: 併發呼叫須回傳同一個 promise 物件
 
-    //plan
-    let plan = genPlan(timeLength, timeInterval, opt)
+    //plan（genPlan 對非法 timeLength 同步 throw Error；此處轉為 reject 字串 err-key，
+    //使前端 $transErr 能依 lang 反查文字，並讓 wrapErrLog 記到的是 key 而非 Error 物件）
+    let plan
+    try {
+        plan = genPlan(timeLength, timeInterval, opt)
+    }
+    catch (err) {
+        return Promise.reject(get(err, 'message', 'errTimeLengthInvalid'))
+    }
 
     //single-flight
     let key = JSON.stringify([path.resolve(plan.fdLog), timeLength, plan.timeInterval, get(opt, 'timeNow', null)])

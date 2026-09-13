@@ -4,23 +4,24 @@
 //startServersOnce 偵測 11005 沒人 → 重新 build + spawn 全新後端（build 約數十秒；若要省 build 可先自行 `npm run build`，
 //startServersOnce 仍會 build 一次——此為 hermetic 之代價，逐檔隔離優先）。
 //
-//why：多 e2e 檔塞單一 mocha 進程（`npm test` 之 mocha 全 glob）會共用被前面測試改過狀態的後端（restartBackend 換過 settings、
-//  合成 log 目錄、資料表）；逐檔各給全新後端即回到 solo 之綠燈狀態。
+//定位：`npm test` 依全域 §16.5 為單一 mocha 進程跑全部 test/*.test.mjs（各 e2e 檔以 after 還原後端 settings / 資料表使其 hermetic）；
+//  本 runner 為輔助工具（全域 §16.4 test/tools/），用於 flake 排查或需完全隔離之情境：每檔獨立 mocha 進程 + 全新後端。
 //
-//用法：node test/run-e2e-isolated.mjs   (exit 0=全綠；非 0=有失敗檔)
+//用法：node test/tools/run-e2e-isolated.mjs   (exit 0=全綠；非 0=有失敗檔)
 
 import { spawnSync, execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import fs from 'fs'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const projRoot = join(__dirname, '..')
+const __dirname = dirname(fileURLToPath(import.meta.url)) //test/tools
+const testDir = join(__dirname, '..') //test, e2e 測試檔所在
+const projRoot = join(__dirname, '..', '..')
 const isWin = process.platform === 'win32'
 const BACKEND_PORT = 11005
 
 //動態列舉全部 e2e 檔（pattern 白名單）：新增之 e2e-*.test.mjs 自動納入
-const E2E_FILES = fs.readdirSync(__dirname)
+const E2E_FILES = fs.readdirSync(testDir)
     .filter((f) => /^e2e-.*\.test\.mjs$/.test(f))
     .sort()
 

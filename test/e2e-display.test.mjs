@@ -27,7 +27,7 @@ import {
     resetToBaseSeed,
     assertOrRegenBaseline,
     launchBrowser,
-} from './e2e-setup.mjs'
+} from './tools/e2e-setup.mjs'
 
 
 let FLOW = 'display'

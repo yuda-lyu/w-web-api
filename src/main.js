@@ -13,6 +13,7 @@ import domDragDrop from 'w-component-vue/src/js/domDragDrop.mjs'
 import App from './App.vue'
 import store from './store/index.mjs'
 import ui from './plugins/mUI.mjs'
+import * as s from './plugins/mShare.mjs'
 import ds from './schema/index.mjs'
 // console.log('globalState', globalState)
 // console.log('ds', ds)
@@ -33,6 +34,7 @@ Vue.prototype.$alert = function() {
 //prototype
 Vue.prototype.$ui = ui
 Vue.prototype.$t = ui.getKpText
+Vue.prototype.$s = s
 //$transErr：後端 reject 之 err-key → 依當前 lang 反查顯示文字。
 //非字串或查無對應 key（getKpText 查不到會原樣回 key）則 fallback 'anUnexpectedErrorOccurred'，避免顯示生 key。
 Vue.prototype.$transErr = (err) => {
@@ -51,7 +53,7 @@ Vue.directive('domdragdrop', domDragDrop())
 //WServHapiClient
 // let bFirstSync = false //不需要bFirstSync, 由getWebInfor結束代表第1次完成同步
 WServHapiClient({
-    showLog: false,
+    useShowLog: false,
     url: window.location.origin + window.location.pathname,
     useWaitToken: true,
     apiName: 'api',
