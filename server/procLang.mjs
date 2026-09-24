@@ -114,6 +114,14 @@ let kpLang = {
         eng: 'Hide API list',
         cht: '隱藏API清單',
     },
+    menuUser: { //上方標題列窄版漢堡按鈕之無障礙名稱(aria-label), 其選單內含當前登入者資訊/語系切換
+        eng: 'User menu',
+        cht: '使用者選單',
+    },
+    language: { //上方標題列窄版選單內語系切換列之標籤
+        eng: 'Language',
+        cht: '語系',
+    },
 
     noSelectApi: {
         eng: 'No Select',

@@ -153,8 +153,8 @@
                       → search 變更觸發 changeApis → genTree 依 name/keywords/url/levels/method 過濾  [src/components/LayoutContent.vue:372-374,430-436]
 節點點擊（E2E-004）：樹葉節點 @click="ckItem(...)" → 設 apiSelect/apiActive、newMode=false  [src/components/LayoutContent.vue:91,565-573]
 分頁切換（E2E-007）：@click="onChangeMode({id})" → vo.mode = id  [src/components/LayoutContent.vue:148-150,575-582]
-語系切換（E2E-008）：語系選單 @input="toggleLang"  [src/components/Layout.vue:40]
-                      → setLang 廣播 forceUpdate 重渲染  [src/components/Layout.vue:199-200]
+語系切換（E2E-008）：語系選單 @input="toggleLang"（寬版標題列右側 / 窄版漢堡選單內，同一 handler）  [src/components/Layout.vue:85 / src/components/Layout.vue:189]
+                      → setLang 廣播 forceUpdate 重渲染  [src/components/Layout.vue:564-570]
 抽屜顯隱（E2E-009）：收合鈕 @click="drawer=false" [src/components/LayoutContent.vue:133] / 展開鈕 @click="drawer=true" [src/components/LayoutContent.vue:246]
                       → 控制 WDrawer v-model="drawer"  [src/components/LayoutContent.vue:33]
 ```
@@ -167,7 +167,7 @@
 | Docs metadata 標籤 | 找 `levels` / `keywords` / `creator` / `dataSource` | docs 標頭下方 pills | 每欄位標籤一鍵；pill 之值為資料不翻譯 |
 | Docs 區段標題 | 找 `docInput` / `docOutputFields` / `docRequest` / `resTitle` | docs 左欄與右 code rail 標題 | 每區段標題一鍵 |
 | 樹搜尋框 | 找 `searchApiPlaceholder` | 左樹上方搜尋框 placeholder | 與 e2e 之 SEARCH_PH 須逐字同步 |
-| 語系選單 | 找 Layout.vue `English` / `中文` 選項 | 右上語系選單 | 兩語系選項 |
+| 語系選單 | 找 Layout.vue `English` / `中文` 選項 | 右上語系選單；標題列放不下時收入右側漢堡選單（其列標籤鍵 `language`，按鈕無障礙名稱鍵 `menuUser`，2026-09-24 補，ADR-032） | 兩語系選項 |
 
 ## 參數來源
 
@@ -178,7 +178,7 @@
 | 預設選取項 | 保留上次選取 id；否則第一筆 `apis[0]` | 決定載入後右側顯示哪一筆 |
 | 樹過濾 | `search` 字串（搜尋框 v-model）| 比對 name/keywords/url/levels/method（toLowerCase），空字串顯示全部 |
 | 抽屜顯隱 | `drawer` 布林（顯隱鈕 toggle）| 控制 WDrawer 收合/展開 |
-| 語系 | URL `?lang=`（最高優先，供初始畫面指定語系）> `window.___pmwperm___.language`（server 注入初值）> store；右上語系選單亦可執行期切換 | 決定 i18n 文字與 cht baseline |
+| 語系 | URL `?lang=`（最高優先，供初始畫面指定語系）> `window.___pmwperm___.language`（server 注入初值）> store；右上語系選單亦可執行期切換（窄版時位於漢堡選單內，ADR-032） | 決定 i18n 文字與 cht baseline |
 
 ## spec 規則摘要（粒度 / 邊界 / 順序 / 契約）
 
