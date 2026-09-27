@@ -4,6 +4,8 @@
         <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
         <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <!-- referrer: 同源與外連請求之 Referer 只送 origin(不含路徑與 ?token= 查詢), 權杖不經 Referer 進入伺服端 log 與反向代理 access log(縱深防禦, ADR-033) -->
+        <meta name="referrer" content="strict-origin">
         <title></title>
 
         <!-- mdi font -->

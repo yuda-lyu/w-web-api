@@ -71,7 +71,7 @@ let getUserByToken = async (token) => {
             isAdmin: 'y',
         }
     }
-    console.log('invalid token', token)
+    console.log('invalid token') //勿印權杖值: 權杖等同憑證, 印出即落入 stdout 與行程管理器之擷取檔
     console.log('於生產環境時得加入SSO等驗證token機制')
     return {}
 }

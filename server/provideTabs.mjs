@@ -2,6 +2,7 @@ import get from 'lodash-es/get.js'
 import genPm from 'wsemi/src/genPm.mjs'
 import haskey from 'wsemi/src/haskey.mjs'
 import ltdtpick from 'wsemi/src/ltdtpick.mjs'
+import { pickErrName, pickErrCode } from './maskLog.mjs'
 
 
 //kpKs
@@ -62,6 +63,12 @@ async function provideTabs(url, keyTable, group, rows) {
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify(rin),
     })
+        .catch((err) => {
+            //fetch 例外（連線拒絕／DNS／網址無法解析或含 userinfo）：其 message 可能含完整網址（網址內有 token），故改以只含
+            //err.name 與 cause.code（名稱／代碼形狀才記）之新 Error 上拋，不帶原 message 亦不掛 cause（ADR-033）；非 2xx 維持下方既有訊息
+            let code = pickErrCode(err)
+            return Promise.reject(new Error(`Request failed: ${pickErrName(err) || 'Error'}${code ? ` ${code}` : ''}`))
+        })
         .then(async (res) => {
             // console.log('then', res)
             if (!res.ok) {

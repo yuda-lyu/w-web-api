@@ -1,5 +1,6 @@
 import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
 import WWebApi from './server/WWebApi.mjs'
+import { pickErrName, pickErrCode } from './server/maskLog.mjs'
 import getSettings from './g_getSettings.mjs'
 import get from 'lodash-es/get.js'
 import iseobj from 'wsemi/src/iseobj.mjs'
@@ -60,6 +61,15 @@ let getUserByToken = async (token) => {
     if (token === 'sys' && process.env.NODE_ENV !== 'production') {
         return { id: 'id-for-admin', name: '測試者', email: 'admin@example.com', isAdmin: 'y' }
     }
+    //測試權杖（比照 'sys' 以 NODE_ENV 守門, 正式部署不生效）: 供 test/api-tokenLeak.test.mjs 重現「注入函數上游失敗」(ADR-033)。
+    //'{token-for-reject}': 以舊版 w-web-sso helper 失敗時之 reject 形狀(字串內夾完整網址、合成之介接權杖與所送權杖)拒絕, 驗上游失敗視同查無且不外洩
+    if (token === '{token-for-reject}' && process.env.NODE_ENV !== 'production') {
+        return Promise.reject(`can not get user data by url[http://127.0.0.1:11007/api/getSsoUserInfor?token=SYNTH-SYS-SECRET-FOR-TEST&key=token&value=${token}]`)
+    }
+    //'{token-for-verify-throw}': 回合法管理員使用者, 但 verifyClientUser / verifyAppUser 對其 throw(見下), 驗 verify 系拋錯視同無權限且不外洩
+    if (token === '{token-for-verify-throw}' && process.env.NODE_ENV !== 'production') {
+        return { id: 'id-for-verify-throw', name: 'verify-throw', email: 'verify-throw@example.com', isAdmin: 'y' }
+    }
     //未設定 SSO app token 時(本機開發未接SSO), 不打SSO直接拒絕
     if (!ssoAppToken) {
         console.log('ssoAppToken 未設定, 略過 SSO 驗證')
@@ -83,12 +93,17 @@ let getUserByToken = async (token) => {
         return { id: u.id, name: u.name, email: u.email, isAdmin: u.isAdmin }
     }
     catch (err) {
-        console.log('SSO getSsoUserInfor error', err.message)
+        //只印 err.name 與 cause.code（名稱／代碼形狀才印）: fetch 例外之 message 可能含完整網址, 而網址內有 ssoAppToken 與使用者 token(ADR-033)
+        console.log('SSO getSsoUserInfor error', pickErrName(err), pickErrCode(err))
         return {}
     }
 }
 
 let verifyClientUser = (user, from) => {
+    //測試權杖 '{token-for-verify-throw}' 之使用者: 模擬部署方 verify 函數拋錯(訊息夾合成秘密), 僅非 production(ADR-033)
+    if (get(user, 'id') === 'id-for-verify-throw' && process.env.NODE_ENV !== 'production') {
+        throw new Error('SYNTH-VERIFY-SECRET-FOR-TEST')
+    }
     console.log('verifyClientUser/user', user)
     console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
     // return false //測試無法登入
@@ -96,6 +111,10 @@ let verifyClientUser = (user, from) => {
 }
 
 let verifyAppUser = (user, from) => {
+    //測試權杖 '{token-for-verify-throw}' 之使用者: 同 verifyClientUser(ADR-033)
+    if (get(user, 'id') === 'id-for-verify-throw' && process.env.NODE_ENV !== 'production') {
+        throw new Error('SYNTH-VERIFY-SECRET-FOR-TEST')
+    }
     console.log('verifyAppUser/user', user)
     console.log('於生產環境時得加入限制應用程式使用者身份機制')
     // return false //測試無法登入

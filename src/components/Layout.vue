@@ -93,7 +93,7 @@
                 </WTextSelect>
             </div>
 
-            <!-- 窄版: 右側收合為漢堡按鈕, 彈窗內依序為當前登入者資訊/語系切換(本系統無登出功能); 配色沿用 scalar-ui 設計變數(元件 prop 須給色碼);
+            <!-- 窄版: 右側收合為漢堡按鈕, 彈窗內依序為當前登入者資訊/語系切換(本系統無登出功能); 配色沿用 scalar-ui 設計變數(元件 prop 以色碼給定並註明對應變數, 同統計頁 WTextSelect 寫法);
                  用v-show而非v-if: 非isolated之WPopup於開啟中被銷毀時不會自行隱藏(不釋放popper與開啟層級清單), 故切回寬版時改以menuOpen=false正常關閉;
                  v-show之元素其靜態style不可含display: Vue 2.7.16之updateStyle每次重繪皆重設靜態style全部屬性, 會蓋掉v-show之display:none, 故flex置於內層 -->
             <div

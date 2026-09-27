@@ -40,9 +40,11 @@ describe('api-http (HTTP API 整合 / 認證鏈)', function() {
             assert.strictEqual(r.msg, 'errTokenNoPermission')
         })
 
-        it('非法 token（SSO 未設定→getUserByToken 回 {}→checkUser reject）→ state error', async function() {
+        //S7（ADR-033）：查無使用者 → errUserNotFound，與 /syncAndReplaceTabs（getAndVerifyAppUser）同一 key；改造前經 checkUser({}) 回 errUserIdMissing
+        it('非法 token（SSO 未設定→getUserByToken 回 {}，查無使用者）→ state error + errUserNotFound', async function() {
             let r = await getJson(`${baseUrl}/api/getUserByToken?token=invalid-token-xyz`)
             assert.strictEqual(r.state, 'error', `非法 token 應 error（實得 ${JSON.stringify(r)}）`)
+            assert.strictEqual(r.msg, 'errUserNotFound', `查無使用者應回 errUserNotFound（實得 ${JSON.stringify(r.msg)}）`)
         })
 
     })
@@ -53,6 +55,17 @@ describe('api-http (HTTP API 整合 / 認證鏈)', function() {
             let r = await getJson(`${baseUrl}/syncAndReplaceTabs`, { method: 'POST' })
             assert.strictEqual(r.state, 'error')
             assert.strictEqual(r.msg, 'errTokenNoPermission')
+        })
+
+        //S7（ADR-033）：查無使用者之 key 與 GET /api/getUserByToken 相同
+        it('非法 token（查無使用者）→ state error + errUserNotFound', async function() {
+            let r = await getJson(`${baseUrl}/syncAndReplaceTabs?token=invalid-token-xyz&keyTable=apis`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ group: 'g', rows: [{ name: 'n', url: 'http://x/y' }] }),
+            })
+            assert.strictEqual(r.state, 'error')
+            assert.strictEqual(r.msg, 'errUserNotFound')
         })
 
         it('token=sys 但 keyTable 不在白名單 → state error + errKeyTableInvalid（DB 寫入前即拒、非破壞性）', async function() {

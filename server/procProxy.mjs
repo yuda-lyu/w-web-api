@@ -2,11 +2,15 @@ import get from 'lodash-es/get.js'
 import isestr from 'wsemi/src/isestr.mjs'
 import isobj from 'wsemi/src/isobj.mjs'
 import isarr from 'wsemi/src/isarr.mjs'
+import { maskTok, maskUrl, pickErrName, pickErrCode } from './maskLog.mjs'
 
 
 //proxy 不轉送之標頭（小寫比對）：host / content-length 由連線層決定；其餘為 RFC 7230 §6.1 hop-by-hop，
 //轉送即錯（Node fetch 對 transfer-encoding / keep-alive 直接拋錯）。其他標頭一律原樣轉送（標頭表為唯一真理源）。
 let ksHeaderStrip = ['host', 'content-length', 'connection', 'keep-alive', 'transfer-encoding', 'te', 'trailer', 'upgrade', 'proxy-connection']
+
+//標頭名合法形狀（RFC 9110 §5.6.2 token，同 undici 之檢核）：非法之名稱可能是使用者整行貼入之「Authorization: Bearer …」，記 log 前須遮罩
+let reHeaderName = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 
 //轉址：狀態碼（RFC 9110 §15.4）、跳數上限（同瀏覽器與 undici 預設）、方法改為 GET 時須移除之請求內容標頭（Fetch 標準 §4.4）
 let ksRedirectStatus = [301, 302, 303, 307, 308]
@@ -41,7 +45,7 @@ function toPairs(v) {
 
 function procProxy(opt = {}) {
 
-    //srLog（後端 log；錯誤一律 log err-key，fetch 例外另 log 真實訊息供排查）
+    //srLog（後端 log；錯誤一律 log err-key，另記不含憑證之細因供排查：標頭名與固定原因、經 maskUrl 之網址、錯誤名稱與代碼；ADR-033）
     let srLog = get(opt, 'srLog', null)
 
     //isAllowTarget：目標位址檢核函數（回 false 即拒絕）；首跳與轉址之每一跳皆檢核
@@ -87,21 +91,23 @@ function procProxy(opt = {}) {
         }
 
         //headers（剝除 ksHeaderStrip，其餘原樣；Headers 對重複鍵依 Fetch 標準合併）
+        //逐對 try/catch 才知道是哪個標頭非法。非法名／值（Headers 拋 TypeError，其 message 含標頭值或名稱原文，可能為第三方憑證）：
+        //srLog 只記標頭名與固定原因、不記值與錯誤原文（ADR-033）；名稱本身非法時連名稱亦依 M 契約遮罩。回前端只給 err-key
         let headers = new Headers()
-        try {
-            for (let [k, v] of toPairs(get(inp, 'headers', {}))) {
-                if (ksHeaderStrip.includes(k.toLowerCase())) {
-                    continue
-                }
+        for (let [k, v] of toPairs(get(inp, 'headers', {}))) {
+            if (ksHeaderStrip.includes(k.toLowerCase())) {
+                continue
+            }
+            try {
                 headers.append(k, v)
             }
-        }
-        catch (err) {
-            //非法標頭名／值（Headers 拋 TypeError）：log 真實訊息，回前端只給 err-key
-            if (srLog) {
-                srLog.error({ event: 'proxyRequest-headers', msg: get(err, 'message', String(err)) })
+            catch (err) {
+                if (srLog) {
+                    let validName = reHeaderName.test(k)
+                    srLog.error({ event: 'proxyRequest-headers', err: 'errProxyRequestFailed', header: validName ? k : maskTok(k), reason: validName ? 'invalidHeaderValue' : 'invalidHeaderName' })
+                }
+                return Promise.reject('errProxyRequestFailed')
             }
-            return Promise.reject('errProxyRequestFailed')
         }
         let hasContentType = headers.has('content-type')
 
@@ -167,21 +173,22 @@ function procProxy(opt = {}) {
                     await res.body.cancel() //釋放此跳之連線
                 }
                 hops += 1
+                //轉址鏈拒絕之訊息只入 srLog（回前端為 errKey）；網址一律經 maskUrl（捨棄 query／userinfo——第三方權杖與帳密所在；ADR-033）
                 if (hops > MAX_REDIRECTS) {
-                    throw Object.assign(new Error(`too many redirects (> ${MAX_REDIRECTS}), last: ${curUrl.href}`), { errKey: 'errProxyRequestFailed' })
+                    throw Object.assign(new Error(`too many redirects (> ${MAX_REDIRECTS}), last: ${maskUrl(curUrl.href)}`), { errKey: 'errProxyRequestFailed' })
                 }
                 let nextUrl
                 try {
                     nextUrl = new URL(loc, curUrl)
                 }
                 catch (err) {
-                    throw Object.assign(new Error(`invalid redirect location: ${loc}`), { errKey: 'errProxyRequestFailed' })
+                    throw Object.assign(new Error(`invalid redirect location: ${maskUrl(loc)}`), { errKey: 'errProxyRequestFailed' })
                 }
                 if (nextUrl.protocol !== 'http:' && nextUrl.protocol !== 'https:') {
-                    throw Object.assign(new Error(`unsupported redirect protocol: ${nextUrl.href}`), { errKey: 'errProxyRequestFailed' })
+                    throw Object.assign(new Error(`unsupported redirect protocol: ${maskUrl(nextUrl.href)}`), { errKey: 'errProxyRequestFailed' })
                 }
                 if (!isTargetAllowed(nextUrl.href)) {
-                    throw Object.assign(new Error(`redirect target not allowed: ${nextUrl.href}`), { errKey: 'errReqTargetNotAllowed' })
+                    throw Object.assign(new Error(`redirect target not allowed: ${maskUrl(nextUrl.href)}`), { errKey: 'errReqTargetNotAllowed' })
                 }
                 //方法／body 改寫（Fetch 標準 §4.4）
                 let toGet = (res.status === 303 && curMethod !== 'GET' && curMethod !== 'HEAD') || ((res.status === 301 || res.status === 302) && curMethod === 'POST')
@@ -242,9 +249,10 @@ function procProxy(opt = {}) {
                 }
                 return Promise.reject(errKey)
             }
-            //fetch 例外（timeout/DNS/連線拒絕/受限標頭）：log 真實訊息與 cause 供排查，但回前端只給 err-key（前端依 lang 顯示）
+            //fetch 例外（timeout/DNS/連線拒絕/受限標頭/網址含 userinfo）：只記 err.name 與 cause.code（名稱／代碼形狀才記），不記 message——
+            //其原文可能含完整網址（`Request cannot be constructed from a URL that includes credentials: <網址>`；ADR-033）；回前端只給 err-key
             if (srLog) {
-                srLog.error({ event: 'proxyRequest-fetch', msg: get(err, 'message', String(err)), cause: get(err, 'cause.message', '') })
+                srLog.error({ event: 'proxyRequest-fetch', err: 'errProxyRequestFailed', errName: pickErrName(err), errCode: pickErrCode(err) })
             }
             return Promise.reject('errProxyRequestFailed')
         }

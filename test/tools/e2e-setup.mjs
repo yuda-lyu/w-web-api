@@ -18,7 +18,7 @@ import pixelmatch from 'pixelmatch'
 import { PNG } from 'pngjs'
 import JSON5 from 'json5'
 import sharp from 'sharp'
-import { chromium } from 'playwright'
+import launchChromium from 'w-package-tools-e2e/src/launchChromium.mjs'
 import { fileURLToPath } from 'url'
 import ds from '../../src/schema/index.mjs'
 import { woItems } from '../../g_mOrm.mjs'
@@ -45,9 +45,10 @@ let chromiumLaunchArgs = [
     '--disable-skia-runtime-opts',
     '--disable-partial-raster',
 ]
-//全專案唯一 chromium.launch 出口（技能 §3 C1）；測試端 / regen 端 / 探查腳本一律走此 wrapper，旗標組單一 source of truth。
+//全專案唯一 launchChromium 出口（技能 §3 C1）；測試端 / regen 端 / 探查腳本一律走此 wrapper，旗標組單一 source of truth。
 async function launchBrowser() {
-    return await chromium.launch({ headless: true, args: chromiumLaunchArgs })
+    //launchChromium, 缺Playwright指定版本之瀏覽器時首次啟動自動下載(與本機同版), 由w-package-tools-e2e提供
+    return await launchChromium({ headless: true, args: chromiumLaunchArgs })
 }
 //成功訊息用 confirm modal（停留、可穩定截圖）而非 toast（插入後又移除、截圖時序不穩），同 SSO。
 

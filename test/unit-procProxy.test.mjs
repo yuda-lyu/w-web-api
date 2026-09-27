@@ -1,6 +1,7 @@
 //unit：server/procProxy.mjs（測試分頁 proxy，Node 內建 fetch）——起真 http server 直打 proxyRequest，不 mock 接縫。
 //每條斷言對應 spec/流程_測試API.md「規則摘要」之契約與 ADR-029／ADR-031（請求內容原文送出、標頭表為唯一真理源、
-//重複鍵不收斂、轉址逐跳檢核 isAllowTarget）。兩個 origin：主 server 11082、跨來源 server 11084；11083 保留為「無人監聽」。
+//重複鍵不收斂、轉址逐跳檢核 isAllowTarget）／ADR-033（srLog 不含第三方憑證：標頭只記名稱、網址經 maskUrl、fetch 例外只記名稱與代碼）。
+//兩個 origin：主 server 11082、跨來源 server 11084；11083 保留為「無人監聽」。
 import assert from 'assert'
 import http from 'http'
 import procProxy from '../server/procProxy.mjs'
@@ -90,6 +91,23 @@ function makeHandler(port) {
             }
             else if (p.startsWith('/rftp')) {
                 res.writeHead(302, { Location: 'ftp://127.0.0.1/x' })
+                res.end()
+            }
+            //轉址網址夾第三方憑證之 fixtures（ADR-033：srLog 之網址一律經 maskUrl）；前綴 /xs 不與上方任一前綴相撞
+            else if (p.startsWith('/xsblock')) {
+                res.writeHead(302, { Location: `${BASE}/deny?token=SYNTH-REDIR-SECRET` })
+                res.end()
+            }
+            else if (p.startsWith('/xsloop')) {
+                res.writeHead(302, { Location: '/xsloop?token=SYNTH-LOOP-SECRET' })
+                res.end()
+            }
+            else if (p.startsWith('/xsftp')) {
+                res.writeHead(302, { Location: 'ftp://user:SYNTH-FTP-SECRET@127.0.0.1/x' })
+                res.end()
+            }
+            else if (p.startsWith('/xsbadloc')) {
+                res.writeHead(302, { Location: 'http://[SYNTH-BADLOC-SECRET' })
                 res.end()
             }
             else {
@@ -220,21 +238,21 @@ describe('unit-procProxy', function() {
         assert.strictEqual(r5.data, '')
     })
 
-    //失敗路徑：逾時 → reject 'errProxyRequestFailed'（前端依 lang 顯示），srLog.error 記 event 與真實訊息
-    it('PROXY-006 逾時 reject errProxyRequestFailed 並 log 真實訊息', async function() {
+    //失敗路徑：逾時 → reject 'errProxyRequestFailed'（前端依 lang 顯示），srLog.error 記 event、err-key 與錯誤名稱（ADR-033：只記 err.name＋cause.code，不記 message）
+    it('PROXY-006 逾時 reject errProxyRequestFailed 並 log 錯誤名稱', async function() {
         let t0 = Date.now()
         await assert.rejects(proxyRequest({ method: 'GET', url: `${BASE}/slow`, timeout: 300 }), (e) => e === 'errProxyRequestFailed')
         assert.ok(Date.now() - t0 < 1400, '應於 timeout 附近即 reject，不等 server 回應')
         let log = logs.find((o) => o.event === 'proxyRequest-fetch')
-        assert.ok(log && /timeout|abort/i.test(log.msg), `srLog.error 應含逾時訊息（實得 ${JSON.stringify(log)}）`)
+        assert.deepStrictEqual(log, { event: 'proxyRequest-fetch', err: 'errProxyRequestFailed', errName: 'TimeoutError', errCode: '' }, `srLog.error 應為逾時之名稱（實得 ${JSON.stringify(log)}）`)
         await new Promise((resolve) => setTimeout(resolve, 1300)) //等 server 端 slow 回應結束，避免影響下一 case
     })
 
-    //失敗路徑：連線拒絕（無人監聽）→ reject 'errProxyRequestFailed'，log 含 cause
-    it('PROXY-007 連線拒絕 reject errProxyRequestFailed 並 log cause', async function() {
+    //失敗路徑：連線拒絕（無人監聽）→ reject 'errProxyRequestFailed'，log 記 cause.code（代碼形狀才記）
+    it('PROXY-007 連線拒絕 reject errProxyRequestFailed 並 log cause.code', async function() {
         await assert.rejects(proxyRequest({ method: 'GET', url: `http://127.0.0.1:${PORT_CLOSED}/` }), (e) => e === 'errProxyRequestFailed')
         let log = logs.find((o) => o.event === 'proxyRequest-fetch')
-        assert.ok(log && (/ECONNREFUSED/i.test(log.cause) || /ECONNREFUSED|fetch failed/i.test(log.msg)), `log 應含連線拒絕原因（實得 ${JSON.stringify(log)}）`)
+        assert.deepStrictEqual(log, { event: 'proxyRequest-fetch', err: 'errProxyRequestFailed', errName: 'TypeError', errCode: 'ECONNREFUSED' }, `log 應含連線拒絕代碼（實得 ${JSON.stringify(log)}）`)
     })
 
     //前置檢核：url 空／非 http(s)／非法 → 'errReqUrlInvalid'；isAllowTarget 回 false → 'errReqTargetNotAllowed'（皆不打網路）
@@ -382,6 +400,75 @@ describe('unit-procProxy', function() {
         received = []
         await proxyRequest({ url: `${BASE}/r302`, headers: { Authorization: 'Bearer t' } })
         assert.strictEqual(lastReceived().headers['authorization'], 'Bearer t', '同來源轉址保留 Authorization')
+    })
+
+    //--- ADR-033（w-web-sso tmp/sso-token-leak-全盤.md P10／B-6）：代打請求之第三方憑證不得進 srLog；回前端之 err-key 不變 ---
+
+    //srLog 全部紀錄序列化後不得含任一合成秘密
+    function assertLogsNoSecret(secrets) {
+        let s = JSON.stringify(logs)
+        for (let x of secrets) {
+            assert.ok(!s.includes(x), `srLog 不得含「${x}」（實得 ${s}）`)
+        }
+    }
+
+    //標頭值非法（CR/LF 注入、NUL、非 latin1）：Headers.append 之 TypeError 原文含標頭值 → 只記標頭名與固定原因
+    let casesHeaderValue = [
+        ['PROXY-017a', 'CR/LF', 'X-Api-Key', 'SYNTH-HDR-SECRET\r\nX-Evil: 1'],
+        ['PROXY-017b', 'NUL', 'X-Nul', 'a\u0000SYNTH-HDR-SECRET'],
+        ['PROXY-017c', '非 latin1', 'X-Cjk', '中SYNTH-HDR-SECRET'],
+    ]
+    for (let [id, label, k, v] of casesHeaderValue) {
+        it(`${id} 非法標頭值（${label}）：srLog 只記標頭名與固定原因，不含值與錯誤原文`, async function() {
+            await assert.rejects(proxyRequest({ url: `${BASE}/p`, headers: [['X-Ok', '1'], [k, v]] }), (e) => e === 'errProxyRequestFailed')
+            assert.deepStrictEqual(logs, [{ event: 'proxyRequest-headers', err: 'errProxyRequestFailed', header: k, reason: 'invalidHeaderValue' }], `標頭 ${k}`)
+            assertLogsNoSecret(['SYNTH-HDR-SECRET'])
+            assert.strictEqual(received.length, 0, '標頭非法不得送出')
+        })
+    }
+
+    //標頭名非法（使用者把「Authorization: Bearer …」整行貼進名稱欄）：名稱本身即含憑證 → 名稱依 M 契約遮罩
+    it('PROXY-018 非法標頭名：名稱經 maskTok 遮罩、不含憑證', async function() {
+        let name = 'Authorization: Bearer SYNTH-NAME-SECRET-0123'
+        await assert.rejects(proxyRequest({ url: `${BASE}/p`, headers: [[name, 'x']] }), (e) => e === 'errProxyRequestFailed')
+        assert.deepStrictEqual(logs, [{ event: 'proxyRequest-headers', err: 'errProxyRequestFailed', header: 'Auth...0123(len=44)', reason: 'invalidHeaderName' }])
+        assertLogsNoSecret(['SYNTH-NAME-SECRET'])
+        assert.strictEqual(received.length, 0)
+    })
+
+    //網址含 userinfo（第三方帳密）：fetch 拋 TypeError，其 message 為含帳密之完整網址 → 只記 err.name＋cause.code
+    it('PROXY-019 網址含 userinfo：fetch 例外只記名稱與代碼、不含帳密與網址', async function() {
+        await assert.rejects(proxyRequest({ url: `http://user:SYNTH-PW-SECRET@127.0.0.1:${PORT}/json?token=SYNTH-URL-SECRET` }), (e) => e === 'errProxyRequestFailed')
+        assert.deepStrictEqual(logs, [{ event: 'proxyRequest-fetch', err: 'errProxyRequestFailed', errName: 'TypeError', errCode: '' }])
+        assertLogsNoSecret(['SYNTH-PW-SECRET', 'SYNTH-URL-SECRET'])
+        assert.strictEqual(received.length, 0)
+    })
+
+    //轉址錯誤之網址一律經 maskUrl（捨棄 query、userinfo；無法解析 → (invalid-url)）：不允許之目標／超限／非 http(s)／Location 無法解析
+    it('PROXY-020 轉址目標不允許（Location 帶 query 權杖）：srLog 之網址經 maskUrl', async function() {
+        let { proxyRequest: pr2 } = procProxy({ srLog, isAllowTarget: (u) => !u.includes('deny') })
+        await assert.rejects(pr2({ url: `${BASE}/xsblock` }), (e) => e === 'errReqTargetNotAllowed')
+        assert.deepStrictEqual(logs, [{ event: 'proxyRequest-redirect', err: 'errReqTargetNotAllowed', msg: `redirect target not allowed: ${BASE}/deny` }])
+        assertLogsNoSecret(['SYNTH-REDIR-SECRET'])
+        assert.ok(!urlsReceived().some((u) => u.startsWith('/deny')), '不允許之轉址目標不得被打到')
+    })
+
+    it('PROXY-021 轉址超限（每跳 Location 帶 query 權杖）：srLog 之網址經 maskUrl', async function() {
+        await assert.rejects(proxyRequest({ url: `${BASE}/xsloop` }), (e) => e === 'errProxyRequestFailed')
+        assert.deepStrictEqual(logs, [{ event: 'proxyRequest-redirect', err: 'errProxyRequestFailed', msg: `too many redirects (> 20), last: ${BASE}/xsloop` }])
+        assertLogsNoSecret(['SYNTH-LOOP-SECRET'])
+    })
+
+    it('PROXY-022 轉址非 http(s)（Location 含 userinfo 帳密）：srLog 之網址經 maskUrl', async function() {
+        await assert.rejects(proxyRequest({ url: `${BASE}/xsftp` }), (e) => e === 'errProxyRequestFailed')
+        assert.deepStrictEqual(logs, [{ event: 'proxyRequest-redirect', err: 'errProxyRequestFailed', msg: 'unsupported redirect protocol: ftp:' }])
+        assertLogsNoSecret(['SYNTH-FTP-SECRET'])
+    })
+
+    it('PROXY-023 轉址 Location 無法解析：srLog 記 (invalid-url)、不含原值', async function() {
+        await assert.rejects(proxyRequest({ url: `${BASE}/xsbadloc` }), (e) => e === 'errProxyRequestFailed')
+        assert.deepStrictEqual(logs, [{ event: 'proxyRequest-redirect', err: 'errProxyRequestFailed', msg: 'invalid redirect location: (invalid-url)' }])
+        assertLogsNoSecret(['SYNTH-BADLOC-SECRET'])
     })
 
 })
