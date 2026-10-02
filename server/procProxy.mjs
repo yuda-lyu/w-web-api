@@ -57,6 +57,10 @@ function procProxy(opt = {}) {
         return isAllowTarget(url) !== false
     }
 
+    //lockSave：後端雙擊防護（依使用者占位，見 lockSave.mjs，ADR-034），由 WWebApi 建立並注入（與 procApis 共用同一 cacheSt）；
+    //為 proxyRequestByUser 之必要依賴，未注入時其以 TypeError reject 而不送出（fail-closed）
+    let lockSave = get(opt, 'lockSave', null)
+
 
     //proxyRequest：以 Node 內建 fetch 代打目標（繞過瀏覽器 CORS）。契約（見 spec/流程_測試API.md「規則摘要」）：
     //- 請求內容原文送出：字串 body 以 TextEncoder 轉位元組原封送達，不解析、不驗證、不補 Content-Type
@@ -261,8 +265,19 @@ function procProxy(opt = {}) {
     }
 
 
+    //proxyRequestByUser：kpFunExt 之入口（第 1 參數為 userId）。以「proxyRequest:<userId>」占位後執行 proxyRequest：
+    //同一使用者之請求處理中再送出即 reject 'requestInProgress'，不排隊（送出對目標可能有副作用，如 POST 建立資料）；
+    //不同使用者互不影響；請求結束（含失敗）即釋放（ADR-034）。proxyRequest 本身為代打核心、不占位（供單元測試直打）
+    let proxyRequestByUser = async (userId, inp = {}) => {
+        return lockSave('proxyRequest', userId, () => {
+            return proxyRequest(inp)
+        }, { errKey: 'requestInProgress' })
+    }
+
+
     return {
         proxyRequest,
+        proxyRequestByUser,
     }
 }
 

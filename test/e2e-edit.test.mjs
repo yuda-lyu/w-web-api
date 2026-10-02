@@ -8,7 +8,14 @@
 //act 走真實 user 路徑：點 mode 分頁、鍵盤輸入（typeIntoInput / Pattern D）、點按鈕、點確認對話框。
 //assert：UI user-facing 觀察（樹/文件文字）+ DB 副作用 + pixel baseline。多語 eng/cht 皆跑。
 //
+//案例管線（2026-09-28）：mocha 比對與 REGEN 產製（`npx mocha test/e2e-edit.test.mjs --baseline [--grep …]` 或 env E2E_REGEN=1）
+//由同一個 it 呼叫同一條 runBaselineCase：每 case DB 重置 → 全新 browser（openCasePage，1440×900）→ 流程（截圖收集，
+//斷言原位於截圖前後當場跑）→ 全部斷言通過後才一次寫檔 / 比對（任一斷言失敗則該 case 一張都不寫，不再留下半套新圖）。
+//REGEN 寫檔篩選：env E2E_BASELINE_OUT_DIR=<dir> 改寫到該目錄（等價驗證用）、--write-mode missing|changed、--langs；案例以 mocha --grep 選取。
+//E2E-005 只比對（compareOnly）：其確認對話框與 E2E-003 共用 edit-<lang>-E2E-003-2-confirm.png，REGEN 時照跑流程與斷言但不寫圖（該圖只由 E2E-003 寫）。
+//
 import assert from 'assert'
+import path from 'path'
 import {
     startServersOnce,
     captureStableWithBox,
@@ -16,15 +23,20 @@ import {
     waitUntilExist,
     typeIntoInput,
     gotoApiWorkspace,
+    treePanel,
     resetToBaseSeed,
-    assertOrRegenBaseline,
     woItems,
     launchBrowser,
+    REGEN
 } from './tools/e2e-setup.mjs'
+import { runBaselineCase, createBaselineGate, openCasePage, itemsUnionBox } from './tools/e2eLib.mjs'
 
 
 let FLOW = 'edit'
 let LANGS = ['eng', 'cht']
+
+//標準圖路徑：test/pics/<flow>/<flow>-<lang>-<圖鍵>.png（圖鍵＝原檔名去掉 `<flow>-<lang>-` 與 `.png`）
+let pathOf = (lang, key) => path.resolve('test', 'pics', FLOW, `${FLOW}-${lang}-${key}.png`)
 
 let T = {
     eng: { ok: 'OK', edit: 'Edit', newApi: 'New API', yes: 'Yes', no: 'No', lblName: 'Name', lblUrl: 'API url', lblLevels: 'Levels', saved: 'Saved', deleted: 'Deleted', valRequired: 'This field is required' },
@@ -65,6 +77,11 @@ function fieldRow(page, label) {
 function fieldInput(page, label) {
     return fieldRow(page, label).locator('input.bk-input')
 }
+//欄位列之紅框目標：.bk-row 無可見邊界且標籤貼齊其左緣，直接框元素時紅框內緣距標籤僅 1～2px（紅框壓字）
+//→ 經 w-package-tools-e2e itemsUnionBox fit 量內容（輸入框 ∪ 標籤墨跡外擴 inkPad）（2026-09-28）
+function fieldRowBox(row) {
+    return itemsUnionBox(row.first(), { fit: true })
+}
 
 async function findApiByName(name) {
     let all = await woItems.apis.select()
@@ -72,36 +89,322 @@ async function findApiByName(name) {
 }
 
 
+// ===================================================================
+// 案例流程（比對端與 REGEN 產製端共用；原 it 本體逐字搬入，截圖改收進 shots { 圖鍵: buf }，
+// 斷言維持原位（截圖前後當場跑），寫檔 / 比對一律由 runBaselineCase 於流程全部通過後才做）
+// ===================================================================
+
+async function runE2E001(page, lang) {
+    let shots = {}
+    await gotoApiWorkspace(page, lang)
+
+    let newName = `取得API清單-改-${lang}`
+
+    //act 多步驟 + 每步紅框出圖（讓讀者看到：編輯哪裡 → 從什麼改成什麼 → 結果）
+    let nameRow = fieldRow(page, T[lang].lblName)
+
+    //步驟1：點「編輯」分頁，Name 欄顯示原值「取得API清單」→ 紅框標 Name 欄
+    await page.getByText(T[lang].edit, { exact: true }).first().click({ timeout: 8000 })
+    let nameInp = fieldInput(page, T[lang].lblName)
+    await nameInp.waitFor({ state: 'visible', timeout: 8000 })
+    shots['E2E-001-1-name-old'] = await captureStableWithBox(page, fieldRowBox(nameRow))
+
+    //步驟2：Name 欄輸入新名稱（存檔前）→ 紅框標 Name 欄（顯示新值，從什麼變成什麼）
+    await typeIntoInput(page, nameInp, newName)
+    shots['E2E-001-2-name-new'] = await captureStableWithBox(page, fieldRowBox(nameRow))
+
+    //步驟3：點儲存
+    await page.locator('button.btn-save').first().click({ timeout: 8000 })
+
+    //等 UI 反映（儲存後回 docs，樹/文件出現新名稱）
+    await waitUntilExist(page, 'renamed in UI', (nm) => (document.body.innerText || '').includes(nm), { timeout: 12000, arg: newName })
+
+    //assert UI（user-facing）
+    let txt = await page.evaluate(() => document.body.innerText || '')
+    assert.ok(txt.includes(newName), `畫面應顯示新名稱「${newName}」`)
+
+    //assert DB 副作用（補強）：改名後的筆存在、舊名不存在（確為原地更新非新增）
+    //註：funTest 種子 id 為隨機（apis.mjs funTest 內 v.id=item.id 已註解），故以 name 驗證
+    let renamed = await findApiByName(newName)
+    assert.ok(renamed, `DB 應有改名後的 API「${newName}」`)
+    let oldOne = await findApiByName('取得API清單')
+    assert.ok(!oldOne, '舊名稱「取得API清單」不應再存在（確為原地更新）')
+
+    //步驟3 出圖：改名後 docs 標頭（新名稱已反映）→ 紅框標標頭（結果）。
+    //依 spec 操作鏈，成功 modal 須點「OK／確認」關閉後才是本步驟之終態畫面（docs 標頭不被彈窗遮蓋）。
+    await waitSaveModal(page, lang)
+    await clickModalOk(page, lang, T[lang].saved)
+    await waitMutationSettled(page)
+    //框標頭內容（標題、網址晶片、說明之聯集；標題與說明為撐滿整欄之 block，直接框元素會把右側空白框入，技能 §7.3-2）
+    let buf = await captureStableWithBox(page, itemsUnionBox(['.op-title', '.op-path', '.op-desc'], { fit: true }))
+    shots['E2E-001-3-renamed'] = buf
+    return shots
+}
+
+async function runE2E002(page, lang) {
+    let shots = {}
+    await gotoApiWorkspace(page, lang)
+
+    let newName = `E2E新增API-${lang}`
+    let newUrl = 'http://localhost:11005/e2eAdd'
+    let newLevels = 'E2E分類'
+
+    //act 多步驟 + 每步紅框出圖
+    let fillRows = [
+        fieldRow(page, T[lang].lblName),
+        fieldRow(page, T[lang].lblUrl),
+        fieldRow(page, T[lang].lblLevels),
+    ]
+
+    //步驟1：點「新增API」開空白表單 → 紅框標 Name/url/Levels 三欄（填寫前空白）
+    await page.getByText(T[lang].newApi, { exact: false }).first().click({ timeout: 8000 })
+    let nameInp = fieldInput(page, T[lang].lblName)
+    await nameInp.waitFor({ state: 'visible', timeout: 8000 })
+    shots['E2E-002-1-form-empty'] = await captureStableWithBox(page, fillRows.map(fieldRowBox))
+
+    //步驟2：填入 Name/url/Levels（存檔前）→ 紅框標同三欄（顯示已填內容）
+    await typeIntoInput(page, nameInp, newName)
+    await typeIntoInput(page, fieldInput(page, T[lang].lblUrl), newUrl)
+    await typeIntoInput(page, fieldInput(page, T[lang].lblLevels), newLevels)
+    shots['E2E-002-2-filled'] = await captureStableWithBox(page, fillRows.map(fieldRowBox))
+
+    //步驟3：點儲存
+    await page.locator('button.btn-save').first().click({ timeout: 8000 })
+
+    //等 UI 反映（樹出現新節點）
+    await waitUntilExist(page, 'new api in tree', (nm) => (document.body.innerText || '').includes(nm), { timeout: 12000, arg: newName })
+
+    //assert UI
+    let txt = await page.evaluate(() => document.body.innerText || '')
+    assert.ok(txt.includes(newName), `左樹應出現新節點「${newName}」`)
+    assert.ok(txt.includes(newLevels), `左樹應出現新階層「${newLevels}」`)
+
+    //assert DB
+    let row = await findApiByName(newName)
+    assert.ok(row, 'DB 應新增該筆 API')
+    assert.strictEqual(row.url, newUrl, 'DB 新筆 url 應正確')
+    assert.strictEqual(row.method, 'get', 'DB 新筆 method 應為預設 get')
+
+    //步驟3 出圖：儲存成功 modal → 紅框標 modal（結果；新節點在樹 fold 以下，由上方語意斷言守）
+    await waitSaveModal(page, lang)
+    await waitMutationSettled(page)
+    let buf = await captureStableWithBox(page, 'div[style*="overscroll-behavior"] div[tabindex="0"] > div')
+    shots['E2E-002-3-saved'] = buf
+
+    //依 spec 操作鏈收尾：點「OK／確認」關閉成功 modal（本 case 之 baseline 要的正是「含 modal」之畫面，
+    //故點擊置於截圖之後；與 E2E-001 之「先關再截」相對，兩者皆依各自 spec 之視覺步驟描述）。
+    await clickModalOk(page, lang, T[lang].saved)
+    return shots
+}
+
+async function runE2E003(page, lang) {
+    let shots = {}
+    await gotoApiWorkspace(page, lang)
+
+    //刪除前 base 筆數（供總數減一斷言）
+    let baseCount = (await woItems.apis.select()).length
+
+    //預設選取第一筆「取得API清單」
+    //act 多步驟 + 每步紅框出圖
+    //步驟1：點「編輯」分頁 → 紅框標「刪除」鈕（從哪裡刪）
+    await page.getByText(T[lang].edit, { exact: true }).first().click({ timeout: 8000 })
+    await page.locator('button.btn-delete').waitFor({ state: 'visible', timeout: 8000 })
+    shots['E2E-003-1-delete-btn'] = await captureStableWithBox(page, 'button.btn-delete')
+
+    //步驟2：點「刪除」→ 確認對話框出現 → 紅框標對話框
+    await page.locator('button.btn-delete').first().click({ timeout: 8000 })
+    await waitUntilExist(page, 'confirm dialog', (yes) => (document.body.innerText || '').includes(yes), { timeout: 8000, arg: T[lang].yes })
+    let bufDlg = await captureStableWithBox(page, 'div[style*="overscroll-behavior"] div[tabindex="0"] > div')
+    shots['E2E-003-2-confirm'] = bufDlg
+
+    //步驟3：點「是」確認刪除
+    await page.getByText(T[lang].yes, { exact: true }).first().click({ timeout: 8000 })
+
+    //等 UI 反映（該節點從樹消失）
+    await waitUntilExist(page, 'api removed from tree', () => !(document.body.innerText || '').includes('取得API清單'), { timeout: 12000 })
+
+    //assert UI
+    let txt = await page.evaluate(() => document.body.innerText || '')
+    assert.ok(!txt.includes('取得API清單'), '左樹不應再有「取得API清單」')
+    assert.ok(txt.includes('取得寵物清單'), '其他 API 應仍在')
+
+    //assert DB：被刪除的「取得API清單」不應再存在，且總數減一
+    let gone = await findApiByName('取得API清單')
+    assert.ok(!gone, 'DB 不應再有「取得API清單」')
+    let all = await woItems.apis.select()
+    assert.strictEqual(all.length, baseCount - 1, `API 總數應由 ${baseCount} 減為 ${baseCount - 1}`)
+
+    //步驟3 出圖：刪除後左樹（該節點已消失）→ 紅框標左樹面板（結果）。
+    //與 E2E-001 步驟3 一致：「已刪除」成功 modal 須點「OK／確認」關閉後才是本步驟之終態畫面（左樹不被遮罩蓋住）。
+    //2026-09-28 改：原於 modal 開啟中截圖（左樹在遮罩下）且選擇器第一個命中者為最左側功能選單鈕列（框錯對象）
+    await waitUntilExist(page, 'deleted modal', (s) => (document.body.innerText || '').includes(s), { timeout: 10000, arg: T[lang].deleted })
+    await clickModalOk(page, lang, T[lang].deleted)
+    await waitMutationSettled(page)
+    let buf = await captureStableWithBox(page, treePanel(page))
+    shots['E2E-003-3-deleted'] = buf
+    return shots
+}
+
+//E2E-004：新增表單名稱留空 → 同步檢測攔截 inline 必填紅字、不打 API、DB 不新增（錯誤處理分層之同步檢測層）
+async function runE2E004(page, lang) {
+    let shots = {}
+    await gotoApiWorkspace(page, lang)
+
+    let baseCount = (await woItems.apis.select()).length
+
+    //act 多階段：開空白表單 → (階段1 名稱空白態) → 點儲存 → (階段2 錯誤態)
+    await page.getByText(T[lang].newApi, { exact: false }).first().click({ timeout: 8000 })
+    let nameRow = fieldRow(page, T[lang].lblName)
+    await fieldInput(page, T[lang].lblName).waitFor({ state: 'visible', timeout: 8000 })
+
+    //階段1：名稱欄空白（按儲存前、尚無紅字）→ 紅框標名稱欄
+    shots['E2E-004-1-name-empty'] = await captureStableWithBox(page, fieldRowBox(nameRow))
+
+    //act：點儲存（名稱空 → 同步檢測攔截）
+    await page.locator('button.btn-save').first().click({ timeout: 8000 })
+
+    //等名稱欄 inline 必填紅字出現（同步檢測攔截、未開 loading 未打 API）
+    await waitUntilExist(page, 'name required inline error', (msg) => {
+        let errs = Array.from(document.querySelectorAll('.bk-err')).map((e) => (e.innerText || '').trim())
+        return errs.includes(msg)
+    }, { timeout: 8000, arg: T[lang].valRequired })
+
+    //assert 語意：名稱欄下 inline 紅字 = 必填訊息；無成功 modal；DB 未新增
+    let errTexts = await page.evaluate(() => Array.from(document.querySelectorAll('.bk-err')).map((e) => (e.innerText || '').trim()))
+    assert.ok(errTexts.includes(T[lang].valRequired), `名稱欄應顯示必填紅字「${T[lang].valRequired}」（實得 ${JSON.stringify(errTexts)}）`)
+    let txt = await page.evaluate(() => document.body.innerText || '')
+    assert.ok(!txt.includes(T[lang].saved), '不應出現「已儲存」成功 modal（未打 API）')
+    let afterCount = (await woItems.apis.select()).length
+    assert.strictEqual(afterCount, baseCount, `DB apis 筆數應不變（${baseCount}），未新增`)
+
+    //階段2：名稱欄出現 inline 必填紅字（按儲存後）→ 紅框標名稱欄
+    let buf = await captureStableWithBox(page, fieldRowBox(nameRow))
+    shots['E2E-004-2-name-required'] = buf
+    return shots
+}
+
+//E2E-005：刪除確認點「取消」→ reject 'close' 靜默忽略、不刪（DB 不變、左樹仍在）。對話框共用 E2E-003-2-confirm baseline
+async function runE2E005(page, lang) {
+    let shots = {}
+    await gotoApiWorkspace(page, lang)
+
+    let baseCount = (await woItems.apis.select()).length
+
+    //act：編輯分頁 → 點刪除 → 出現確認對話框
+    await page.getByText(T[lang].edit, { exact: true }).first().click({ timeout: 8000 })
+    await page.locator('button.btn-delete').waitFor({ state: 'visible', timeout: 8000 })
+    await page.locator('button.btn-delete').first().click({ timeout: 8000 })
+    await waitUntilExist(page, 'confirm dialog', (yes) => (document.body.innerText || '').includes(yes), { timeout: 8000, arg: T[lang].yes })
+
+    //視覺：確認對話框與 E2E-003 共用同一 baseline（同一 WConfirm 面板），不另存圖
+    let bufDlg = await captureStableWithBox(page, 'div[style*="overscroll-behavior"] div[tabindex="0"] > div')
+    shots['E2E-003-2-confirm'] = bufDlg
+
+    //act：點對話框的「No／取消」取消刪除。
+    //須限定在 modal 容器內：編輯表單底部本身也有「取消」鈕（btn-cancel），cht 下 no 與 cancel i18n 同為「取消」，
+    //不 scope 會撞到表單那顆（在 modal 遮罩下被攔截 click）。eng 因對話框「No」≠ 表單「Cancel」才僥倖未撞。
+    await page.locator('div[style*="overscroll-behavior"]').getByText(T[lang].no, { exact: true }).first().click({ timeout: 8000 })
+    //等對話框關閉（Yes/確定 文字消失）
+    await waitUntilExist(page, 'confirm dialog closed', (yes) => !(document.body.innerText || '').includes(yes), { timeout: 8000, arg: T[lang].yes })
+
+    //assert 語意：左樹仍有該 API；DB 未刪；無成功 modal
+    let txt = await page.evaluate(() => document.body.innerText || '')
+    assert.ok(txt.includes('取得API清單'), '取消後左樹仍應含「取得API清單」')
+    assert.ok(!txt.includes(T[lang].deleted), '不應出現「已刪除」成功 modal（已取消）')
+    let afterCount = (await woItems.apis.select()).length
+    assert.strictEqual(afterCount, baseCount, `DB apis 筆數應不變（${baseCount}），未刪除`)
+    return shots
+}
+
+
+// ===================================================================
+// 案例宣告與案例管線（比對端與 REGEN 產製端共用）
+// ===================================================================
+
+//順序＝原 it 順序（各語系 E2E-001~005）。title＝原 it 標題逐字（--grep 依之）；stages＝該案產出之全部圖鍵（runBaselineCase 驗「產出＝宣告」）。
+//E2E-005 compareOnly：stages 宣告其比對之共用圖鍵 E2E-003-2-confirm；REGEN 時照跑流程與斷言但一張都不寫（避免共用圖被兩案重寫），比對時照常比對。
+let cases = [
+    {
+        name: 'E2E-001-rename',
+        title: (lang) => `E2E-001 [${lang}] 編輯既有 API 改名後儲存`,
+        run: runE2E001,
+        stages: ['E2E-001-1-name-old', 'E2E-001-2-name-new', 'E2E-001-3-renamed'],
+    },
+    {
+        name: 'E2E-002-add',
+        title: (lang) => `E2E-002 [${lang}] 新增 API 填表後儲存`,
+        run: runE2E002,
+        stages: ['E2E-002-1-form-empty', 'E2E-002-2-filled', 'E2E-002-3-saved'],
+    },
+    {
+        name: 'E2E-003-delete',
+        title: (lang) => `E2E-003 [${lang}] 刪除既有 API 含確認對話框`,
+        run: runE2E003,
+        stages: ['E2E-003-1-delete-btn', 'E2E-003-2-confirm', 'E2E-003-3-deleted'],
+    },
+    {
+        name: 'E2E-004-name-required',
+        title: (lang) => `E2E-004 [${lang}] 名稱留空儲存顯示必填錯誤、不送出`,
+        run: runE2E004,
+        stages: ['E2E-004-1-name-empty', 'E2E-004-2-name-required'],
+    },
+    {
+        name: 'E2E-005-delete-cancel',
+        title: (lang) => `E2E-005 [${lang}] 刪除確認點取消，靜默不刪`,
+        run: runE2E005,
+        stages: ['E2E-003-2-confirm'],
+        compareOnly: true,
+    },
+]
+
+//REGEN 時建 gate：寫檔篩選（E2E_BASELINE_OUT_DIR / --write-mode / --langs；案例由 mocha --grep 選取）。
+//cases 原樣交 gate（含 compareOnly 案例之共用圖鍵）：gate 之 --names 解析只由產圖案例負責寫檔（compareOnly 不參與寫檔解析、
+//只命中 compareOnly 者報「不產圖」），故 --names E2E-003-2-confirm 只選到 E2E-003。
+//（2026-09-28 移除原為閃避舊 gate 缺陷而剝除 compareOnly 案例 stages 之 gateCases；gate 已修，見 w-package-tools-e2e createBaselineGate。）
+let gate = REGEN ? createBaselineGate({ langs: LANGS, cases }) : null
+//REGEN 結束時驗證 --names 之每一項皆有產出(例如被 --grep 排除之案例)，不靜默略過
+if (gate) {
+    after(function() {
+        gate.finalize()
+    })
+}
+
+//單一案例管線（比對端與 REGEN 產製端同一條）：prepare（原 beforeEach 之 DB 重置）→ 全新 browser（原 beforeEach 之
+//launchBrowser + newContext 1440×900 + newPage；openCasePage 另掛 dialog 自動接受，本流程無原生 dialog，確認對話框為 DOM 之 WConfirm）→
+//run（流程）→ 全部斷言通過後才寫檔 / 比對 → finally 關 browser（原 afterEach）。
+//每 case 全新 browser（對齊 SSO eye-toggle E2E-017/018 之 per-case fresh）：避免共用 browser 跨 case
+//累積的 glyph atlas / raster 狀態，在 WTree 內容剛好 6px 溢出的虛擬渲染邊界偶發整棵樹 ~6px 位移。
+//launchBrowser() 內建確定性渲染組（關 GPU/subpixel 字形 AA），消 eng 截圖 byte 不穩。
+async function runCase(lang, c) {
+    return await runBaselineCase({
+        mode: REGEN ? 'regen' : 'compare',
+        lang,
+        name: c.name,
+        run: c.run,
+        stages: c.stages,
+        compareOnly: !!c.compareOnly,
+        launch: launchBrowser,
+        openPage: (browser) => openCasePage(browser, { contextOptions: { viewport: { width: 1440, height: 900 } } }),
+        prepare: async () => {
+            //每個 case 從相同 base seed 起跑（hermetic）
+            await resetToBaseSeed()
+        },
+        pathOf,
+        labelOf: (lg, key) => `${FLOW}-${lg}-${key}`,
+        gate,
+    })
+}
+
+
 describe('e2e-edit (API 編輯)', function() {
     this.timeout(240000)
-
-    let browser = null
-    let ctx = null
-    let page = null
 
     before(async function() {
         this.timeout(180000)
         await startServersOnce()
     })
 
-    beforeEach(async function() {
-        this.timeout(180000)
-        //每個 case 從相同 base seed 起跑（hermetic）
-        await resetToBaseSeed()
-        //每 case 全新 browser（對齊 SSO eye-toggle E2E-017/018 之 per-case fresh）：避免共用 browser 跨 case
-        //累積的 glyph atlas / raster 狀態，在 WTree 內容剛好 6px 溢出的虛擬渲染邊界偶發整棵樹 ~6px 位移。
-        //launchBrowser() 內建確定性渲染組（關 GPU/subpixel 字形 AA），消 eng 截圖 byte 不穩。
-        browser = await launchBrowser()
-        ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
-        page = await ctx.newPage()
-    })
-
-    afterEach(async function() {
-        if (browser) {
-            await browser.close()
-            browser = null
-        }
-    })
+    //每 case 之 DB 重置與全新 browser 由 runCase 負責（原 beforeEach / afterEach），--grep 單跑亦同。
 
     after(async function() {
         //還原 base seed 供非 e2e 時段使用
@@ -109,215 +412,11 @@ describe('e2e-edit (API 編輯)', function() {
     })
 
     for (let lang of LANGS) {
-
-        it(`E2E-001 [${lang}] 編輯既有 API 改名後儲存`, async function() {
-            await gotoApiWorkspace(page, lang)
-
-            let newName = `取得API清單-改-${lang}`
-
-            //act 多步驟 + 每步紅框出圖（讓讀者看到：編輯哪裡 → 從什麼改成什麼 → 結果）
-            let nameRow = fieldRow(page, T[lang].lblName)
-
-            //步驟1：點「編輯」分頁，Name 欄顯示原值「取得API清單」→ 紅框標 Name 欄
-            await page.getByText(T[lang].edit, { exact: true }).first().click({ timeout: 8000 })
-            let nameInp = fieldInput(page, T[lang].lblName)
-            await nameInp.waitFor({ state: 'visible', timeout: 8000 })
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-001-1-name-old.png`, await captureStableWithBox(page, nameRow))
-
-            //步驟2：Name 欄輸入新名稱（存檔前）→ 紅框標 Name 欄（顯示新值，從什麼變成什麼）
-            await typeIntoInput(page, nameInp, newName)
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-001-2-name-new.png`, await captureStableWithBox(page, nameRow))
-
-            //步驟3：點儲存
-            await page.locator('button.btn-save').first().click({ timeout: 8000 })
-
-            //等 UI 反映（儲存後回 docs，樹/文件出現新名稱）
-            await waitUntilExist(page, 'renamed in UI', (nm) => (document.body.innerText || '').includes(nm), { timeout: 12000, arg: newName })
-
-            //assert UI（user-facing）
-            let txt = await page.evaluate(() => document.body.innerText || '')
-            assert.ok(txt.includes(newName), `畫面應顯示新名稱「${newName}」`)
-
-            //assert DB 副作用（補強）：改名後的筆存在、舊名不存在（確為原地更新非新增）
-            //註：funTest 種子 id 為隨機（apis.mjs funTest 內 v.id=item.id 已註解），故以 name 驗證
-            let renamed = await findApiByName(newName)
-            assert.ok(renamed, `DB 應有改名後的 API「${newName}」`)
-            let oldOne = await findApiByName('取得API清單')
-            assert.ok(!oldOne, '舊名稱「取得API清單」不應再存在（確為原地更新）')
-
-            //步驟3 出圖：改名後 docs 標頭（新名稱已反映）→ 紅框標標頭（結果）。
-            //依 spec 操作鏈，成功 modal 須點「OK／確認」關閉後才是本步驟之終態畫面（docs 標頭不被彈窗遮蓋）。
-            await waitSaveModal(page, lang)
-            await clickModalOk(page, lang, T[lang].saved)
-            await waitMutationSettled(page)
-            let buf = await captureStableWithBox(page, ['.op-title', '.op-path', '.op-desc'])
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-001-3-renamed.png`, buf)
-        })
-
-        it(`E2E-002 [${lang}] 新增 API 填表後儲存`, async function() {
-            await gotoApiWorkspace(page, lang)
-
-            let newName = `E2E新增API-${lang}`
-            let newUrl = 'http://localhost:11005/e2eAdd'
-            let newLevels = 'E2E分類'
-
-            //act 多步驟 + 每步紅框出圖
-            let fillRows = [
-                fieldRow(page, T[lang].lblName),
-                fieldRow(page, T[lang].lblUrl),
-                fieldRow(page, T[lang].lblLevels),
-            ]
-
-            //步驟1：點「新增API」開空白表單 → 紅框標 Name/url/Levels 三欄（填寫前空白）
-            await page.getByText(T[lang].newApi, { exact: false }).first().click({ timeout: 8000 })
-            let nameInp = fieldInput(page, T[lang].lblName)
-            await nameInp.waitFor({ state: 'visible', timeout: 8000 })
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-002-1-form-empty.png`, await captureStableWithBox(page, fillRows))
-
-            //步驟2：填入 Name/url/Levels（存檔前）→ 紅框標同三欄（顯示已填內容）
-            await typeIntoInput(page, nameInp, newName)
-            await typeIntoInput(page, fieldInput(page, T[lang].lblUrl), newUrl)
-            await typeIntoInput(page, fieldInput(page, T[lang].lblLevels), newLevels)
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-002-2-filled.png`, await captureStableWithBox(page, fillRows))
-
-            //步驟3：點儲存
-            await page.locator('button.btn-save').first().click({ timeout: 8000 })
-
-            //等 UI 反映（樹出現新節點）
-            await waitUntilExist(page, 'new api in tree', (nm) => (document.body.innerText || '').includes(nm), { timeout: 12000, arg: newName })
-
-            //assert UI
-            let txt = await page.evaluate(() => document.body.innerText || '')
-            assert.ok(txt.includes(newName), `左樹應出現新節點「${newName}」`)
-            assert.ok(txt.includes(newLevels), `左樹應出現新階層「${newLevels}」`)
-
-            //assert DB
-            let row = await findApiByName(newName)
-            assert.ok(row, 'DB 應新增該筆 API')
-            assert.strictEqual(row.url, newUrl, 'DB 新筆 url 應正確')
-            assert.strictEqual(row.method, 'get', 'DB 新筆 method 應為預設 get')
-
-            //步驟3 出圖：儲存成功 modal → 紅框標 modal（結果；新節點在樹 fold 以下，由上方語意斷言守）
-            await waitSaveModal(page, lang)
-            await waitMutationSettled(page)
-            let buf = await captureStableWithBox(page, 'div[style*="overscroll-behavior"] div[tabindex="0"] > div')
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-002-3-saved.png`, buf)
-
-            //依 spec 操作鏈收尾：點「OK／確認」關閉成功 modal（本 case 之 baseline 要的正是「含 modal」之畫面，
-            //故點擊置於截圖之後；與 E2E-001 之「先關再截」相對，兩者皆依各自 spec 之視覺步驟描述）。
-            await clickModalOk(page, lang, T[lang].saved)
-        })
-
-        it(`E2E-003 [${lang}] 刪除既有 API 含確認對話框`, async function() {
-            await gotoApiWorkspace(page, lang)
-
-            //刪除前 base 筆數（供總數減一斷言）
-            let baseCount = (await woItems.apis.select()).length
-
-            //預設選取第一筆「取得API清單」
-            //act 多步驟 + 每步紅框出圖
-            //步驟1：點「編輯」分頁 → 紅框標「刪除」鈕（從哪裡刪）
-            await page.getByText(T[lang].edit, { exact: true }).first().click({ timeout: 8000 })
-            await page.locator('button.btn-delete').waitFor({ state: 'visible', timeout: 8000 })
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-003-1-delete-btn.png`, await captureStableWithBox(page, 'button.btn-delete'))
-
-            //步驟2：點「刪除」→ 確認對話框出現 → 紅框標對話框
-            await page.locator('button.btn-delete').first().click({ timeout: 8000 })
-            await waitUntilExist(page, 'confirm dialog', (yes) => (document.body.innerText || '').includes(yes), { timeout: 8000, arg: T[lang].yes })
-            let bufDlg = await captureStableWithBox(page, 'div[style*="overscroll-behavior"] div[tabindex="0"] > div')
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-003-2-confirm.png`, bufDlg)
-
-            //步驟3：點「是」確認刪除
-            await page.getByText(T[lang].yes, { exact: true }).first().click({ timeout: 8000 })
-
-            //等 UI 反映（該節點從樹消失）
-            await waitUntilExist(page, 'api removed from tree', () => !(document.body.innerText || '').includes('取得API清單'), { timeout: 12000 })
-
-            //assert UI
-            let txt = await page.evaluate(() => document.body.innerText || '')
-            assert.ok(!txt.includes('取得API清單'), '左樹不應再有「取得API清單」')
-            assert.ok(txt.includes('取得寵物清單'), '其他 API 應仍在')
-
-            //assert DB：被刪除的「取得API清單」不應再存在，且總數減一
-            let gone = await findApiByName('取得API清單')
-            assert.ok(!gone, 'DB 不應再有「取得API清單」')
-            let all = await woItems.apis.select()
-            assert.strictEqual(all.length, baseCount - 1, `API 總數應由 ${baseCount} 減為 ${baseCount - 1}`)
-
-            //步驟3 出圖：刪除後左樹（該節點已消失）→ 紅框標左樹（結果；等「已刪除」modal 穩定顯示，與 E2E-001 一致）
-            await waitUntilExist(page, 'deleted modal', (s) => (document.body.innerText || '').includes(s), { timeout: 10000, arg: T[lang].deleted })
-            await waitMutationSettled(page)
-            let buf = await captureStableWithBox(page, 'div[style*="border-right"]')
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-003-3-deleted.png`, buf)
-        })
-
-        //E2E-004：新增表單名稱留空 → 同步檢測攔截 inline 必填紅字、不打 API、DB 不新增（錯誤處理分層之同步檢測層）
-        it(`E2E-004 [${lang}] 名稱留空儲存顯示必填錯誤、不送出`, async function() {
-            await gotoApiWorkspace(page, lang)
-
-            let baseCount = (await woItems.apis.select()).length
-
-            //act 多階段：開空白表單 → (階段1 名稱空白態) → 點儲存 → (階段2 錯誤態)
-            await page.getByText(T[lang].newApi, { exact: false }).first().click({ timeout: 8000 })
-            let nameRow = fieldRow(page, T[lang].lblName)
-            await fieldInput(page, T[lang].lblName).waitFor({ state: 'visible', timeout: 8000 })
-
-            //階段1：名稱欄空白（按儲存前、尚無紅字）→ 紅框標名稱欄
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-004-1-name-empty.png`, await captureStableWithBox(page, nameRow))
-
-            //act：點儲存（名稱空 → 同步檢測攔截）
-            await page.locator('button.btn-save').first().click({ timeout: 8000 })
-
-            //等名稱欄 inline 必填紅字出現（同步檢測攔截、未開 loading 未打 API）
-            await waitUntilExist(page, 'name required inline error', (msg) => {
-                let errs = Array.from(document.querySelectorAll('.bk-err')).map((e) => (e.innerText || '').trim())
-                return errs.includes(msg)
-            }, { timeout: 8000, arg: T[lang].valRequired })
-
-            //assert 語意：名稱欄下 inline 紅字 = 必填訊息；無成功 modal；DB 未新增
-            let errTexts = await page.evaluate(() => Array.from(document.querySelectorAll('.bk-err')).map((e) => (e.innerText || '').trim()))
-            assert.ok(errTexts.includes(T[lang].valRequired), `名稱欄應顯示必填紅字「${T[lang].valRequired}」（實得 ${JSON.stringify(errTexts)}）`)
-            let txt = await page.evaluate(() => document.body.innerText || '')
-            assert.ok(!txt.includes(T[lang].saved), '不應出現「已儲存」成功 modal（未打 API）')
-            let afterCount = (await woItems.apis.select()).length
-            assert.strictEqual(afterCount, baseCount, `DB apis 筆數應不變（${baseCount}），未新增`)
-
-            //階段2：名稱欄出現 inline 必填紅字（按儲存後）→ 紅框標名稱欄
-            let buf = await captureStableWithBox(page, nameRow)
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-004-2-name-required.png`, buf)
-        })
-
-        //E2E-005：刪除確認點「取消」→ reject 'close' 靜默忽略、不刪（DB 不變、左樹仍在）。對話框共用 E2E-003-2-confirm baseline
-        it(`E2E-005 [${lang}] 刪除確認點取消，靜默不刪`, async function() {
-            await gotoApiWorkspace(page, lang)
-
-            let baseCount = (await woItems.apis.select()).length
-
-            //act：編輯分頁 → 點刪除 → 出現確認對話框
-            await page.getByText(T[lang].edit, { exact: true }).first().click({ timeout: 8000 })
-            await page.locator('button.btn-delete').waitFor({ state: 'visible', timeout: 8000 })
-            await page.locator('button.btn-delete').first().click({ timeout: 8000 })
-            await waitUntilExist(page, 'confirm dialog', (yes) => (document.body.innerText || '').includes(yes), { timeout: 8000, arg: T[lang].yes })
-
-            //視覺：確認對話框與 E2E-003 共用同一 baseline（同一 WConfirm 面板），不另存圖
-            let bufDlg = await captureStableWithBox(page, 'div[style*="overscroll-behavior"] div[tabindex="0"] > div')
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-003-2-confirm.png`, bufDlg)
-
-            //act：點對話框的「No／取消」取消刪除。
-            //須限定在 modal 容器內：編輯表單底部本身也有「取消」鈕（btn-cancel），cht 下 no 與 cancel i18n 同為「取消」，
-            //不 scope 會撞到表單那顆（在 modal 遮罩下被攔截 click）。eng 因對話框「No」≠ 表單「Cancel」才僥倖未撞。
-            await page.locator('div[style*="overscroll-behavior"]').getByText(T[lang].no, { exact: true }).first().click({ timeout: 8000 })
-            //等對話框關閉（Yes/確定 文字消失）
-            await waitUntilExist(page, 'confirm dialog closed', (yes) => !(document.body.innerText || '').includes(yes), { timeout: 8000, arg: T[lang].yes })
-
-            //assert 語意：左樹仍有該 API；DB 未刪；無成功 modal
-            let txt = await page.evaluate(() => document.body.innerText || '')
-            assert.ok(txt.includes('取得API清單'), '取消後左樹仍應含「取得API清單」')
-            assert.ok(!txt.includes(T[lang].deleted), '不應出現「已刪除」成功 modal（已取消）')
-            let afterCount = (await woItems.apis.select()).length
-            assert.strictEqual(afterCount, baseCount, `DB apis 筆數應不變（${baseCount}），未刪除`)
-        })
-
+        for (let c of cases) {
+            it(c.title(lang), async function() {
+                await runCase(lang, c)
+            })
+        }
     }
 
 })

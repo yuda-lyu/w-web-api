@@ -505,6 +505,20 @@ let kpLang = {
         eng: 'Invalid API id',
         cht: 'API id 無效',
     },
+    //雙擊防護（後端依使用者占位，server/lockSave.mjs，ADR-034）：同一使用者之同一操作處理中再送出。
+    //key 無 err 前綴為四專案（sso／perm／api／task）共用名；saveApi 回 saveInProgress、deleteApi 回 deleteInProgress、proxyRequest 回 requestInProgress
+    saveInProgress: {
+        eng: 'The previous save is still in progress. Please do not submit again.',
+        cht: '上一次儲存仍在處理中，請勿重複送出',
+    },
+    deleteInProgress: {
+        eng: 'The previous deletion is still in progress. Please do not submit again.',
+        cht: '上一次刪除仍在處理中，請勿重複送出',
+    },
+    requestInProgress: {
+        eng: 'The previous request is still in progress. Please do not submit again.',
+        cht: '上一個請求仍在處理中，請勿重複送出',
+    },
     errUserIdMissing: {
         eng: 'Unable to get user id',
         cht: '無法取得使用者 id',

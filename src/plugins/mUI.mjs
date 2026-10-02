@@ -7,6 +7,7 @@ import isestr from 'wsemi/src/isestr.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import waitFun from 'wsemi/src/waitFun.mjs'
+import submitGuard from './submitGuard.mjs'
 
 
 let kpFallback = {
@@ -36,6 +37,10 @@ let kpFallback = {
 let vo = Vue.prototype
 
 
+//sg, 送出類操作之前端雙擊防護 (見 submitGuard.mjs, ADR-034)
+let sg = submitGuard()
+
+
 function setVo(vObj) {
     vo = vObj
 }
@@ -48,6 +53,21 @@ function updateConnState(connState) {
 
 function updateLoading(loading) {
     vo.$store.commit(vo.$store.types.UpdateLoading, loading)
+
+    //全頁 loading 關閉(請求結束)時釋放送出中按鈕之 promiseUnlock 鎖, 流程狀態仍在(流程結束前之重入仍擋);
+    //本專案送出鈕皆為原生 <button>, 無 promiseUnlock 鎖可釋放, 此呼叫目前無作用, 保留以與 sso / perm / task 之 mUI 一致 (ADR-034)
+    if (!loading) {
+        sg.releaseBtnLocks()
+    }
+
+}
+
+
+//runSubmit: 有副作用之送出流程一律經此執行, 同 key 進行中再觸發即略過(按鈕之滑鼠與鍵盤 Enter 同一狀態);
+//opt.pm 為 w-component-vue 按鈕之 promiseUnlock 鎖(msg.pm), 由本機制於請求結束時釋放, handler 不自行 resolve; opt.hold 與 fn 收到之 unlock 見 submitGuard.mjs
+//(本專案送出鈕皆為原生 <button>, 無 pm: 呼叫端不帶 opt, 先開確認框之刪除流程亦不需呼叫 unlock; ADR-034)
+function runSubmit(key, fn, opt = {}) {
+    return sg.run(key, fn, opt)
 }
 
 
@@ -251,6 +271,7 @@ let mUI = {
 
     updateConnState,
     updateLoading,
+    runSubmit,
     // updateViewState,
     updateUserToken,
     updateUserSelf,

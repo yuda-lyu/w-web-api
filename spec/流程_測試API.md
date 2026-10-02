@@ -8,13 +8,15 @@
 
 - **E2E-001**
   - title: 測試 API 送出請求顯示回應
-  - description: 使用者切「測試」分頁，建構器 URL 由所選 API（取得API清單）種子帶入、回應區為「尚無回應」空狀態；改 URL 為本機 server 根後點送出，經後端 proxy round-trip 回 200，回應面板顯示狀態碼 200。送出前的種子穩定態做 pixel baseline；送出後回應含 durationMs/date/etag 等非決定性欄位，故只做語意斷言不做 baseline。
+  - description: 使用者切「測試」分頁，建構器 URL 由所選 API（取得API清單）種子帶入、回應區為「尚無回應」空狀態；改 URL 為本機 server 根後點送出，經後端 proxy round-trip 回 200，回應面板顯示狀態碼 200。送出前的種子穩定態做 pixel baseline；送出後回應含 durationMs/date/etag 等非決定性欄位，這兩區貼參考片（2026-09-28 前為遮黑）後同樣做 baseline（狀態碼與 body 為決定性、保留比對）。
+    - 修改留痕（2026-09-28）：原載「送出後…只做語意斷言不做 baseline」與本案驗證第 2 點（及程式實際產出之 `E2E-001-3-response.png`）矛盾，依實作與驗證第 2 點更正（全域 §15.3「spec 描述錯」）。
   - flow:
     - 測試資料：所選 API「取得API清單」（其 url `http://localhost:11005/getAPIsList` 帶入建構器）；送出目標改為本機 `http://127.0.0.1:11005/`（回 200 HTML）。
     - 操作：點「測試／測試」分頁 →（讀建構器 URL 種子值與「尚無回應」空狀態）→ 於「Request URL／請求網址」輸入本機 server 根 → 點「送出請求／送出請求」。
     - 驗證：
       1. 送出前——語意：建構器 URL 由 API 種子帶入（含 `http://localhost:11005/getAPIsList`）、回應區顯示「No response yet／尚無回應」；視覺（每步整頁紅框標 address bar）：①種子帶入態 `test/pics/apitest/apitest-{eng,cht}-E2E-001-1-seeded.png`；②URL 改為本機 server 根（送出前）`...-E2E-001-2-url-changed.png`，皆以 pixelmatch 反鋸齒感知 + maxDiffPixels 容差比對（非 byte-exact）。
-      2. 送出後——語意：回應面板顯示狀態碼 200、不再顯示「尚無回應」（proxy round-trip 成功）；視覺：整頁紅框標回應卡，遮黑 durationMs 與 headers（含 date/etag）兩個非決定性區域後 `...-E2E-001-3-response.png` 以 pixelmatch 反鋸齒感知 + maxDiffPixels 容差比對（非 byte-exact；狀態碼、body 為決定性、保留比對）。
+      2. 送出後——語意：回應面板顯示狀態碼 200、不再顯示「尚無回應」（proxy round-trip 成功）；視覺：整頁紅框標回應卡，durationMs 與 headers（含 date/etag）兩個非決定性區域貼參考片（`_apiref-{lang}-E2E-001-3-response-{duration,headers}.png`，REGEN 自舉、兩端貼同一張）後 `...-E2E-001-3-response.png` 以 pixelmatch 反鋸齒感知 + maxDiffPixels 容差比對（非 byte-exact；狀態碼、body 為決定性、保留比對）。
+         - 修改留痕（2026-09-28）：原載「遮黑 durationMs 與 headers」→ 改為貼參考片。依據：技能 §8.2 手冊用圖「該讓讀者看到的畫面不填黑」（原圖回應標頭整塊黑、耗時為黑條）。E2E-009 同。
     - 雙語：eng / cht 各一輪。
     - 清理：純讀取/送請求，不持久化資料；起跑前還原 base seed。
 
@@ -111,7 +113,7 @@
     - 操作：點「測試／測試」分頁 → 於「Request URL／請求網址」改為固定陣列目標 → 點「送出請求／送出請求」。
     - 驗證：
       1. 語意：回應面板顯示狀態碼 200；回應內容以 `[` 起頭、含 `"name": "alpha"`（鍵值間有空白＝經 `JSON.stringify(,2)` 縮排）、為多行；不含 `[object Object]`。
-      2. 視覺：整頁紅框標回應卡，遮黑 durationMs（`.w-tnum` 固定寬）與 headers pre 後 `test/pics/apitest/apitest-{eng,cht}-E2E-009-array-response.png`（pixelmatch 容差比對；狀態碼與陣列 body 為決定性、保留比對）。
+      2. 視覺：整頁紅框標回應卡，durationMs（`.w-tnum` 右緣固定寬）與 headers pre 貼參考片（留痕見 E2E-001）後 `test/pics/apitest/apitest-{eng,cht}-E2E-009-array-response.png`（pixelmatch 容差比對；狀態碼與陣列 body 為決定性、保留比對）。
     - 雙語：eng / cht 各一輪。
     - 清理：純送請求、未持久化；起跑前還原 base seed；固定陣列目標與 echo 同一 server、於本檔結束後關閉。
 
@@ -192,14 +194,16 @@
 007          query ← item.defaultQueryJson 轉列（apikey 且 in='query' 時亦於此併入認證列）  [src/components/LayoutContentTest.vue:425,440-452]
 008          body ← item.defaultBodyJson 優先，否則 item.inputExample  [src/components/LayoutContentTest.vue:478-485]
 009          重置回應：res=null、errSend=''  [src/components/LayoutContentTest.vue:488-489]
-010  改 Request URL（v-model req.url）後點「送出請求」onClickSend → submitSend()  [src/components/LayoutContentTest.vue:22-30,524-527]
-011      執行非同步流程 core()  [src/components/LayoutContentTest.vue:529-612]
+010  改 Request URL（v-model req.url）後點「送出請求」onClickSend → submitSend()  [src/components/LayoutContentTest.vue:onClickSend]
+010a     $ui.runSubmit('proxyRequest', …) 包覆整段流程：同 key 進行中（自觸發至請求結束；出現例外訊息框時至其關閉）再觸發即略過——滑鼠與焦點在送出鈕時之鍵盤 Enter／空白鍵同一狀態（ADR-034）  [src/components/LayoutContentTest.vue:submitSend][src/plugins/mUI.mjs:runSubmit][src/plugins/submitGuard.mjs:run]
+011      執行非同步流程 core()  [src/components/LayoutContentTest.vue:submitSend]
 012          清空 errSend、res  [src/components/LayoutContentTest.vue:534-536]
 013          同步檢測：URL 必填  [src/components/LayoutContentTest.vue:539-542]
                  空: errSend=valRequired 並 return（短路，不打網路）  [src/components/LayoutContentTest.vue:540-542]
-014          開 loading：本地 sending=true（送出鈕禁用）+ 頁面層 updateLoading(true) 全頁 overlay（三層雙擊防護之頁面層，ADR-031）  [src/components/LayoutContentTest.vue:submitSend]
+014          開 loading：本地 sending=true（送出鈕 :disabled 與樣式，顯示用）+ 頁面層 updateLoading(true) 全頁 overlay（只擋滑鼠、不搶焦點；重入判斷以 010a 之 runSubmit 為準，ADR-031／ADR-034）  [src/components/LayoutContentTest.vue:submitSend]
 015          組合 spec：method / url / headers·query 為有序鍵值對（僅 on 且鍵非空之列；重複鍵各自保留，mShare.kvRowsToPairs）/ body（原文字串；空白不帶；GET/HEAD 不帶）/ timeout 30000  [src/components/LayoutContentTest.vue:submitSend][src/plugins/mShare.mjs:kvRowsToPairs]
 016          呼叫後端 proxyRequest(spec)，reject 時落下方 .catch  [src/components/LayoutContentTest.vue:submitSend]
+                 kpFunExt proxyRequest(userId, spec) → proxyRequestByUser：以「proxyRequest:<userId>」原子占位，同一使用者之請求處理中再送出即 reject('requestInProgress')、不送出（不排隊）；結束（含失敗）即釋放（ADR-034）  [server/WWebApi.mjs:proxyRequest][server/procProxy.mjs:proxyRequestByUser][server/lockSave.mjs:createLockSave]
                  後端校驗 url（空或非 http(s)/非法 URL: reject('errReqUrlInvalid')）  [server/procProxy.mjs:proxyRequest]
                  isAllowTarget（建構子 opt.isAllowTarget 接線）為否: reject('errReqTargetNotAllowed')  [server/procProxy.mjs:isTargetAllowed][server/WWebApi.mjs:isAllowTarget]
                  標頭（物件或鍵值對）→ Headers：剝除 host/content-length/hop-by-hop，重複鍵依 Fetch 標準合併（', '；cookie '; '）；query 逐對 append 併入 URL（重複鍵各自送達）；字串 body 轉位元組原封（不補 Content-Type）  [server/procProxy.mjs:toPairs,proxyRequest]
@@ -209,8 +213,8 @@
 017          .then: res=回應、okSend=true  [src/components/LayoutContentTest.vue:submitSend]
 018          .catch: errSend=$transErr(err)（後端 err-key 依 lang 反查在地化文字），顯示於 err-bar  [src/components/LayoutContentTest.vue:submitSend]
 019          okSend 為否則 return（短路）  [src/components/LayoutContentTest.vue:submitSend]
-020      .catch: 非預期例外 → updateLoading(false) 後 showCheckYes(anUnexpectedErrorOccurred, {type:'error'}) modal（ADR-031；不用自動消失之 $alert）  [src/components/LayoutContentTest.vue:submitSend]
-021      .finally: sending=false + updateLoading(false)（解除本地與頁面層 loading，統一一處）  [src/components/LayoutContentTest.vue:submitSend]
+020      .catch: 非預期例外 → updateLoading(false) 後 showCheckYes(anUnexpectedErrorOccurred, {type:'error'}) modal 並回傳其 Promise（流程至訊息框關閉才結束；ADR-031／ADR-034；不用自動消失之 $alert）  [src/components/LayoutContentTest.vue:submitSend]
+021      .finally: sending=false + updateLoading(false)（解除本地與頁面層 loading，統一一處）；其後 runSubmit 釋放 'proxyRequest'  [src/components/LayoutContentTest.vue:submitSend]
 022  回應面板：res=null 顯示空狀態 resEmpty；否則顯示狀態列（statusClass 依 2xx/3xx/4xx/5xx）+ 耗時 + headers + body（物件／陣列：mShare.jsonHighlight 語法高亮，與 docs 分頁共用；其餘原文只 escape 不上色）  [src/components/LayoutContentTest.vue:bodyHighlighted][src/plugins/mShare.mjs:jsonHighlight]
 ```
 
@@ -245,6 +249,7 @@
 | 回應區 | 找 `resEmpty` / `resTitle` / `resTime` / `resHeaders` / `resBody` | 回應面板 | 空狀態、各區段標題各一鍵 |
 | URL 空 | 找 `valRequired` | err-bar inline | 一鍵 |
 | 兜底錯誤 | 找 `anUnexpectedErrorOccurred` | showCheckYes modal（type:'error'，先關 loading） | 一鍵 |
+| 同一使用者之請求處理中再送出 | 找 `requestInProgress` | err-bar inline（經 `$transErr`）；UI 不可達——前端 `runSubmit('proxyRequest')` 先擋，僅 API 直打之並行會收到此 key | 一鍵（ADR-034） |
 
 ## 參數來源
 
@@ -281,6 +286,7 @@
 ## spec 規則摘要（粒度 / 邊界 / 順序 / 契約）
 
 - **驗證順序**：清空 → URL 必填檢測（在開 loading 之前）→ 開 sending + 頁面層 loading → 組 spec → proxy（catch + 旗標短路）→ res 渲染 → finally 解 sending 與 loading（對齊 §全域規範 5.1）。
+- **送出入口與連按**（ADR-034）：入口只有「送出請求」鈕（原生 `<button>`；輸入框不在 `<form>` 內，無 Enter 送出）。全頁 loading 與訊息框（WDialog）只擋滑鼠、不搶焦點，焦點留在送出鈕時之鍵盤 Enter／空白鍵仍會觸發 click；重入一律由 `runSubmit('proxyRequest')` 判斷——自觸發至請求結束（出現例外訊息框時至其關閉）期間再觸發即略過，`sending` 之 `:disabled` 僅為顯示。後端另以「proxyRequest:<userId>」占位：同一使用者並行送出之第 2 次回 `requestInProgress`、不送達目標；依序送出、不同使用者皆不受影響。
 - **粒度**：
   - 送出前種子穩定態做 baseline；送出後回應因含非決定性欄位只做語意斷言。
   - 4xx/5xx 由 validateStatus 全通過，視為「有回應」顯示狀態碼，非 proxy 失敗。
@@ -302,6 +308,7 @@
 - **已修復（附修復紀錄）**（2026-09-13，ADR-031 第 4 項）：預設標頭已明給 Content-Type 時仍依「內容類型」欄再補一列，Headers 表出現兩列 Content-Type（原 `seedFromItem`）。修復：明給者優先、不補列；案例 E2E-014。
 - **已修復（附修復紀錄）**（2026-09-13，ADR-031 第 6 項）：回應內容之語法高亮對鍵與字串值不上色（規則以 `&quot;` 比對但 escape 未換引號），且對 HTML／純文字回應亦把數字上色（原 `bodyHighlighted` 自寫規則）。修復：與 docs 分頁共用 `mShare.jsonHighlight`，非 JSON 容器只 escape；E2E-001 步驟 3 與 E2E-009 標準圖重產。
 - **已修復（附修復紀錄）**（2026-09-13，ADR-031 第 8 項）：送出期間僅送出鈕禁用、無頁面層 loading（三層雙擊防護之頁面層缺）。修復：`submitSend` 開 `updateLoading(true)`、`finally` 關；實機以延遲 1.5 秒之 echo 觀察到「Processing...／處理中請稍後...」對話框出現並於回應後消失。
+- **已修復（附修復紀錄）**（2026-09-29，ADR-034）：後端 `proxyRequest` 無任何重送防護，kpFunExt 亦未把 userId 傳入（`server/WWebApi.mjs` 之 wrapper）；同一使用者並行送出 2 次，目標收到 2 次（修改前以備份模組重現；POST 等對目標有副作用）。前端之重入僅靠 `sending` 之 `:disabled`（重繪後才生效）。修復：kpFunExt 改呼叫 `proxyRequestByUser(userId, spec)`（依使用者占位，第 2 次回 `requestInProgress`、不送出）；前端 `submitSend` 以 `runSubmit('proxyRequest')` 判斷重入。驗證：unit PROXY-024～026（修改前為紅）、`api-doubleclick`（真後端直打，echo 收到之請求數＝成功次數）、e2e-apitest 全部案例。
 - **已修復（附修復紀錄）**（2026-09-13，ADR-031 第 2 項）：proxy 以 `redirect:'follow'` 跟隨轉址，合法首跳可 302 到不允許之位址繞過 `isAllowTarget`，且建構子未接線該 hook。修復：手動逐跳檢核＋`opt.isAllowTarget` 接線；unit PROXY-012～016。
   - proxy timeout 30s。
   - **方法代號 → HTTP 動詞**：資料層 `del`／顯示層 `DEL` 於送出前一律轉為 `DELETE`（`src/plugins/mShare.mjs` 之 `methodToHttpVerb`，與 docs 分頁之 cURL 產生共用同一函式）；其餘動詞正規化為大寫、空值退回 `GET`。why：`DEL` 非 HTTP 動詞，實測目標於 HTTP 層直接回 400 且 handler 不執行（ADR-030）。資料層與顯示層之 `del`／`DEL` 本身不改。

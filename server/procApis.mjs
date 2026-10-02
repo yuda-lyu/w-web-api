@@ -6,10 +6,12 @@ import pmKeyMutex from 'wsemi/src/pmKeyMutex.mjs'
 function procApis(deps = {}) {
 
     //deps
-    let { woItems, procOrm, ds } = deps
+    //lockSave: 後端雙擊防護(依使用者占位, 見 lockSave.mjs, ADR-034), 由 WWebApi 建立並注入(與 procProxy 共用同一 cacheSt);
+    //為 saveApi / deleteApi 之必要依賴, 未注入時該二者以 TypeError reject 而不執行寫入(fail-closed)
+    let { woItems, procOrm, ds, lockSave } = deps
 
-    //kmx: 後端層雙擊 / 並發防護 (CLAUDE.md 三層防護之第 3 層): 同 key 之寫入序列化, 防 API 直打 / e2e race 繞過前端
-    //  key: 既有筆 `saveApi:<id>` / `deleteApi:<id>`; 新增筆無 id 以 `saveApi:new:<name>` 占位 (同名並發新增第 2 次仍序列化執行, 由呼叫端 / 後續唯一性檢查決定是否拒絕)
+    //kmx: 同 key 之寫入序列化(不同使用者對同一列之並發; 同一使用者之重送先由外層 lockSave 拒絕, ADR-034)
+    //  key: 既有筆 `saveApi:<id>` / `deleteApi:<id>`; 新增筆無 id 以 `saveApi:new:<name>` 占位 (不同使用者同名並發新增仍依序各插入一列: 本系統不以名稱為唯一鍵)
     let kmx = pmKeyMutex()
 
 
@@ -30,23 +32,27 @@ function procApis(deps = {}) {
         //key
         let key = isestr(row.id) ? `saveApi:${row.id}` : `saveApi:new:${String(row.name || '')}`
 
-        return kmx(key, async () => {
+        //雙擊防護(後端): 同一使用者之儲存處理中再送出即 reject 'saveInProgress', 不排隊——新增列每次 funNew 產新 id,
+        //排隊後第 2 次會再插入一列(重複列); 包在 kmx 之外層 (ADR-034)
+        return lockSave('saveApi', userId, () => {
+            return kmx(key, async () => {
 
-            //正規化：funNew 配 id/時間/預設並過濾欄位
-            let o = ds.apis.funNew(row)
+                //正規化：funNew 配 id/時間/預設並過濾欄位
+                let o = ds.apis.funNew(row)
 
-            //保留原 id 與創建時間（既有筆）
-            if (isestr(row.id)) {
-                o.id = row.id
-                if (isestr(row.timeCreate)) {
-                    o.timeCreate = row.timeCreate
+                //保留原 id 與創建時間（既有筆）
+                if (isestr(row.id)) {
+                    o.id = row.id
+                    if (isestr(row.timeCreate)) {
+                        o.timeCreate = row.timeCreate
+                    }
                 }
-            }
 
-            //save
-            let r = await procOrm(userId, 'apis', 'save', [o])
+                //save
+                let r = await procOrm(userId, 'apis', 'save', [o])
 
-            return r
+                return r
+            })
         })
     }
 
@@ -58,10 +64,13 @@ function procApis(deps = {}) {
             return Promise.reject('errApiIdInvalid')
         }
 
-        return kmx(`deleteApi:${id}`, async () => {
-            let r = await procOrm(userId, 'apis', 'del', { id })
-            return r
-        })
+        //雙擊防護(後端): 同一使用者之刪除處理中再送出即 reject 'deleteInProgress'(不排隊); 包在 kmx 之外層 (ADR-034)
+        return lockSave('deleteApi', userId, () => {
+            return kmx(`deleteApi:${id}`, async () => {
+                let r = await procOrm(userId, 'apis', 'del', { id })
+                return r
+            })
+        }, { errKey: 'deleteInProgress' })
     }
 
 

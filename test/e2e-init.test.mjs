@@ -11,6 +11,11 @@
 //與「功能流程之 ?lang= 載入」（display/edit/apitest 的 cht 案）區別：那些走 URL ?lang=（前端 getLang 最高優先）；
 //本檔走 server settings.language → 注入 index.html → window（getLang 之 window 來源），驗「server 端決定初始語系」。
 //
+//案例管線（2026-09-28）：產製端（mocha --baseline 或 env E2E_REGEN=1）與比對端呼叫同一 runBaselineCase（w-package-tools-e2e，經 ./tools/e2eLib.mjs）：
+//prepare（DB 重置）→ fresh browser（openCasePage，1440×900）→ run（原 it 流程：重啟後端換語系 → 語意斷言 → 截圖，回傳 {圖鍵: buf}）→
+//全部斷言通過後才寫檔（REGEN；createBaselineGate 之 E2E_BASELINE_OUT_DIR / --write-mode）或比對（pixelmatch 容差）→ finally 關瀏覽器。
+//例外：E2E-003 之 _staref 參考片段於 run 內自舉（REGEN 且缺檔時直接寫 test/pics/init/，不受 E2E_BASELINE_OUT_DIR 影響）。
+//
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
@@ -24,11 +29,11 @@ import {
     overlayImageAt,
     waitUntilExist,
     resetToBaseSeed,
-    assertOrRegenBaseline,
     baseUrl,
     launchBrowser,
     REGEN,
 } from './tools/e2e-setup.mjs'
+import { runBaselineCase, createBaselineGate, openCasePage, composeBox, itemsUnionBox } from './tools/e2eLib.mjs'
 
 
 let FLOW = 'init'
@@ -85,11 +90,14 @@ function ensureIndexTmpl() {
 }
 
 
-//E2E-003 全頁截圖之「圖表區/統計表區」貼圖覆蓋（同 e2e-stainfor 機制、無紅框版）：
+//E2E-003 全頁截圖之「圖表區/統計表區」貼圖覆蓋（同 e2e-stainfor 機制）＋最後合成紅框：
 //進站預設頁為統計頁後，主畫面含 live 圖表（x 軸日期相對今日漂移、canvas GPU 非決定性）與
 //統計表計數（隨後端執行期 log 累積漂移），不凍結則 compare 必炸；語系斷言仍讀 live DOM。
+//紅框（2026-09-28，spec 初:46 修改留痕；原「全頁乾淨截圖、不畫紅框」違技能 §7.1「每張皆須有框」）：框住統計頁內容區 .stats-panel
+//（含該語系標題、控制列、圖表與統計表＝進站後露出之內容區，技能 §7.2）。順序必須是「截圖 → 貼 _staref → 最後 composeBox」，
+//框在貼圖之後合成才永遠可見；_staref 為無框之內容裁片，框改在最後畫故既有 _staref 仍有效、不需重建。
 async function captureInitMainShot(page, lang, caseName) {
-    let buf = await captureStable(page) //全頁乾淨截圖、不畫紅框（spec：整體主畫面基準）
+    let buf = await captureStable(page) //先截無框全頁（貼圖覆蓋之底圖）
     let regions = [
         { key: 'chart', sel: '.stats-chart-area' },
         { key: 'table', sel: '.stats-table-area' },
@@ -120,6 +128,17 @@ async function captureInitMainShot(page, lang, caseName) {
         let refBuf = fs.readFileSync(refPath)
         buf = await overlayImageAt(buf, refBuf, Math.max(0, rect.x), Math.max(0, rect.y))
     }
+    //最後合成紅框：統計頁內容區（buffer 座標＝視窗座標加捲動量）
+    let panel = await page.evaluate(() => {
+        let el = document.querySelector('.stats-panel')
+        if (!el) {
+            return null
+        }
+        let r = el.getBoundingClientRect()
+        return { left: r.left + window.scrollX, top: r.top + window.scrollY, right: r.right + window.scrollX, bottom: r.bottom + window.scrollY }
+    })
+    assert.ok(panel && panel.right - panel.left > 0 && panel.bottom - panel.top > 0, '統計頁內容區 .stats-panel 應存在且有尺寸（紅框目標）')
+    buf = await composeBox(buf, panel, { guardSmall: false })
     return buf
 }
 
@@ -134,12 +153,227 @@ async function gotoReadyNoLang(page, lang) {
 }
 
 
+//截「連線狀態覆蓋層」之某一狀態：框住狀態指示整顆（狀態圖示與狀態文字之聯集，技能 §7.3-3）。
+//圖示若為含 SVG <animate> 之轉圈，w-package-tools-e2e captureStable 於截圖後貼「去掉動畫元素之靜態影格」（決定性，手冊可見圖示）。
+//2026-09-28 改：原只框文字、並以 mask 把轉圈塗成黑方塊（技能 §8.2 手冊用圖不填黑）
+async function captureStateScreen(page, stateText) {
+    //LayoutState.vue 結構：容器 > [img(狀態圖示), div(margin-left:10px) > div(狀態文字)]；圖示取文字所在 div 之前一個 img 兄弟
+    //（不用全頁第一個 data URL 圖，以免命中他處圖片）
+    //狀態文字元素緊貼文字寬，直接框元素時紅框內緣距文字末端僅約 1px（紅框壓字）→ 經 w-package-tools-e2e itemsUnionBox fit 量墨跡並外擴 inkPad（2026-09-28）
+    let txt = page.getByText(stateText).first()
+    let icon = txt.locator('xpath=../preceding-sibling::img[1]')
+    return await captureStableWithBox(page, [icon, itemsUnionBox(txt, { fit: true })])
+}
+
+
+//案例流程（產製端與比對端共用）：原 it 內流程逐字保留（語意斷言在截圖前、狀態仍在畫面上），
+//截圖改為回傳 {圖鍵: buf}，由 runBaselineCase 於全部斷言通過後才寫檔 / 比對（原為 it 內 assertOrRegenBaseline 當場寫檔 / 比對）。
+
+
+//E2E-001 連線中(csIng)：hang /api/getUserByToken → login 不完成、停連線中（進站第一眼）。
+//此時後端 kpLang 未載入，連線中文字由 mUI kpFallback 依「注入語系」顯示，正是 server 注入初始語系最關鍵的觀察點。
+async function runConnecting(page, lang) {
+
+    await restartBackend(genTempSettings({ language: lang }))
+
+    //hang login 檢查（getUserByToken）→ loginSuccess 不觸發 → 停 csIng；併 hang 連線通道確保不前進
+    await page.route('**/api/getUserByToken**', () => {})
+    await page.route('**/api/main', () => {})
+    await page.route('**/api/ulctr', () => {})
+    await page.route('**/api/slc', () => {})
+
+    await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    await waitUntilExist(page, `connecting (${T[lang].connecting})`, (t) => (document.body.innerText || '').includes(t), { timeout: 15000, arg: T[lang].connecting })
+
+    let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
+    let other = T[lang === 'eng' ? 'cht' : 'eng']
+    assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
+    assert.ok(info.body.includes(T[lang].connecting), `連線中畫面應含該語系「${T[lang].connecting}」（實際: ${info.body.slice(0, 120)}）`)
+    assert.ok(!info.body.includes(other.connecting), `連線中畫面不應含另一語系「${other.connecting}」`)
+    assert.ok(!info.body.includes(T[lang].loggedIn), `應仍停連線中、尚未進已登入「${T[lang].loggedIn}」`)
+    assert.ok(!info.body.includes(T[lang].staTitle), `應仍停連線中、尚未顯示主畫面「${T[lang].staTitle}」`)
+
+    let buf = await captureStateScreen(page, T[lang].connecting)
+    return { 'E2E-001-connecting': buf }
+
+}
+
+//E2E-002 已登入(csLogin)：hang /api/main → getUserByToken 成功進 csLogin，但 webInfor 永不載入 → 停已登入。
+//已登入文字同樣由 mUI kpFallback 依注入語系顯示（後端 kpLang 仍未載入）。
+async function runLoggedIn(page, lang) {
+
+    await restartBackend(genTempSettings({ language: lang }))
+
+    //只 hang 連線通道（不 hang getUserByToken）→ 進 csLogin、停在已登入（webInfor 未到不進主畫面）
+    await page.route('**/api/main', () => {})
+    await page.route('**/api/ulctr', () => {})
+    await page.route('**/api/slc', () => {})
+
+    await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    await waitUntilExist(page, `logged-in (${T[lang].loggedIn})`, (t) => (document.body.innerText || '').includes(t), { timeout: 15000, arg: T[lang].loggedIn })
+
+    let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
+    let other = T[lang === 'eng' ? 'cht' : 'eng']
+    assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
+    assert.ok(info.body.includes(T[lang].loggedIn), `已登入畫面應含該語系「${T[lang].loggedIn}」（實際: ${info.body.slice(0, 120)}）`)
+    assert.ok(!info.body.includes(other.loggedIn), `已登入畫面不應含另一語系「${other.loggedIn}」`)
+    assert.ok(!info.body.includes(T[lang].staTitle), `應仍停已登入、尚未顯示主畫面「${T[lang].staTitle}」`)
+
+    let buf = await captureStateScreen(page, T[lang].loggedIn)
+    return { 'E2E-002-logged-in': buf }
+
+}
+
+//E2E-003 連線建立後主畫面：正常載入 → 進站預設頁即統計資訊頁 → 驗 window 注入語系 + 統計頁該語系文字。
+async function runPageLoaded(page, lang) {
+
+    await restartBackend(genTempSettings({ language: lang }))
+    await gotoReadyNoLang(page, lang)
+
+    let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
+    let other = T[lang === 'eng' ? 'cht' : 'eng']
+    assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
+    assert.ok(info.body.includes(T[lang].staTitle), `主畫面（統計資訊頁）應顯示該語系標題「${T[lang].staTitle}」`)
+    assert.ok(info.body.includes(T[lang].timeRange), `統計頁控制列應顯示該語系「${T[lang].timeRange}」`)
+    assert.ok(!info.body.includes(other.staTitle) || T[lang].staTitle.includes(other.staTitle), `不應含另一語系標題「${other.staTitle}」`)
+
+    let buf = await captureInitMainShot(page, lang, 'E2E-003-page-loaded')
+    return { 'E2E-003-page-loaded': buf }
+
+}
+
+//E2E-004 連線錯誤(csErrConn)：hang getUserByToken + 連線通道 → 停連線中，再以前端狀態 API 強制切 csErrConn。
+//連線錯誤文字由 mUI kpFallback 依「注入語系」顯示（後端 kpLang 未載入）。狀態圖示為靜態 PNG，無旋轉動畫、無需遮蔽。
+async function runErrConn(page, lang) {
+
+    await restartBackend(genTempSettings({ language: lang }))
+
+    //hang login 檢查與連線通道 → login 不完成、停連線中（避免 login 流程覆蓋稍後強制之 connState）
+    await page.route('**/api/getUserByToken**', () => {})
+    await page.route('**/api/main', () => {})
+    await page.route('**/api/ulctr', () => {})
+    await page.route('**/api/slc', () => {})
+
+    await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    //先等畫面停在連線中（app 已掛載、store 就緒）再強制切 connState
+    await waitUntilExist(page, `connecting (${T[lang].connecting})`, (t) => (document.body.innerText || '').includes(t), { timeout: 15000, arg: T[lang].connecting })
+
+    //以前端連線狀態 API 強制切至連線錯誤（授權之測試機構）
+    await forceConnState(page, 'csErrConn')
+    await waitUntilExist(page, `err-conn (${T[lang].errConn})`, (t) => (document.body.innerText || '').includes(t), { timeout: 8000, arg: T[lang].errConn })
+
+    let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
+    let other = T[lang === 'eng' ? 'cht' : 'eng']
+    assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
+    assert.ok(info.body.includes(T[lang].errConn), `連線錯誤畫面應含該語系「${T[lang].errConn}」（實際: ${info.body.slice(0, 120)}）`)
+    assert.ok(!info.body.includes(other.errConn), `連線錯誤畫面不應含另一語系「${other.errConn}」`)
+    assert.ok(!info.body.includes(T[lang].staTitle), `應仍停狀態畫面、尚未顯示主畫面「${T[lang].staTitle}」`)
+
+    let buf = await captureStateScreen(page, T[lang].errConn)
+    return { 'E2E-004-err-conn': buf }
+
+}
+
+//E2E-005 已登出(csLogout)：同 E2E-004 hang 使停連線中，再以前端狀態 API 強制切 csLogout。
+//已登出文字由 mUI kpFallback 依注入語系顯示。狀態圖示為靜態 PNG，無需遮蔽。
+async function runLoggedOut(page, lang) {
+
+    await restartBackend(genTempSettings({ language: lang }))
+
+    await page.route('**/api/getUserByToken**', () => {})
+    await page.route('**/api/main', () => {})
+    await page.route('**/api/ulctr', () => {})
+    await page.route('**/api/slc', () => {})
+
+    await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    await waitUntilExist(page, `connecting (${T[lang].connecting})`, (t) => (document.body.innerText || '').includes(t), { timeout: 15000, arg: T[lang].connecting })
+
+    await forceConnState(page, 'csLogout')
+    await waitUntilExist(page, `logged-out (${T[lang].loggedOut})`, (t) => (document.body.innerText || '').includes(t), { timeout: 8000, arg: T[lang].loggedOut })
+
+    let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
+    let other = T[lang === 'eng' ? 'cht' : 'eng']
+    assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
+    assert.ok(info.body.includes(T[lang].loggedOut), `已登出畫面應含該語系「${T[lang].loggedOut}」（實際: ${info.body.slice(0, 120)}）`)
+    assert.ok(!info.body.includes(other.loggedOut), `已登出畫面不應含另一語系「${other.loggedOut}」`)
+    assert.ok(!info.body.includes(T[lang].staTitle), `應仍停狀態畫面、尚未顯示主畫面「${T[lang].staTitle}」`)
+
+    let buf = await captureStateScreen(page, T[lang].loggedOut)
+    return { 'E2E-005-logged-out': buf }
+
+}
+
+
+//案例宣告：順序＝原 it 順序；title＝原 it 標題逐字（含語系）；stages＝該案產出之圖鍵（標準圖 init-<lang>-<圖鍵>.png）
+let cases = [
+    {
+        name: 'E2E-001-connecting',
+        title: (lang) => `E2E-001 [${lang}] 連線中畫面呈現該語系文字（server 注入、不帶 ?lang=）`,
+        run: runConnecting,
+        stages: ['E2E-001-connecting'],
+    },
+    {
+        name: 'E2E-002-logged-in',
+        title: (lang) => `E2E-002 [${lang}] 已登入畫面呈現該語系文字（server 注入、不帶 ?lang=）`,
+        run: runLoggedIn,
+        stages: ['E2E-002-logged-in'],
+    },
+    {
+        name: 'E2E-003-page-loaded',
+        title: (lang) => `E2E-003 [${lang}] 連線後主畫面語系（server settings.language 注入、不帶 ?lang=）`,
+        run: runPageLoaded,
+        stages: ['E2E-003-page-loaded'],
+    },
+    {
+        name: 'E2E-004-err-conn',
+        title: (lang) => `E2E-004 [${lang}] 連線錯誤畫面呈現該語系文字（server 注入、不帶 ?lang=）`,
+        run: runErrConn,
+        stages: ['E2E-004-err-conn'],
+    },
+    {
+        name: 'E2E-005-logged-out',
+        title: (lang) => `E2E-005 [${lang}] 已登出畫面呈現該語系文字（server 注入、不帶 ?lang=）`,
+        run: runLoggedOut,
+        stages: ['E2E-005-logged-out'],
+    },
+]
+
+//標準圖路徑：test/pics/init/init-<lang>-<圖鍵>.png（與原 assertOrRegenBaseline 之 baselinePath 相同）
+let pathOf = (lang, key) => path.resolve('test', 'pics', FLOW, `${FLOW}-${lang}-${key}.png`)
+
+//REGEN 時建篩選器：E2E_BASELINE_OUT_DIR（寫到暫存目錄做等價驗證）、--write-mode（all / missing / changed）；mocha 以 --grep 選案
+let gate = REGEN ? createBaselineGate({ langs: LANGS, cases }) : null
+//REGEN 結束時驗證 --names 之每一項皆有產出(例如被 --grep 排除之案例)，不靜默略過
+if (gate) {
+    after(function() {
+        gate.finalize()
+    })
+}
+
+//單一案例管線：prepare（原 beforeEach 之 DB 重置）→ fresh browser（原 beforeEach 之 launch + newContext 1440×900 + newPage）→
+//run（原 it 流程）→ 全部斷言通過後寫檔（REGEN）或比對 → finally 關瀏覽器（原 afterEach）
+async function runCase(lang, c) {
+    return await runBaselineCase({
+        mode: REGEN ? 'regen' : 'compare',
+        lang,
+        name: c.name,
+        run: c.run,
+        stages: c.stages,
+        compareOnly: !!c.compareOnly,
+        launch: launchBrowser,
+        openPage: (browser) => openCasePage(browser, { contextOptions: { viewport: { width: 1440, height: 900 } } }),
+        prepare: async () => {
+            await resetToBaseSeed() //原 beforeEach 之 DB 重置
+        },
+        pathOf,
+        labelOf: (lg, key) => `${FLOW}-${lg}-${key}`,
+        gate,
+    })
+}
+
+
 describe('e2e-init (初始畫面語系 / server 注入)', function() {
     this.timeout(240000)
-
-    let browser = null
-    let ctx = null
-    let page = null
 
     before(async function() {
         this.timeout(180000)
@@ -153,161 +387,13 @@ describe('e2e-init (初始畫面語系 / server 注入)', function() {
         await resetToBaseSeed()
     })
 
-    beforeEach(async function() {
-        this.timeout(180000)
-        await resetToBaseSeed()
-        browser = await launchBrowser()
-        ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
-        page = await ctx.newPage()
-    })
-
-    afterEach(async function() {
-        if (browser) {
-            await browser.close()
-            browser = null
-        }
-    })
-
-    //截「連線狀態覆蓋層」之某一狀態：框住狀態文字、遮罩旋轉 spinner（SVG <animate> 非決定性）。
-    async function captureStateScreen(page, stateText) {
-        return await captureStableWithBox(page, page.getByText(stateText).first(), { mask: ['img[src^="data:image/svg"]'] })
-    }
-
+    //每案 DB 重置 + fresh browser（原 beforeEach / afterEach）改由 runCase 負責，--grep 單跑亦完整
     for (let lang of LANGS) {
-
-        //E2E-001 連線中(csIng)：hang /api/getUserByToken → login 不完成、停連線中（進站第一眼）。
-        //此時後端 kpLang 未載入，連線中文字由 mUI kpFallback 依「注入語系」顯示，正是 server 注入初始語系最關鍵的觀察點。
-        it(`E2E-001 [${lang}] 連線中畫面呈現該語系文字（server 注入、不帶 ?lang=）`, async function() {
-
-            await restartBackend(genTempSettings({ language: lang }))
-
-            //hang login 檢查（getUserByToken）→ loginSuccess 不觸發 → 停 csIng；併 hang 連線通道確保不前進
-            await page.route('**/api/getUserByToken**', () => {})
-            await page.route('**/api/main', () => {})
-            await page.route('**/api/ulctr', () => {})
-            await page.route('**/api/slc', () => {})
-
-            await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-            await waitUntilExist(page, `connecting (${T[lang].connecting})`, (t) => (document.body.innerText || '').includes(t), { timeout: 15000, arg: T[lang].connecting })
-
-            let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
-            let other = T[lang === 'eng' ? 'cht' : 'eng']
-            assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
-            assert.ok(info.body.includes(T[lang].connecting), `連線中畫面應含該語系「${T[lang].connecting}」（實際: ${info.body.slice(0, 120)}）`)
-            assert.ok(!info.body.includes(other.connecting), `連線中畫面不應含另一語系「${other.connecting}」`)
-            assert.ok(!info.body.includes(T[lang].loggedIn), `應仍停連線中、尚未進已登入「${T[lang].loggedIn}」`)
-            assert.ok(!info.body.includes(T[lang].staTitle), `應仍停連線中、尚未顯示主畫面「${T[lang].staTitle}」`)
-
-            let buf = await captureStateScreen(page, T[lang].connecting)
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-001-connecting.png`, buf)
-
-        })
-
-        //E2E-002 已登入(csLogin)：hang /api/main → getUserByToken 成功進 csLogin，但 webInfor 永不載入 → 停已登入。
-        //已登入文字同樣由 mUI kpFallback 依注入語系顯示（後端 kpLang 仍未載入）。
-        it(`E2E-002 [${lang}] 已登入畫面呈現該語系文字（server 注入、不帶 ?lang=）`, async function() {
-
-            await restartBackend(genTempSettings({ language: lang }))
-
-            //只 hang 連線通道（不 hang getUserByToken）→ 進 csLogin、停在已登入（webInfor 未到不進主畫面）
-            await page.route('**/api/main', () => {})
-            await page.route('**/api/ulctr', () => {})
-            await page.route('**/api/slc', () => {})
-
-            await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-            await waitUntilExist(page, `logged-in (${T[lang].loggedIn})`, (t) => (document.body.innerText || '').includes(t), { timeout: 15000, arg: T[lang].loggedIn })
-
-            let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
-            let other = T[lang === 'eng' ? 'cht' : 'eng']
-            assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
-            assert.ok(info.body.includes(T[lang].loggedIn), `已登入畫面應含該語系「${T[lang].loggedIn}」（實際: ${info.body.slice(0, 120)}）`)
-            assert.ok(!info.body.includes(other.loggedIn), `已登入畫面不應含另一語系「${other.loggedIn}」`)
-            assert.ok(!info.body.includes(T[lang].staTitle), `應仍停已登入、尚未顯示主畫面「${T[lang].staTitle}」`)
-
-            let buf = await captureStateScreen(page, T[lang].loggedIn)
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-002-logged-in.png`, buf)
-
-        })
-
-        //E2E-003 連線建立後主畫面：正常載入 → 進站預設頁即統計資訊頁 → 驗 window 注入語系 + 統計頁該語系文字。
-        it(`E2E-003 [${lang}] 連線後主畫面語系（server settings.language 注入、不帶 ?lang=）`, async function() {
-
-            await restartBackend(genTempSettings({ language: lang }))
-            await gotoReadyNoLang(page, lang)
-
-            let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
-            let other = T[lang === 'eng' ? 'cht' : 'eng']
-            assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
-            assert.ok(info.body.includes(T[lang].staTitle), `主畫面（統計資訊頁）應顯示該語系標題「${T[lang].staTitle}」`)
-            assert.ok(info.body.includes(T[lang].timeRange), `統計頁控制列應顯示該語系「${T[lang].timeRange}」`)
-            assert.ok(!info.body.includes(other.staTitle) || T[lang].staTitle.includes(other.staTitle), `不應含另一語系標題「${other.staTitle}」`)
-
-            let buf = await captureInitMainShot(page, lang, 'E2E-003-page-loaded')
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-003-page-loaded.png`, buf)
-
-        })
-
-        //E2E-004 連線錯誤(csErrConn)：hang getUserByToken + 連線通道 → 停連線中，再以前端狀態 API 強制切 csErrConn。
-        //連線錯誤文字由 mUI kpFallback 依「注入語系」顯示（後端 kpLang 未載入）。狀態圖示為靜態 PNG，無旋轉動畫、無需遮蔽。
-        it(`E2E-004 [${lang}] 連線錯誤畫面呈現該語系文字（server 注入、不帶 ?lang=）`, async function() {
-
-            await restartBackend(genTempSettings({ language: lang }))
-
-            //hang login 檢查與連線通道 → login 不完成、停連線中（避免 login 流程覆蓋稍後強制之 connState）
-            await page.route('**/api/getUserByToken**', () => {})
-            await page.route('**/api/main', () => {})
-            await page.route('**/api/ulctr', () => {})
-            await page.route('**/api/slc', () => {})
-
-            await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-            //先等畫面停在連線中（app 已掛載、store 就緒）再強制切 connState
-            await waitUntilExist(page, `connecting (${T[lang].connecting})`, (t) => (document.body.innerText || '').includes(t), { timeout: 15000, arg: T[lang].connecting })
-
-            //以前端連線狀態 API 強制切至連線錯誤（授權之測試機構）
-            await forceConnState(page, 'csErrConn')
-            await waitUntilExist(page, `err-conn (${T[lang].errConn})`, (t) => (document.body.innerText || '').includes(t), { timeout: 8000, arg: T[lang].errConn })
-
-            let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
-            let other = T[lang === 'eng' ? 'cht' : 'eng']
-            assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
-            assert.ok(info.body.includes(T[lang].errConn), `連線錯誤畫面應含該語系「${T[lang].errConn}」（實際: ${info.body.slice(0, 120)}）`)
-            assert.ok(!info.body.includes(other.errConn), `連線錯誤畫面不應含另一語系「${other.errConn}」`)
-            assert.ok(!info.body.includes(T[lang].staTitle), `應仍停狀態畫面、尚未顯示主畫面「${T[lang].staTitle}」`)
-
-            let buf = await captureStateScreen(page, T[lang].errConn)
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-004-err-conn.png`, buf)
-
-        })
-
-        //E2E-005 已登出(csLogout)：同 E2E-004 hang 使停連線中，再以前端狀態 API 強制切 csLogout。
-        //已登出文字由 mUI kpFallback 依注入語系顯示。狀態圖示為靜態 PNG，無需遮蔽。
-        it(`E2E-005 [${lang}] 已登出畫面呈現該語系文字（server 注入、不帶 ?lang=）`, async function() {
-
-            await restartBackend(genTempSettings({ language: lang }))
-
-            await page.route('**/api/getUserByToken**', () => {})
-            await page.route('**/api/main', () => {})
-            await page.route('**/api/ulctr', () => {})
-            await page.route('**/api/slc', () => {})
-
-            await page.goto(`${baseUrl}/?token=sys`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-            await waitUntilExist(page, `connecting (${T[lang].connecting})`, (t) => (document.body.innerText || '').includes(t), { timeout: 15000, arg: T[lang].connecting })
-
-            await forceConnState(page, 'csLogout')
-            await waitUntilExist(page, `logged-out (${T[lang].loggedOut})`, (t) => (document.body.innerText || '').includes(t), { timeout: 8000, arg: T[lang].loggedOut })
-
-            let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, body: document.body.innerText || '' }))
-            let other = T[lang === 'eng' ? 'cht' : 'eng']
-            assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
-            assert.ok(info.body.includes(T[lang].loggedOut), `已登出畫面應含該語系「${T[lang].loggedOut}」（實際: ${info.body.slice(0, 120)}）`)
-            assert.ok(!info.body.includes(other.loggedOut), `已登出畫面不應含另一語系「${other.loggedOut}」`)
-            assert.ok(!info.body.includes(T[lang].staTitle), `應仍停狀態畫面、尚未顯示主畫面「${T[lang].staTitle}」`)
-
-            let buf = await captureStateScreen(page, T[lang].loggedOut)
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-005-logged-out.png`, buf)
-
-        })
-
+        for (let c of cases) {
+            it(c.title(lang), async function() {
+                await runCase(lang, c)
+            })
+        }
     }
 
 })

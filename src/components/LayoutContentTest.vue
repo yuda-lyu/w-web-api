@@ -1,5 +1,6 @@
 <template>
-    <div :style="`height:${height}px; overflow-y:auto; padding:16px;`">
+    <!-- box-sizing:border-box: height 為父層給之可用高, 須含 padding, 否則實高多 32px 而底部被裁(同兄弟 LayoutContentEdit / LayoutContentStats) -->
+    <div :style="`height:${height}px; box-sizing:border-box; overflow-y:auto; padding:16px;`">
 
         <!-- 頂部：method + url + 送出（address bar 群組） -->
         <div class="addr-bar" style="margin-bottom:12px;">
@@ -485,7 +486,7 @@ export default {
 
         onClickSend: function() {
             let vo = this
-            vo.submitSend()
+            return vo.submitSend()
         },
 
         submitSend: function() {
@@ -503,8 +504,8 @@ export default {
                     return
                 }
 
-                // 3) 開 loading：本地 sending（送出鈕禁用）+ 頁面層全頁 overlay（CLAUDE.md 三層雙擊防護之頁面層；
-                //    送出對目標可能有副作用（POST/PUT/DELETE），與編輯分頁之存／刪同級；改造前只有本地 sending）
+                // 3) 開 loading：本地 sending（送出鈕 :disabled 與樣式）+ 頁面層全頁 overlay（只擋滑鼠）；
+                //    重入之判斷以外層 runSubmit('proxyRequest') 為準，後端另依使用者占位（ADR-034；送出對目標可能有副作用，與編輯分頁之存／刪同級）
                 vo.sending = true
                 vo.$ui.updateLoading(true)
 
@@ -552,18 +553,23 @@ export default {
 
             }
 
-            core()
-                .catch(function(err) {
-                    //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md：失敗通知走 showCheckYes、之前先 updateLoading(false)；
-                    //非 success 之 type 顯示警示圖標）；不用會自動消失之 $alert toast（ADR-005 modal 政策）
-                    console.log('catch', err)
-                    vo.$ui.updateLoading(false)
-                    vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
-                })
-                .finally(function() {
-                    vo.sending = false
-                    vo.$ui.updateLoading(false)
-                })
+            //runSubmit: 送出流程(自觸發起至請求結束; 出現例外訊息框時至其關閉)進行中再觸發即略過 (ADR-034)；送出鈕為原生 <button>(無 promiseUnlock)，
+            //:disabled="sending" 為顯示與輔助(重繪後才生效、且只管此鈕)，重入一律由 runSubmit 之 key 判斷
+            return vo.$ui.runSubmit('proxyRequest', function() {
+                return core()
+                    .catch(function(err) {
+                        //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md：失敗通知走 showCheckYes、之前先 updateLoading(false)；
+                        //非 success 之 type 顯示警示圖標）；不用會自動消失之 $alert toast（ADR-005 modal 政策）；
+                        //回傳訊息框之 Promise, 流程至其關閉才結束（同編輯分頁之存／刪，ADR-034）
+                        console.log('catch', err)
+                        vo.$ui.updateLoading(false)
+                        return vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
+                    })
+                    .finally(function() {
+                        vo.sending = false
+                        vo.$ui.updateLoading(false)
+                    })
+            })
 
         },
 

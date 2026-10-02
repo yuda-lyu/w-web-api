@@ -287,10 +287,6 @@ export default {
             errJsonField: '',
             errSave: '',
 
-            //submitting: 元件層雙擊 / 重入防護 (CLAUDE.md 三層防護之第 1 層)。本頁按鈕為原生 <button>（保留既有 UI 與 baseline，不換 WButtonCircle），
-            //故以旗標取代 promiseUnlock：同步第 2 次點擊直接 return；非同步期間另有頁面層 updateLoading overlay，後端層有 pmKeyMutex
-            submitting: false,
-
             methodItems: this.$s.METHODS, //單一來源 mShare.METHODS（與測試分頁共用）
             authTypeItems: ['none', 'bearer', 'apikey', 'basic'],
 
@@ -346,18 +342,21 @@ export default {
 
         onClickSave: function() {
             let vo = this
-            if (vo.submitting) {
-                return //元件層: 同步雙擊第 2 次直接擋掉
-            }
-            vo.submitting = true
-            vo.submitSave()
-                .catch(function(err) {
-                    //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md 失敗通知政策；不用自動消失之 $alert toast，ADR-005）
-                    console.log('catch', err); vo.$ui.updateLoading(false); vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
-                })
-                .finally(function() {
-                    vo.submitting = false; vo.$ui.updateLoading(false)
-                })
+
+            //runSubmit: 儲存流程(自觸發起至結果訊息框關閉)進行中再觸發即略過 (ADR-034)。儲存鈕為原生 <button>(保留既有 UI 與 baseline, 無 promiseUnlock),
+            //全頁 loading 與訊息框(WDialog)只擋滑鼠、不搶焦點, 焦點留在儲存鈕時鍵盤 Enter / 空白鍵仍觸發 click; 重入一律由 runSubmit 之 key 判斷
+            //(原本元件 submitting 旗標已移除), 後端另依使用者占位(同一使用者處理中再送出回 saveInProgress)
+            return vo.$ui.runSubmit('saveApi', function() {
+                return vo.submitSave()
+                    .catch(function(err) {
+                        //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md 失敗通知政策；不用自動消失之 $alert toast，ADR-005）；
+                        //回傳訊息框之 Promise, 流程至其關閉才結束 (ADR-034)
+                        console.log('catch', err); vo.$ui.updateLoading(false); return vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
+                    })
+                    .finally(function() {
+                        vo.$ui.updateLoading(false)
+                    })
+            })
         },
 
         submitSave: function() {
@@ -419,7 +418,10 @@ export default {
                 //成功訊息改用 confirm modal（$dg.showCheckYes）而非 toast：toast 是插入後又移除的暫時 DOM，
                 //新版 chromium 在 insert/remove 後會把整頁 render 原點偏移 1px（headless 偶發、實測 toast 關掉即穩），
                 //modal 是「顯示著被截」不會有移除殘留，且對齊 w-web-sso 之成功 modal。
-                vo.$dg.showCheckYes(vo.$t('saveSuccess'), { type: 'success' })
+                //先關 loading 再開訊息框（CLAUDE.md：showCheckYes 之前先 updateLoading(false)）；await 至訊息框關閉，
+                //使 onClickSave 之 runSubmit 流程涵蓋訊息框開啟期間（期間再觸發即略過，同 w-web-sso；ADR-034 修正 ADR-020）
+                vo.$ui.updateLoading(false)
+                await vo.$dg.showCheckYes(vo.$t('saveSuccess'), { type: 'success' })
                 return 'ok'
 
             }
@@ -428,21 +430,23 @@ export default {
 
         onClickDelete: function() {
             let vo = this
-            vo.$dg.showCheckYesNo(vo.$t('confirmDeleteApi'))
-                .then(function() {
-                    vo.doDelete()
-                })
-                .catch(function(err) {
-                    if (err === 'close') return; console.log('showCheckYesNo', err)
-                })
+
+            //runSubmit: 刪除流程(自開確認框起, 經確認、請求至結果訊息框關閉)整段進行中再觸發即略過 (ADR-034)。確認框(WDialog)不搶焦點,
+            //開啟期間焦點仍在原生刪除鈕上, 鍵盤 Enter 可再觸發本 handler; 原本重入判斷在確認後之 doDelete 第一行, 確認框階段未涵蓋,
+            //第 2 次觸發會再開一次確認框(CheckYesNo 為單例, 見其 show); 後端另依使用者占位(同一使用者處理中再送出回 deleteInProgress)
+            return vo.$ui.runSubmit('deleteApi', function() {
+                return vo.$dg.showCheckYesNo(vo.$t('confirmDeleteApi'))
+                    .then(function() {
+                        return vo.doDelete() //回傳刪除流程之 Promise, 占位持續至結果訊息框關閉
+                    })
+                    .catch(function(err) {
+                        if (err === 'close') return; console.log('showCheckYesNo', err)
+                    })
+            })
         },
 
         doDelete: function() {
             let vo = this
-            if (vo.submitting) {
-                return //元件層: 重入防護 (confirm modal 關閉後之連點)
-            }
-            vo.submitting = true
             let core = async function() {
 
                 // 1) 清空錯誤
@@ -466,17 +470,21 @@ export default {
 
                 // 5) 全成功
                 vo.$emit('deleted')
-                vo.$dg.showCheckYes(vo.$t('deleteSuccess'), { type: 'success' }) //同 saveSuccess：toast → confirm modal（避免移除殘留位移、對齊 SSO）；type:success 顯綠勾
+                //同 saveSuccess：toast → confirm modal（避免移除殘留位移、對齊 SSO）；type:success 顯綠勾。
+                //先關 loading 再開訊息框、await 至其關閉，使刪除流程涵蓋訊息框開啟期間（同 submitSave，ADR-034）
+                vo.$ui.updateLoading(false)
+                await vo.$dg.showCheckYes(vo.$t('deleteSuccess'), { type: 'success' })
                 return 'ok'
 
             }
-            core()
+            return core()
                 .catch(function(err) {
-                    //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md 失敗通知政策；不用自動消失之 $alert toast，ADR-005）
-                    console.log('catch', err); vo.$ui.updateLoading(false); vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
+                    //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md 失敗通知政策；不用自動消失之 $alert toast，ADR-005）；
+                    //回傳訊息框之 Promise, 流程至其關閉才結束 (ADR-034)
+                    console.log('catch', err); vo.$ui.updateLoading(false); return vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
                 })
                 .finally(function() {
-                    vo.submitting = false; vo.$ui.updateLoading(false)
+                    vo.$ui.updateLoading(false)
                 })
         },
 

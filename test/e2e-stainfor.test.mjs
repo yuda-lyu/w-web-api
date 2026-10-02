@@ -10,6 +10,12 @@
 //故 pixel baseline 以 .stats-chart-area / .stats-table-area 紅框標註並「貼圖覆蓋」（per-item ref 凍結真實
 //畫面、非黑塊）；語意斷言仍讀 live DOM（選單/標題/控制/canvas/表頭+列+排序），數值正確性另由 unit-staEvent 保證。
 //
+//案例管線（2026-09-28）：產製端（mocha --baseline 或 env E2E_REGEN=1）與比對端呼叫同一 runBaselineCase（w-package-tools-e2e，經 ./tools/e2eLib.mjs）：
+//prepare（DB 重置）→ fresh browser（openCasePage，1440×900）→ run（原 it 流程：進統計頁 → 語意斷言 → 截圖，回傳 {圖鍵: buf}）→
+//全部斷言通過後才寫檔（REGEN；createBaselineGate 之 E2E_BASELINE_OUT_DIR / --write-mode）或比對（pixelmatch 容差）→ finally 關瀏覽器。
+//例外：各案 _staref 參考片段（chart / table）於 run 內自舉（REGEN 且缺檔時直接寫 test/pics/stainfor/，不受 E2E_BASELINE_OUT_DIR 影響）。
+//合成 log 與 restartBackend 換 logFd 仍在檔案層 before / after。
+//
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
@@ -23,11 +29,11 @@ import {
     cropRegion,
     waitUntilExist,
     resetToBaseSeed,
-    assertOrRegenBaseline,
     baseUrl,
     launchBrowser,
     REGEN,
 } from './tools/e2e-setup.mjs'
+import { runBaselineCase, createBaselineGate, openCasePage } from './tools/e2eLib.mjs'
 
 
 let FLOW = 'stainfor'
@@ -136,12 +142,160 @@ async function gotoStats(page, lang) {
 }
 
 
+//案例流程（產製端與比對端共用）：原 it 內流程逐字保留（語意斷言在截圖前、狀態仍在畫面上），
+//截圖改為回傳 {圖鍵: buf}，由 runBaselineCase 於全部斷言通過後才寫檔 / 比對（原為 it 內 assertOrRegenBaseline 當場寫檔 / 比對）。
+
+
+//E2E-001：進統計頁 → 事件頻率圖各事件分系列（各自顏色可區分）
+async function runChartAll(page, lang) {
+
+    await gotoStats(page, lang)
+
+    let info = await page.evaluate((tt) => {
+        let menuActive = Array.from(document.querySelectorAll('.w-mm-btn'))
+            .some((b) => b.classList.contains('on') && (b.innerText || '').includes(tt.menu))
+        //統計表逐事件成列：圖表系列與表列同源於 allEvents，故表列是「各事件各成一系列」之 DOM 可觀察證據
+        let evRows = Array.from(document.querySelectorAll('.stats-table-area tbody tr'))
+            .map((tr) => tr.dataset.event).filter((x) => !!x)
+        return {
+            body: document.body.innerText || '',
+            menuActive,
+            evRows,
+            hasCanvas: !!document.querySelector('.stats-chart-area canvas'),
+        }
+    }, T[lang])
+    assert.ok(info.menuActive, '左選單「統計資訊」應為 active')
+    assert.ok(info.body.includes(T[lang].title), `應顯示標題「${T[lang].title}」`)
+    assert.ok(info.body.includes(T[lang].timeRange), `應顯示「${T[lang].timeRange}」`)
+    assert.ok(info.evRows.length >= 2, `應辨識出 >= 2 種事件使各自分系列（實得 ${info.evRows.length}）`)
+    assert.ok(info.evRows.includes('api/syncAndReplaceTabs'), '應含已知最長事件名（版面邊界 fixture）')
+    assert.ok(info.hasCanvas, '事件頻率圖 canvas 應存在')
+
+    let buf = await captureStatsShot(page, lang, 'E2E-001-chart-all', '.stats-chart-area')
+    return { 'E2E-001-chart-all': buf }
+
+}
+
+//E2E-003：事件統計表（各事件列、依最近1日多→少排序，欄位 1日/8時/4時/1時）
+async function runTable(page, lang) {
+
+    await gotoStats(page, lang)
+
+    let tbl = await page.evaluate(() => {
+        let area = document.querySelector('.stats-table-area')
+        let headers = Array.from(area.querySelectorAll('thead th')).map((th) => (th.innerText || '').trim())
+        let rows = Array.from(area.querySelectorAll('tbody tr')).map((tr) => {
+            let tds = Array.from(tr.querySelectorAll('td')).map((td) => (td.innerText || '').trim())
+            return { event: tr.getAttribute('data-event'), d1day: Number(tds[1]) }
+        })
+        return { headers, rows }
+    })
+    //語意：表頭含該語系欄名 + 至少一列 + 依最近1日 多→少排序
+    assert.ok(tbl.headers.some((h) => h.includes(T[lang].colEvent)), `表頭應含「${T[lang].colEvent}」`)
+    assert.ok(tbl.headers.some((h) => h.includes(T[lang].col1day)), `表頭應含「${T[lang].col1day}」`)
+    assert.ok(tbl.rows.length > 0, '統計表應至少一列')
+    for (let i = 0; i + 1 < tbl.rows.length; i++) {
+        assert.ok(tbl.rows[i].d1day >= tbl.rows[i + 1].d1day, `第 ${i} 列最近1日(${tbl.rows[i].d1day}) 應 >= 下一列(${tbl.rows[i + 1].d1day})`)
+    }
+
+    //視覺：紅框 + 貼圖覆蓋統計表區
+    let buf = await captureStatsShot(page, lang, 'E2E-003-table', '.stats-table-area')
+    return { 'E2E-003-table': buf }
+
+}
+
+//E2E-004：切換時間範圍下拉（1天）→ 前端依 timeGroup 重採樣、圖表重繪
+async function runTimegroup1day(page, lang) {
+
+    await gotoStats(page, lang)
+
+    //預設時間範圍為 1hr（自製下拉 WTextSelect：讀觸發區顯示之該語系文字「1 hour／1小時」）
+    let before = (await page.locator('#timeGroupSel').innerText()).trim()
+    assert.ok(before.includes(T[lang].opt1hr), `時間範圍下拉預設應顯示「${T[lang].opt1hr}」（實得「${before}」）`)
+
+    //act：點觸發區展開清單 → 於彈出清單點「1天」（user-facing 滑鼠路徑，同 e2e-display 語系選單；
+    //原生 <select> 已改為主題化自製下拉（ADR-031），selectOption 不再適用）
+    await page.locator('#timeGroupSel').click({ timeout: 8000 })
+    await page.waitForTimeout(400)
+    await page.getByText(T[lang].opt1day, { exact: true }).first().click({ timeout: 8000 })
+    await page.mouse.move(0, 0) //離開觸發區與圖表，避免 hover 態／echarts tooltip 拍進截圖
+    await page.waitForTimeout(1200) //等 resampledData 重算 + echarts 重繪 settle
+
+    //語意：觸發區顯示所選「1天」（該語系文字）；圖表 canvas 重繪後仍存在
+    //（重採樣正確性由「下拉選取 → resampledData → chartOption」綁定 + unit-staEvent 守，canvas 內部不做 introspection）
+    let info = await page.evaluate(() => ({
+        selText: (document.querySelector('#timeGroupSel')?.innerText || '').trim(),
+        hasCanvas: !!document.querySelector('.stats-chart-area canvas'),
+    }))
+    assert.ok(info.selText.includes(T[lang].opt1day), `切換後觸發區應顯示該語系「${T[lang].opt1day}」（實得「${info.selText}」）`)
+    assert.ok(info.hasCanvas, '重繪後事件頻率圖 canvas 應仍存在')
+
+    //視覺：紅框 + 貼圖覆蓋圖表區（1天重採樣後之圖表，per-item ref 凍結）
+    let buf = await captureStatsShot(page, lang, 'E2E-004-timegroup-1day', '.stats-chart-area')
+    return { 'E2E-004-timegroup-1day': buf }
+
+}
+
+
+//案例宣告：順序＝原 it 順序；title＝原 it 標題逐字（含語系）；stages＝該案產出之圖鍵（標準圖 stainfor-<lang>-<圖鍵>.png）
+//無 E2E-002（個別事件顯示/隱藏屬 echarts 圖例內建且繪於 canvas，不另立 case，見檔頭與 spec）
+let cases = [
+    {
+        name: 'E2E-001-chart-all',
+        title: (lang) => `E2E-001 [${lang}] 事件頻率圖各事件分系列`,
+        run: runChartAll,
+        stages: ['E2E-001-chart-all'],
+    },
+    {
+        name: 'E2E-003-table',
+        title: (lang) => `E2E-003 [${lang}] 事件統計表依最近1日排序`,
+        run: runTable,
+        stages: ['E2E-003-table'],
+    },
+    {
+        name: 'E2E-004-timegroup-1day',
+        title: (lang) => `E2E-004 [${lang}] 切換時間範圍重採樣重繪`,
+        run: runTimegroup1day,
+        stages: ['E2E-004-timegroup-1day'],
+    },
+]
+
+//標準圖路徑：test/pics/stainfor/stainfor-<lang>-<圖鍵>.png（與原 assertOrRegenBaseline 之 baselinePath 相同）
+let pathOf = (lang, key) => path.resolve('test', 'pics', FLOW, `${FLOW}-${lang}-${key}.png`)
+
+//REGEN 時建篩選器：E2E_BASELINE_OUT_DIR（寫到暫存目錄做等價驗證）、--write-mode（all / missing / changed）；mocha 以 --grep 選案
+let gate = REGEN ? createBaselineGate({ langs: LANGS, cases }) : null
+//REGEN 結束時驗證 --names 之每一項皆有產出(例如被 --grep 排除之案例)，不靜默略過
+if (gate) {
+    after(function() {
+        gate.finalize()
+    })
+}
+
+//單一案例管線：prepare（原 beforeEach 之 DB 重置）→ fresh browser（原 beforeEach 之 launch + newContext 1440×900 + newPage）→
+//run（原 it 流程）→ 全部斷言通過後寫檔（REGEN）或比對 → finally 關瀏覽器（原 afterEach）
+async function runCase(lang, c) {
+    return await runBaselineCase({
+        mode: REGEN ? 'regen' : 'compare',
+        lang,
+        name: c.name,
+        run: c.run,
+        stages: c.stages,
+        compareOnly: !!c.compareOnly,
+        launch: launchBrowser,
+        openPage: (browser) => openCasePage(browser, { contextOptions: { viewport: { width: 1440, height: 900 } } }),
+        prepare: async () => {
+            await resetToBaseSeed() //原 beforeEach 之 DB 重置
+        },
+        pathOf,
+        labelOf: (lg, key) => `${FLOW}-${lg}-${key}`,
+        gate,
+    })
+}
+
+
 describe('e2e-stainfor (統計資訊 / 事件頻率)', function() {
     this.timeout(300000)
-
-    let browser = null
-    let ctx = null
-    let page = null
 
     before(async function() {
         this.timeout(180000)
@@ -156,113 +310,13 @@ describe('e2e-stainfor (統計資訊 / 事件頻率)', function() {
         try { fs.rmSync(SYNTH_FD, { recursive: true, force: true }) } catch (e) {}
     })
 
-    beforeEach(async function() {
-        this.timeout(180000)
-        await resetToBaseSeed()
-        browser = await launchBrowser()
-        ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
-        page = await ctx.newPage()
-    })
-
-    afterEach(async function() {
-        if (browser) {
-            await browser.close()
-            browser = null
-        }
-    })
-
+    //每案 DB 重置 + fresh browser（原 beforeEach / afterEach）改由 runCase 負責，--grep 單跑亦完整
     for (let lang of LANGS) {
-
-        //E2E-001：進統計頁 → 事件頻率圖各事件分系列（各自顏色可區分）
-        it(`E2E-001 [${lang}] 事件頻率圖各事件分系列`, async function() {
-
-            await gotoStats(page, lang)
-
-            let info = await page.evaluate((tt) => {
-                let menuActive = Array.from(document.querySelectorAll('.w-mm-btn'))
-                    .some((b) => b.classList.contains('on') && (b.innerText || '').includes(tt.menu))
-                //統計表逐事件成列：圖表系列與表列同源於 allEvents，故表列是「各事件各成一系列」之 DOM 可觀察證據
-                let evRows = Array.from(document.querySelectorAll('.stats-table-area tbody tr'))
-                    .map((tr) => tr.dataset.event).filter((x) => !!x)
-                return {
-                    body: document.body.innerText || '',
-                    menuActive,
-                    evRows,
-                    hasCanvas: !!document.querySelector('.stats-chart-area canvas'),
-                }
-            }, T[lang])
-            assert.ok(info.menuActive, '左選單「統計資訊」應為 active')
-            assert.ok(info.body.includes(T[lang].title), `應顯示標題「${T[lang].title}」`)
-            assert.ok(info.body.includes(T[lang].timeRange), `應顯示「${T[lang].timeRange}」`)
-            assert.ok(info.evRows.length >= 2, `應辨識出 >= 2 種事件使各自分系列（實得 ${info.evRows.length}）`)
-            assert.ok(info.evRows.includes('api/syncAndReplaceTabs'), '應含已知最長事件名（版面邊界 fixture）')
-            assert.ok(info.hasCanvas, '事件頻率圖 canvas 應存在')
-
-            let buf = await captureStatsShot(page, lang, 'E2E-001-chart-all', '.stats-chart-area')
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-001-chart-all.png`, buf)
-
-        })
-
-        //E2E-003：事件統計表（各事件列、依最近1日多→少排序，欄位 1日/8時/4時/1時）
-        it(`E2E-003 [${lang}] 事件統計表依最近1日排序`, async function() {
-
-            await gotoStats(page, lang)
-
-            let tbl = await page.evaluate(() => {
-                let area = document.querySelector('.stats-table-area')
-                let headers = Array.from(area.querySelectorAll('thead th')).map((th) => (th.innerText || '').trim())
-                let rows = Array.from(area.querySelectorAll('tbody tr')).map((tr) => {
-                    let tds = Array.from(tr.querySelectorAll('td')).map((td) => (td.innerText || '').trim())
-                    return { event: tr.getAttribute('data-event'), d1day: Number(tds[1]) }
-                })
-                return { headers, rows }
+        for (let c of cases) {
+            it(c.title(lang), async function() {
+                await runCase(lang, c)
             })
-            //語意：表頭含該語系欄名 + 至少一列 + 依最近1日 多→少排序
-            assert.ok(tbl.headers.some((h) => h.includes(T[lang].colEvent)), `表頭應含「${T[lang].colEvent}」`)
-            assert.ok(tbl.headers.some((h) => h.includes(T[lang].col1day)), `表頭應含「${T[lang].col1day}」`)
-            assert.ok(tbl.rows.length > 0, '統計表應至少一列')
-            for (let i = 0; i + 1 < tbl.rows.length; i++) {
-                assert.ok(tbl.rows[i].d1day >= tbl.rows[i + 1].d1day, `第 ${i} 列最近1日(${tbl.rows[i].d1day}) 應 >= 下一列(${tbl.rows[i + 1].d1day})`)
-            }
-
-            //視覺：紅框 + 貼圖覆蓋統計表區
-            let buf = await captureStatsShot(page, lang, 'E2E-003-table', '.stats-table-area')
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-003-table.png`, buf)
-
-        })
-
-        //E2E-004：切換時間範圍下拉（1天）→ 前端依 timeGroup 重採樣、圖表重繪
-        it(`E2E-004 [${lang}] 切換時間範圍重採樣重繪`, async function() {
-
-            await gotoStats(page, lang)
-
-            //預設時間範圍為 1hr（自製下拉 WTextSelect：讀觸發區顯示之該語系文字「1 hour／1小時」）
-            let before = (await page.locator('#timeGroupSel').innerText()).trim()
-            assert.ok(before.includes(T[lang].opt1hr), `時間範圍下拉預設應顯示「${T[lang].opt1hr}」（實得「${before}」）`)
-
-            //act：點觸發區展開清單 → 於彈出清單點「1天」（user-facing 滑鼠路徑，同 e2e-display 語系選單；
-            //原生 <select> 已改為主題化自製下拉（ADR-031），selectOption 不再適用）
-            await page.locator('#timeGroupSel').click({ timeout: 8000 })
-            await page.waitForTimeout(400)
-            await page.getByText(T[lang].opt1day, { exact: true }).first().click({ timeout: 8000 })
-            await page.mouse.move(0, 0) //離開觸發區與圖表，避免 hover 態／echarts tooltip 拍進截圖
-            await page.waitForTimeout(1200) //等 resampledData 重算 + echarts 重繪 settle
-
-            //語意：觸發區顯示所選「1天」（該語系文字）；圖表 canvas 重繪後仍存在
-            //（重採樣正確性由「下拉選取 → resampledData → chartOption」綁定 + unit-staEvent 守，canvas 內部不做 introspection）
-            let info = await page.evaluate(() => ({
-                selText: (document.querySelector('#timeGroupSel')?.innerText || '').trim(),
-                hasCanvas: !!document.querySelector('.stats-chart-area canvas'),
-            }))
-            assert.ok(info.selText.includes(T[lang].opt1day), `切換後觸發區應顯示該語系「${T[lang].opt1day}」（實得「${info.selText}」）`)
-            assert.ok(info.hasCanvas, '重繪後事件頻率圖 canvas 應仍存在')
-
-            //視覺：紅框 + 貼圖覆蓋圖表區（1天重採樣後之圖表，per-item ref 凍結）
-            let buf = await captureStatsShot(page, lang, 'E2E-004-timegroup-1day', '.stats-chart-area')
-            await assertOrRegenBaseline(assert, FLOW, `${FLOW}-${lang}-E2E-004-timegroup-1day.png`, buf)
-
-        })
-
+        }
     }
 
 })

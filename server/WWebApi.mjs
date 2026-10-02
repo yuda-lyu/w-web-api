@@ -22,11 +22,13 @@ import ltdtmapping from 'wsemi/src/ltdtmapping.mjs'
 import fsIsFolder from 'wsemi/src/fsIsFolder.mjs'
 import fsIsFile from 'wsemi/src/fsIsFile.mjs'
 import replace from 'wsemi/src/replace.mjs'
+import cacheSt from 'wsemi/src/cacheSt.mjs'
 import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
 import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
 import procLang from './procLang.mjs'
 import procProxy from './procProxy.mjs'
 import procApis from './procApis.mjs'
+import createLockSave from './lockSave.mjs'
 import staEvent from './staLogs/staEvent.mjs'
 import srLogInit from './srLog.mjs'
 import { maskTok, maskQuery } from './maskLog.mjs'
@@ -325,12 +327,19 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     }
 
 
+    //lockSave: 有副作用之 kpFunExt(saveApi / deleteApi / proxyRequest)之雙擊防護(後端, 見 lockSave.mjs, ADR-034):
+    //以「操作:使用者 id」於 cacheSt 原子占位, 同一使用者之同一操作處理中再送出即 reject(saveInProgress / deleteInProgress / requestInProgress), 不排隊;
+    //cst 為本實例唯一一份, 注入 procProxy 與 procApis
+    let cst = cacheSt()
+    let lockSave = createLockSave(cst)
+
+
     //procProxy
-    let { proxyRequest } = procProxy({ srLog, isAllowTarget })
+    let { proxyRequestByUser } = procProxy({ srLog, isAllowTarget, lockSave })
 
 
     //procApis
-    let { getApisList, saveApi, deleteApi } = procApis({ woItems, procOrm, ds })
+    let { getApisList, saveApi, deleteApi } = procApis({ woItems, procOrm, ds, lockSave })
 
 
     //getWebInfor
@@ -988,7 +997,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             getWebInfor: wrapErrLog('getWebInfor', getWebInfor),
 
             proxyRequest: wrapErrLog('proxyRequest', (userId, reqSpec) => {
-                return proxyRequest(reqSpec)
+                return proxyRequestByUser(userId, reqSpec) //依使用者占位(ADR-034), 同一使用者處理中再送出 → 'requestInProgress'
             }),
 
             getApisList: wrapErrLog('getApisList', (userId) => {

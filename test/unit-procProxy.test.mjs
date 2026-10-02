@@ -2,9 +2,12 @@
 //每條斷言對應 spec/流程_測試API.md「規則摘要」之契約與 ADR-029／ADR-031（請求內容原文送出、標頭表為唯一真理源、
 //重複鍵不收斂、轉址逐跳檢核 isAllowTarget）／ADR-033（srLog 不含第三方憑證：標頭只記名稱、網址經 maskUrl、fetch 例外只記名稱與代碼）。
 //兩個 origin：主 server 11082、跨來源 server 11084；11083 保留為「無人監聽」。
+//PROXY-024～026（ADR-034）：kpFunExt 入口 proxyRequestByUser 之依使用者占位（同一使用者處理中再送出 → requestInProgress、不送出）。
 import assert from 'assert'
 import http from 'http'
+import cacheSt from 'wsemi/src/cacheSt.mjs'
 import procProxy from '../server/procProxy.mjs'
+import createLockSave from '../server/lockSave.mjs'
 
 
 let PORT = 11082
@@ -469,6 +472,60 @@ describe('unit-procProxy', function() {
         await assert.rejects(proxyRequest({ url: `${BASE}/xsbadloc` }), (e) => e === 'errProxyRequestFailed')
         assert.deepStrictEqual(logs, [{ event: 'proxyRequest-redirect', err: 'errProxyRequestFailed', msg: 'invalid redirect location: (invalid-url)' }])
         assertLogsNoSecret(['SYNTH-BADLOC-SECRET'])
+    })
+
+    //--- ADR-034（按鈕雙擊防護，後端依使用者占位）：kpFunExt 入口 proxyRequestByUser 以「proxyRequest:<userId>」占位，
+    //    同一使用者之請求處理中再送出 → reject 'requestInProgress'、不送出（不排隊：送出對目標可能有副作用）；不同使用者互不影響；結束（含失敗）即釋放 ---
+    describe('proxyRequestByUser（依使用者占位，ADR-034）', function() {
+
+        //與 WWebApi 注入者同一實作；cacheSt 有 TTL 偵測 timer，於 before 建立、after clear（否則 mocha 不結束；--grep 未選中本組時 hook 不跑，亦不留 timer）
+        let cst = null
+        let proxyRequestByUser = null
+
+        before(function() {
+            cst = cacheSt()
+            proxyRequestByUser = procProxy({ srLog, lockSave: createLockSave(cst) }).proxyRequestByUser
+        })
+
+        after(function() {
+            cst.clear()
+        })
+
+        //第 2 次於第 1 次送出後同步發出：占位於第 1 次呼叫當下即已成立（setWithFree 之占位在其第一個 await 之前），故必落在處理中，不依賴時序
+        it('PROXY-024 同一 userId 並行 → 第 2 次 reject requestInProgress，目標只收到 1 次請求', async function() {
+            let spec = { method: 'POST', url: `${BASE}/p`, headers: [['Content-Type', 'text/plain']], body: 'once' }
+            let p1 = proxyRequestByUser('u1', spec)
+            await assert.rejects(proxyRequestByUser('u1', spec), (e) => e === 'requestInProgress')
+            let r1 = await p1
+            assert.strictEqual(r1.status, 200, '第 1 次照常完成')
+            assert.strictEqual(received.length, 1, `被拒者不得送出（目標收到 ${received.length} 次）`)
+            assert.strictEqual(lastReceived().raw, 'once')
+            assert.deepStrictEqual(logs, [], '占位衝突不經 procProxy 之 srLog（由 kpFunExt 之 wrapErrLog 記 err key）')
+        })
+
+        it('PROXY-025 不同 userId 並行皆送出；同一 userId 依序送出皆成功；失敗（連線拒絕）後占位釋放', async function() {
+            let rs = await Promise.all([
+                proxyRequestByUser('u1', { url: `${BASE}/json` }),
+                proxyRequestByUser('u2', { url: `${BASE}/json` }),
+            ])
+            assert.deepStrictEqual(rs.map((r) => r.status), [200, 200], '不同使用者互不影響')
+            assert.strictEqual(received.length, 2)
+
+            let r3 = await proxyRequestByUser('u1', { url: `${BASE}/json` })
+            assert.strictEqual(r3.status, 200, '完成後同一使用者可再送出（依序之合法連續送出不受影響）')
+
+            await assert.rejects(proxyRequestByUser('u1', { url: `http://127.0.0.1:${PORT_CLOSED}/` }), (e) => e === 'errProxyRequestFailed', '代打失敗之 err-key 原樣回傳')
+            let r4 = await proxyRequestByUser('u1', { url: `${BASE}/json` })
+            assert.strictEqual(r4.status, 200, '失敗結束後占位已釋放')
+            assert.strictEqual(received.length, 4, '成功之 4 次皆送達（連線拒絕者未達目標）')
+        })
+
+        it('PROXY-026 未注入 lockSave → proxyRequestByUser reject 且不送出（fail-closed，不以無占位模式執行）', async function() {
+            let { proxyRequestByUser: pru } = procProxy({ srLog })
+            await assert.rejects(pru('u1', { url: `${BASE}/json` }))
+            assert.strictEqual(received.length, 0, '不得送出')
+        })
+
     })
 
 })

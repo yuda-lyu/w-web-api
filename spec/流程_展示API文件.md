@@ -14,7 +14,8 @@
     - 操作：開啟 `<baseUrl>/?token=sys`（cht 輪改開 `<baseUrl>/?token=sys&lang=cht`，以 URL `?lang=` 指定語系、**初始畫面即中文**，不經 UI 切換）→ 點左側主選單「API」切至 API 工作區。
     - 驗證（等待樹渲染完成——同時出現「取得API清單」與「取得寵物清單」後）：
       1. 語意：左樹含上述兩筆；docs 顯示第一筆 url；三分頁顯示當前語系之「Docs／Edit／Test」（中文「文件／編輯／測試」）。
-      2. 視覺：整體載入就緒基準，全頁乾淨截圖、**不畫紅框**（本案無單一聚焦區、整頁皆主體；全框＝無標註意義），與 baseline `test/pics/display/display-{eng,cht}-E2E-001-docs-list.png` 視覺一致（pixelmatch 容差）。
+      2. 視覺：整頁、紅框框住點「API」後出現之 API 工作區（左側 API 樹＋右側文件區之整個內容區），與 baseline `test/pics/display/display-{eng,cht}-E2E-001-docs-list.png` 視覺一致（pixelmatch 容差）。
+         - 修改留痕（2026-09-28）：原載「全頁乾淨截圖、不畫紅框（本案無單一聚焦區、整頁皆主體；全框＝無標註意義）」→ 改為框住 API 工作區。依據：全域技能 role-coder-for-test-e2e §7.1「每張標準圖皆須有框，無『佔滿畫面就不框』之例外」、§7.2「擴滿或露出之內容區」；標準圖依授權重產。工作區左緣取左樹面板（內含搜尋框者），不含最左側功能選單鈕列。
     - 雙語：eng / cht 各一輪。
     - 清理：純展示、不改動資料；起跑前還原 base seed。
 
@@ -26,7 +27,8 @@
     - 操作：載入頁面（同 E2E-001 起點）。
     - 驗證（等待樹渲染後）：
       1. 語意：左樹含分類標題「寵物」「狗狗」「貓咪」「交通工具」「汽車」且巢狀歸屬正確；「取得API清單」節點顯示 GET、「新增狗狗資訊」顯示 POST、「變更狗狗資訊」顯示 PUT、「刪除狗狗資訊」顯示 DEL。
-      2. 視覺：整頁、紅框標注左樹區（分類階層 + 方法 badge），與 baseline `test/pics/display/display-{eng,cht}-E2E-002-tree.png` 視覺一致（pixelmatch 反鋸齒感知 + maxDiffPixels 容差，非 byte-exact）。
+      2. 視覺：整頁、紅框標注左樹區（整個左樹面板：搜尋列＋分類階層＋方法 badge），與 baseline `test/pics/display/display-{eng,cht}-E2E-002-tree.png` 視覺一致（pixelmatch 反鋸齒感知 + maxDiffPixels 容差，非 byte-exact）。
+         - 已知落差（已修復，2026-09-28）：舊標準圖之紅框落在最左側功能選單鈕列（「統計」「API」兩鈕），未框左樹——選擇器 `div[style*="border-right"]` 第一個命中者為功能鈕列（缺陷，測試端）；改以「內含搜尋框之面板」界定後重產。
     - 雙語：eng / cht 各一輪。
     - 清理：純展示；起跑前還原 base seed。
 
@@ -50,7 +52,8 @@
     - 操作：載入後 → 於左樹點「新增狗狗資訊」節點。
     - 驗證（等待右側標頭更新後）：
       1. 語意：docs 標頭 op-title=「新增狗狗資訊」、op-path url 含 `addDog`、方法 badge=POST；不再顯示第一筆「取得API清單」之 url。
-      2. 視覺：整頁、紅框標注切換後的 docs 標頭，與 baseline `test/pics/display/display-{eng,cht}-E2E-004-selected-post-doc.png` 視覺一致（pixelmatch 反鋸齒感知 + maxDiffPixels 容差，非 byte-exact）。
+      2. 視覺：整頁、紅框標注切換後的 docs 標頭（標題、方法與網址晶片、說明文字三者之聯集，不含其右側空白），與 baseline `test/pics/display/display-{eng,cht}-E2E-004-selected-post-doc.png` 視覺一致（pixelmatch 反鋸齒感知 + maxDiffPixels 容差，非 byte-exact）。
+         - 修改留痕（2026-09-28）：原載「紅框標注切換後的 docs 標頭」而框落在標頭三元素之整欄寬（右側約 640px 空白一併框入）→ 改為框三者之內容聯集。依據：技能 §7.3-2「框實際有內容的元素，不框整欄的空白」。
     - 雙語：eng / cht 各一輪。
     - 清理：純讀取；起跑前還原 base seed。
 
@@ -62,7 +65,8 @@
     - 操作：載入頁面（預設選第一筆）。
     - 驗證：
       1. 語意：標頭顯示 name=「取得API清單」、url 含 `getAPIsList`、description=「API管理中心取得API清單資訊」；pills 顯示 version「v1」、levels「API」、keywords 切為兩個 chip「API」與「center」、state「ok」、creator「apis-system」、dataSource「apis-data」（各 pill 標籤依語系）。
-      2. 視覺：整頁、紅框分別標注標頭與 pills，2 張 baseline `test/pics/display/display-{eng,cht}-E2E-005-header.png`、`...-E2E-005-pills.png` 視覺一致（pixelmatch 反鋸齒感知 + maxDiffPixels 容差，非 byte-exact）。
+      2. 視覺：整頁、紅框分別標注標頭（標題、網址晶片、說明之聯集）與 pills（各 pill 之聯集），2 張 baseline `test/pics/display/display-{eng,cht}-E2E-005-header.png`、`...-E2E-005-pills.png` 視覺一致（pixelmatch 反鋸齒感知 + maxDiffPixels 容差，非 byte-exact）。
+         - 修改留痕（2026-09-28）：原載「紅框分別標注標頭與 pills」而兩框皆為整欄寬（標頭右側約 640px、pills 右側約 350px 空白一併框入）→ 改為框內容聯集，依據同 E2E-004。
     - 雙語：eng / cht 各一輪。
     - 清理：純展示；起跑前還原 base seed。
 
@@ -86,7 +90,8 @@
     - 操作：載入（Docs 預設）→ 點「Test／測試」分頁 → 點「Docs／文件」分頁。
     - 驗證：
       1. 語意：三分頁「Docs/Edit/Test」皆存在；載入時 Docs 為 active（顯示 docs 標頭 op-title）；點 Test 後 docs 標頭不再顯示（切離 docs）；點 Docs 後 docs 標頭重新顯示。
-      2. 視覺：不另產 baseline（純分頁切換互動，docs 態已由 E2E-001 守）。
+      2. 視覺（每個點擊前、點擊後各一張）：①點擊前，框住「Test／測試」分頁鈕整顆 `test/pics/display/display-{eng,cht}-E2E-007-1-click-test.png`；②點擊後，框住切換後之測試視圖面板（分頁列之下整個內容面板）`...-E2E-007-2-test-view.png`；③點擊前，框住「Docs／文件」分頁鈕整顆 `...-E2E-007-3-click-docs.png`；④點擊後，框住切回之文件視圖面板 `...-E2E-007-4-docs-view.png`（pixelmatch 容差比對）。
+         - 修改留痕（2026-09-28）：原載「不另產 baseline（純分頁切換互動，docs 態已由 E2E-001 守）」→ 改為每步兩張。依據：重要流程之案例整案無圖為缺陷（業主裁示「列了重要流程就要給圖」；技能 §7.1 每個操作步驟兩張）。
     - 雙語：eng / cht 各一輪。
     - 清理：純互動；起跑前還原 base seed。
 
@@ -98,7 +103,8 @@
     - 操作：預設 eng → 點語系選單切「中文」→ 再切「English」。
     - 驗證：
       1. 語意：eng 時分頁顯示「Docs/Edit/Test」；切 cht 後顯示「文件/編輯/測試」且 pills 標籤轉中文；切回 eng 後恢復英文。
-      2. 視覺：不另產 baseline（切換互動；各語系外觀由其他 case 雙語輪覆蓋）。
+      2. 視覺（單輪 8 張，檔名以 eng 為標籤）：①點擊前，框住頂列語系下拉整顆（顯示 English）`test/pics/display/display-eng-E2E-008-1-click-lang.png`；②清單展開，框住整份語系清單（框線不蓋到清單外之下拉與頁面內容）`...-E2E-008-2-lang-list.png`；③點擊前，框住「中文」項目整顆（框線在與相鄰項目之間隙正中）`...-E2E-008-3-click-lang-item.png`；④點擊後，框住已改為中文之分頁、文件標頭與 pills（內容聯集）`...-E2E-008-4-cht-applied.png`；⑤～⑧同①～④反向切回 English `...-E2E-008-5-click-lang.png`、`-6-lang-list`、`-7-click-lang-item`、`-8-eng-applied`（pixelmatch 容差比對）。
+         - 修改留痕（2026-09-28）：原載「不另產 baseline（切換互動；各語系外觀由其他 case 雙語輪覆蓋）」→ 改為每步兩張（依據同 E2E-007；框法比照 w-web-perm 統計頁 E2E-008 之語系切換）。
     - 雙語：本 case 即雙語切換，單輪涵蓋。
     - 清理：純互動；起跑前還原 base seed。
 
