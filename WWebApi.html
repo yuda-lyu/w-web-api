@@ -29,7 +29,7 @@
 <nav >
     
     
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createLockSave">createLockSave</a></li><li><a href="global.html#submitGuard">submitGuard</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul><h3>Global</h3><ul><li><a href="global.html#checkRowIds">checkRowIds</a></li><li><a href="global.html#createLockSave">createLockSave</a></li><li><a href="global.html#getOptDataChannel">getOptDataChannel</a></li><li><a href="global.html#ormFail">ormFail</a></li><li><a href="global.html#pickRowIds">pickRowIds</a></li><li><a href="global.html#resolveShellWorker">resolveShellWorker</a></li><li><a href="global.html#submitGuard">submitGuard</a></li></ul>
     
 </nav>
 
@@ -80,7 +80,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="server_WWebApi.mjs.html">server/WWebApi.mjs</a>, <a href="server_WWebApi.mjs.html#line143">line 143</a>
+        <a href="server_WWebApi.mjs.html">server/WWebApi.mjs</a>, <a href="server_WWebApi.mjs.html#line140">line 140</a>
     </li></ul></dd>
     
 
@@ -138,10 +138,6 @@ let st = getSettings()
 let url = st.dbUrl
 let db = st.dbName
 let opt = {
-
-    useCheckUser: false,
-    getUserById: null,
-    useExcludeWhenNotAdmin: false,
 
     serverPort: 11005,
     subfolder: '', //mapi
@@ -484,7 +480,7 @@ instWWebApi.on('error', (err) => {
                 </td>
             
 
-            <td class="description last"><p>輸入設定物件，預設{}</p>
+            <td class="description last"><p>輸入設定物件，預設{}。w-serv-orm 1.1.9 起移除之 useCheckUser、getUserById、useExcludeWhenNotAdmin 不再支援：未給、null 或 false 照常，給予其他值時建構即拋錯（訊息取自 w-serv-orm 之 checkOptRemoved）</p>
                 <h6>Properties</h6>
                 
 
@@ -547,127 +543,7 @@ instWWebApi.on('error', (err) => {
                 </td>
             
 
-            <td class="description last"><p>輸入伺服器通訊port，預設11005</p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>useCheckUser</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Boolean</span>
-
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    <code>false</code>
-                
-                </td>
-            
-
-            <td class="description last"><p>輸入是否檢查使用者資訊布林值，預設false</p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>getUserById</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">function</span>
-
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    <code>null</code>
-                
-                </td>
-            
-
-            <td class="description last"><p>輸入當useCheckUser=true時依照使用者ID取得使用者資訊物件函數，預設null</p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>useExcludeWhenNotAdmin</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Boolean</span>
-
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    <code>false</code>
-                
-                </td>
-            
-
-            <td class="description last"><p>輸入使用ORM的select方法時是否自動刪除數據內isActive欄位之布林值，預設false</p></td>
+            <td class="description last"><p>輸入伺服器通訊port，須為1至65535之整數（可為數字字串），未給(undefined或null)時取預設11005，有給但無效時建構即拋錯'invalid opt.serverPort'，預設11005</p></td>
         </tr>
 
     
@@ -1060,7 +936,7 @@ instWWebApi.on('error', (err) => {
 
         
 <div class="param-desc">
-    <p>回傳物件，其內server為hapi伺服器實體，wsrv為w-converhp的伺服器事件物件，wsds為w-serv-webdata的伺服器事件物件，可監聽error事件</p>
+    <p>回傳w-serv-hapi之伺服器事件物件，可監聽error事件，並提供ready函數（回傳promise，啟動成功時resolve為hapi伺服器實體）、getServer與getInstWConverServer函數，以及stop函數：依序停止伺服器（w-serv-hapi之stop）、清除本套件之快取計時器、關閉各資料表ORM之連線、關閉後端log，可重複呼叫並回傳同一promise，之後不可再使用本實例。建構於資源建立後失敗時，已建立之資源於拋錯前釋放。資料通道只開放表操作select（同步用），寫入一律經kpFunExt之saveApi與deleteApi。本函數與參考部署皆不註冊process之unhandledRejection與uncaughtException監聽，未處理之rejection會依Node預設終止行程，宜由行程管理器重啟</p>
 </div>
 
 
@@ -1119,7 +995,7 @@ instWWebApi.on('error', (err) => {
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Oct 11 2026 16:26:57 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Wed Oct 14 2026 08:22:46 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
