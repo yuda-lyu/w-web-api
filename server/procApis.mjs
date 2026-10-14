@@ -1,6 +1,7 @@
 import iseobj from 'wsemi/src/iseobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import pmKeyMutex from 'wsemi/src/pmKeyMutex.mjs'
+import { ormFail } from './ormErrKey.mjs'
 
 
 function procApis(deps = {}) {
@@ -8,7 +9,8 @@ function procApis(deps = {}) {
     //deps
     //lockSave: 後端雙擊防護(依使用者占位, 見 lockSave.mjs, ADR-034), 由 WWebApi 建立並注入(與 procProxy 共用同一 cacheSt);
     //為 saveApi / deleteApi 之必要依賴, 未注入時該二者以 TypeError reject 而不執行寫入(fail-closed)
-    let { woItems, procOrm, ds, lockSave } = deps
+    //srLog: procOrm 失敗時記原文(R-ERR-1, ADR-038); 未注入時不記錄, 仍回語系鍵
+    let { woItems, procOrm, ds, lockSave, srLog } = deps
 
     //kmx: 同 key 之寫入序列化(不同使用者對同一列之並發; 同一使用者之重送先由外層 lockSave 拒絕, ADR-034)
     //  key: 既有筆 `saveApi:<id>` / `deleteApi:<id>`; 新增筆無 id 以 `saveApi:new:<name>` 占位 (不同使用者同名並發新增仍依序各插入一列: 本系統不以名稱為唯一鍵)
@@ -16,9 +18,10 @@ function procApis(deps = {}) {
 
 
     let getApisList = async (userId) => {
-        //經 procOrm（與 save／del 同一入口）而非直呼 woItems：ORM 層政策——useCheckUser 之使用者檢核、
-        //useExcludeWhenNotAdmin 非管理員濾 isActive='n'、擴充之前後處理——才會一併套到讀取；改造前直呼 woItems 全數繞過
+        //經 procOrm（與 save／del 同一入口）而非直呼 woItems：擴充之前後處理會一併套到讀取（w-serv-orm 1.1.9 起不檢查使用者、不依使用者過濾，ADR-038）
+        //失敗回語系鍵 getDataError，procOrm 之英文訊息入 srLog（R-ERR-1）
         return await procOrm(userId, 'apis', 'select', {})
+            .catch(ormFail({ srLog, event: 'kpfun-getApisList-orm', key: 'getDataError' }))
     }
 
 
@@ -48,8 +51,9 @@ function procApis(deps = {}) {
                     }
                 }
 
-                //save
+                //save; 失敗回語系鍵 saveWriteFail（procOrm 之英文訊息含失敗筆主鍵，只入 srLog；R-ERR-1）
                 let r = await procOrm(userId, 'apis', 'save', [o])
+                    .catch(ormFail({ srLog, event: 'kpfun-saveApi-orm', key: 'saveWriteFail' }))
 
                 return r
             })
@@ -68,6 +72,7 @@ function procApis(deps = {}) {
         return lockSave('deleteApi', userId, () => {
             return kmx(`deleteApi:${id}`, async () => {
                 let r = await procOrm(userId, 'apis', 'del', { id })
+                    .catch(ormFail({ srLog, event: 'kpfun-deleteApi-orm', key: 'saveWriteFail' })) //R-ERR-1
                 return r
             })
         }, { errKey: 'deleteInProgress' })

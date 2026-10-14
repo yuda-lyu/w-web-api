@@ -3,7 +3,6 @@ import fs from 'fs'
 import get from 'lodash-es/get.js'
 import each from 'lodash-es/each.js'
 import map from 'lodash-es/map.js'
-import keys from 'lodash-es/keys.js'
 import j2o from 'wsemi/src/j2o.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
@@ -23,8 +22,10 @@ import fsIsFolder from 'wsemi/src/fsIsFolder.mjs'
 import fsIsFile from 'wsemi/src/fsIsFile.mjs'
 import replace from 'wsemi/src/replace.mjs'
 import cacheSt from 'wsemi/src/cacheSt.mjs'
+import evEmit from 'wsemi/src/evEmit.mjs'
 import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
 import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
+import checkOptRemoved from 'w-serv-orm/src/checkOptRemoved.mjs'
 import procLang from './procLang.mjs'
 import procProxy from './procProxy.mjs'
 import procApis from './procApis.mjs'
@@ -33,6 +34,9 @@ import staEvent from './staLogs/staEvent.mjs'
 import srLogInit from './srLog.mjs'
 import { maskTok, maskQuery } from './maskLog.mjs'
 import { wrapInjected } from './wrapInjected.mjs'
+import getOptDataChannel from './getOptDataChannel.mjs'
+import { checkRowIds, pickRowIds } from './checkSyncRows.mjs'
+import { ormFail } from './ormErrKey.mjs'
 import ds from '../src/schema/index.mjs'
 
 
@@ -46,11 +50,8 @@ import ds from '../src/schema/index.mjs'
  * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'，且輸入'y'時會複寫權限系統該使用者之'isAdmin'欄位值
  * @param {Function} verifyClientUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
  * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
- * @param {Object} [opt={}] 輸入設定物件，預設{}
- * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，預設11005
- * @param {Boolean} [opt.useCheckUser=false] 輸入是否檢查使用者資訊布林值，預設false
- * @param {Function} [opt.getUserById=null] 輸入當useCheckUser=true時依照使用者ID取得使用者資訊物件函數，預設null
- * @param {Boolean} [opt.useExcludeWhenNotAdmin=false] 輸入使用ORM的select方法時是否自動刪除數據內isActive欄位之布林值，預設false
+ * @param {Object} [opt={}] 輸入設定物件，預設{}。w-serv-orm 1.1.9 起移除之 useCheckUser、getUserById、useExcludeWhenNotAdmin 不再支援：未給、null 或 false 照常，給予其他值時建構即拋錯（訊息取自 w-serv-orm 之 checkOptRemoved）
+ * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，須為1至65535之整數（可為數字字串），未給(undefined或null)時取預設11005，有給但無效時建構即拋錯'invalid opt.serverPort'，預設11005
  * @param {Object} [opt.webName={}] 輸入站台名稱物件，至少包含語系eng與cht鍵的名稱，預設{}
  * @param {Object} [opt.webDescription={}] 輸入站台描述物件，至少包含語系eng與cht鍵的名稱，預設{}
  * @param {String} [opt.webLogo=''] 輸入站台logo字串，採base64格式，預設''
@@ -60,7 +61,7 @@ import ds from '../src/schema/index.mjs'
  * @param {String} [opt.logInterval='hr'] 輸入log紀錄檔案拆檔時長字串，可選'hr'或'day'，預設'hr'
  * @param {Integer} [opt.logNumKeep=null] 輸入log檔保留數上限正整數，超出者自最舊刪除，未給採w-syslog預設(hr模式365*24、day模式365)，預設null
  * @param {Function} [opt.isAllowTarget=null] 輸入測試分頁proxy之目標位址檢核函數，函數會傳入目標網址字串（首跳與轉址後每一跳皆會呼叫），回傳false即拒絕該請求（回err-key 'errReqTargetNotAllowed'），預設null（不限制）
- * @returns {Object} 回傳物件，其內server為hapi伺服器實體，wsrv為w-converhp的伺服器事件物件，wsds為w-serv-webdata的伺服器事件物件，可監聽error事件
+ * @returns {Object} 回傳w-serv-hapi之伺服器事件物件，可監聽error事件，並提供ready函數（回傳promise，啟動成功時resolve為hapi伺服器實體）、getServer與getInstWConverServer函數，以及stop函數：依序停止伺服器（w-serv-hapi之stop）、清除本套件之快取計時器、關閉各資料表ORM之連線、關閉後端log，可重複呼叫並回傳同一promise，之後不可再使用本實例。建構於資源建立後失敗時，已建立之資源於拋錯前釋放。資料通道只開放表操作select（同步用），寫入一律經kpFunExt之saveApi與deleteApi。本函數與參考部署皆不註冊process之unhandledRejection與uncaughtException監聽，未處理之rejection會依Node預設終止行程，宜由行程管理器重啟
  * @example
  *
  * import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
@@ -74,10 +75,6 @@ import ds from '../src/schema/index.mjs'
  * let url = st.dbUrl
  * let db = st.dbName
  * let opt = {
- *
- *     useCheckUser: false,
- *     getUserById: null,
- *     useExcludeWhenNotAdmin: false,
  *
  *     serverPort: 11005,
  *     subfolder: '', //mapi
@@ -186,24 +183,22 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     }
 
 
-    //serverPort
+    //checkOptRemoved: w-serv-orm 1.1.9 起移除之 useCheckUser / getUserById / useExcludeWhenNotAdmin, 未給、null、false 照常, 其他值即拋錯
+    //(訊息之單一擁有者為 w-serv-orm); 須於任何副作用(srLog 初始化起)之前, 拋錯時不留資源 (R-ORM-1, ADR-038)
+    checkOptRemoved(opt)
+
+
+    //serverPort: 未給(undefined 或 null)取 11005; 有給須為 1 至 65535 之整數(含數字字串), 否則建構即拋錯, 不退回預設 (R-ORM-2, ADR-038)
+    //why: 原對無效值靜默改用 11005; w-serv-hapi 1.1.6 起對超過 65535 者又靜默改聽 8080(前端 dev server 之埠), 設定錯誤將無聲生效
     let serverPort = get(opt, 'serverPort')
-    if (!ispint(serverPort)) {
+    if (serverPort === undefined || serverPort === null) {
         serverPort = 11005
     }
+    else if (!ispint(serverPort) || cint(serverPort) > 65535) {
+        console.log('invalid opt.serverPort', serverPort)
+        throw new Error('invalid opt.serverPort')
+    }
     serverPort = cint(serverPort)
-
-
-    //useCheckUser
-    let useCheckUser = get(opt, 'useCheckUser', false)
-
-
-    //getUserById
-    let getUserById = get(opt, 'getUserById', null)
-
-
-    //useExcludeWhenNotAdmin
-    let useExcludeWhenNotAdmin = get(opt, 'useExcludeWhenNotAdmin', false)
 
 
     //webName
@@ -249,15 +244,15 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let kpLang = procLang({ kpLangExt, webName, webDescription })
 
 
-    //srLog（後端 log；錯誤一律 log err-key 供識別，對齊 w-web-sso）。須先於 WServOrm 建構：getUserById 於建構時即交給 WServOrm，其包裝要用 srLog
+    //srLog（後端 log；錯誤一律 log err-key 供識別，對齊 w-web-sso）。為本建構子第一個副作用（起 log worker、清舊 log），其後之建構失敗須釋放之（R-RES-1）
     let srLog = srLogInit(opt)
 
     //印權杖一律經 ./maskLog.mjs 之 maskTok／maskQuery（M 契約：前後各至多 4 字＋長度、陣列逐元素、其他型別只給型別；ADR-033）
 
-    //注入函數一律經 wrapInjected（W 契約，ADR-033）：以包裝版取代參數，之後本函數內（與交給 WServOrm）之呼叫皆為包裝版（原始參數無從直接呼叫）。
-    //上游同步拋錯或 reject 視同否定結果：getUserByToken／getUserById → null（等同查無）、verifyClientUser／verifyAppUser → false（等同無權限），
+    //注入函數一律經 wrapInjected（W 契約，ADR-033）：以包裝版取代參數，之後本函數內之呼叫皆為包裝版（原始參數無從直接呼叫）。
+    //上游同步拋錯或 reject 視同否定結果：getUserByToken → null（等同查無）、verifyClientUser／verifyAppUser → false（等同無權限），
     //由各呼叫點既有之查無／無權限分支回自家 key；因（上游失敗）記 warn、只留白名單 key 或型別與名稱，果（拒絕）由呼叫點記 error。
-    //getUserById 選填（useCheckUser=true 時由 WServOrm 呼叫；原 reject 原文經 execute 之 pm2resolve 回前端），有給才包裝，查無由 WServOrm 既有分支拒絕。
+    //（原第四個注入函數 opt.getUserById 隨 w-serv-orm 1.1.9 移除該設定而刪除，給予即由上方 checkOptRemoved 拒絕；ADR-033 #5 作廢，ADR-038）
     //why：注入函數常包裝 w-web-sso 對外 helper，舊版 helper 失敗時 reject 夾完整網址（含介接權杖與使用者權杖），原本經 await 原樣上拋，
     //經 HTTP 回應、srLog、stdout 與 error 事件外流（修正前探測 w-web-sso tmp/probe-v3/result-before.json 實證）。
     let wrapInjectedLog = (name, fn, failValue) => {
@@ -271,27 +266,21 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     getUserByToken = wrapInjectedLog('getUserByToken', getUserByToken, null)
     verifyClientUser = wrapInjectedLog('verifyClientUser', verifyClientUser, false)
     verifyAppUser = wrapInjectedLog('verifyAppUser', verifyAppUser, false)
-    if (isfun(getUserById)) {
-        getUserById = wrapInjectedLog('getUserById', getUserById, null)
-    }
 
 
-    //WServOrm
-    let optWServOrm = {
-        useCheckUser,
-        getUserById,
-        useExcludeWhenNotAdmin,
-    }
+    //WServOrm（不給 opt：w-serv-orm 1.1.10 之 opt 已無設定鍵，原轉交之三鍵已移除，ADR-038）
     let wp = {}
     try {
-        wp = WServOrm(ds, WOrm, url, db, optWServOrm)
+        wp = WServOrm(ds, WOrm, url, db)
     }
     catch (err) {
-        //ORM 為必要依賴：初始化失敗即 fail-fast，不以 wp={} 帶 undefined woItems/procOrm 殘缺啟動（與建構子其餘必要依賴一致）
+        //ORM 為必要依賴：初始化失敗即 fail-fast，不以 wp={} 帶 undefined woItems/procOrm 殘缺啟動（與建構子其餘必要依賴一致）；
+        //拋出前釋放已建立之 srLog（R-RES-1），否則其 log worker 撐住呼叫端之行程
         console.log('WServOrm init failed', err)
+        srLog.clear().catch(() => {})
         throw err
     }
-    let { woItems, procOrm } = wp
+    let { woItems, procOrm, closeAll } = wp
 
 
     //kpFunExt 邊界統一處理：成功記 info（供 staEvent 統計呼叫頻率）；catch 後端錯誤 → srLog 該 err-key →
@@ -338,8 +327,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let { proxyRequestByUser } = procProxy({ srLog, isAllowTarget, lockSave })
 
 
-    //procApis
-    let { getApisList, saveApi, deleteApi } = procApis({ woItems, procOrm, ds, lockSave })
+    //procApis（srLog：procOrm 失敗時記原文、對外回語系鍵，R-ERR-1）
+    let { getApisList, saveApi, deleteApi } = procApis({ woItems, procOrm, ds, lockSave, srLog })
 
 
     //getWebInfor
@@ -596,9 +585,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //列索引與欄位名入 srLog 供整合端查因（回呼叫端只給 key，同其他錯誤契約）。
         //why：改造前只有陣列層 isearr（wsemi：僅長度 1 時檢查元素），[null,null]／[1,2] 可通過，下方 v.group= 即 TypeError，
         //原始例外訊息經 pm2resolve 外洩給呼叫端；缺必填欄位之物件列則經 ltdtmapping 補空值後以空名稱進樹。
-        let rejectRow = (index, field) => {
-            srLog.error({ event: 'syncAndReplaceTabs', err: 'errRowInvalid', keyTable, group, index, field })
-            console.log(`[API]syncAndReplaceTabs/check rows[${index}]: invalid row (field: ${field})`)
+        let rejectRow = (index, field, reason = '') => {
+            srLog.error({ event: 'syncAndReplaceTabs', err: 'errRowInvalid', keyTable, group, index, field, ...(reason ? { reason } : {}) })
+            console.log(`[API]syncAndReplaceTabs/check rows[${index}]: invalid row (field: ${field}${reason ? `, reason: ${reason}` : ''})`)
             return Promise.reject('errRowInvalid')
         }
 
@@ -648,12 +637,32 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         rows = ltdtmapping(rows, ds[keyTable].keys)
         // console.log('ltdtmapping rows', rows)
 
+        //逐列檢核 ③（R-SYNC-1，ADR-038）：有給之主鍵不得含 HTML 標記、不得超過 1978 位元組、同批不得重複、不得屬於他群組；未給主鍵者照常由 w-serv-orm 補。
+        //why：w-serv-orm 1.1.8 起含 HTML 標記之主鍵於 insert 時整批拒絕、LMDB 超長主鍵於 insert 時失敗且已排入之列先行提交、insert 對已存在之主鍵略過——
+        //三者皆在 delAll 之後才發生，分別使群組被清空、部分寫入、回應列出之主鍵與實存不符；且皆為確定性失敗，外部重送必再失敗（ADR-016 之重送前提不成立）
+        let ids = pickRowIds(rows) //一律為 String(id): 下方直呼 woItems, 不經 procOrm 之主鍵轉型, 而數字主鍵於庫內存為其字串形式(w-serv-orm 1.1.11 起)
+        let groupById = new Map()
+        if (ids.length > 0) {
+            let rsExist = await woItems[keyTable].select({ id: { $in: ids } })
+                .catch(ormFail({ srLog, event: 'syncAndReplaceTabs-orm', key: 'getDataError', info: { keyTable, group, step: 'select' } }))
+            each(rsExist, (v) => {
+                groupById.set(String(v.id), v.group)
+            })
+        }
+        let bad = checkRowIds(rows, { group, groupById })
+        if (bad !== null) {
+            return rejectRow(bad.index, bad.field, bad.reason)
+        }
+
         //delAll group（逐列檢核皆已通過，此後才動既有資料；delAll→insert 非原子屬已知限制 ADR-016）
+        //ORM 之失敗改回語系鍵 saveWriteFail，原文入 srLog（R-ERR-1）
         await woItems[keyTable].delAll({ group })
+            .catch(ormFail({ srLog, event: 'syncAndReplaceTabs-orm', key: 'saveWriteFail', info: { keyTable, group, step: 'delAll' } }))
 
         //insert
         // let r = await woItems[keyTable].insert(rows)
         let r = await procOrm(userId, keyTable, 'insert', rows) //須使用procOrm才有辦法自動給予相關欄位
+            .catch(ormFail({ srLog, event: 'syncAndReplaceTabs-orm', key: 'saveWriteFail', info: { keyTable, group, step: 'insert' } }))
         // console.log('r', r)
 
         return r
@@ -921,16 +930,13 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     ]
 
 
-    //tableNamesExec, tableNamesSync
-    let tableNamesExec = keys(ds)
-    // let tableNamesSync = filter(tableNamesExec, (v) => {
-    //     return strright(v, 5) !== 'Items'//不同步數據
-    // })
-    let tableNamesSync = tableNamesExec
+    //optDataChannel：資料通道之選項（useDbOrm、kpOrm、operOrm、tableNamesExec、methodsExec、tableNamesSync、authorizeExec）由單一模組產生（R-DC-1，ADR-038）：
+    //w-serv-webdata 1.1.7 起 useDbOrm=true 必給 authorizeExec；表操作只開放同步所需之 select，寫入一律經 kpFunExt 之 saveApi／deleteApi
+    let optDataChannel = getOptDataChannel({ ds, woItems, procOrm, srLog })
 
 
-    //WServHapiServer
-    instWServHapiServer = new WServHapiServer({
+    //optServ（WServHapiServer 之選項；先組好再建構，使建構失敗時可釋放已建立之資源，R-RES-1）
+    let optServ = {
         port: serverPort,
         pathStaticFiles,
         apiName: 'api',
@@ -953,9 +959,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             }
 
             //checkToken：套件層連線閘僅做「token 認證」（解析 user + 驗欄位齊備）。**授權**（如限管理員）屬
-            //套件使用者之責——由其提供之 getUserByToken（可對非授權者回 {}）/ verifyClientUser / verifyAppUser，
-            //或 WServOrm 之 useCheckUser/useExcludeWhenNotAdmin 等鉤子決定；套件不對連線層強加特定授權政策（避免越界、
-            //保留使用者彈性）。詳見 spec/設計要點與取捨.md「套件授權責任」。
+            //套件使用者之責——由其提供之 getUserByToken（可對非授權者回 {}）/ verifyClientUser / verifyAppUser 決定；
+            //資料通道之表操作另由 authorizeExec（getOptDataChannel.mjs）只放行 select（寫入只經 kpFunExt），procOrm 不做授權（w-serv-orm 1.1.9 起）。
+            //套件不對連線層強加特定授權政策（避免越界、保留使用者彈性）。詳見 spec/設計要點與取捨.md「套件授權責任」（ADR-022、ADR-038）。
             //checkToken 失敗會 throw（err-key），原本直接向上拋致認證失敗不入 log；此處攔截記錄後原樣再拋，行為不變。
             let b
             try {
@@ -986,12 +992,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             }
             return userId
         },
-        useDbOrm: true,
-        kpOrm: woItems,
-        operOrm: procOrm, //procOrm的輸入為: userId, tableName, methodName, input
-        tableNamesExec,
-        methodsExec: ['select', 'insert', 'save', 'del'], //mix需於procOrm內註冊以提供
-        tableNamesSync,
+        ...optDataChannel,
         kpFunExt: { //接收參數第1個為userId, 之後才是前端給予參數（皆經 wrapErrLog：錯誤 srLog err-key 後 re-reject）
 
             getWebInfor: wrapErrLog('getWebInfor', getWebInfor),
@@ -1025,7 +1026,44 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         },
         fpTableTags: 'tableTags-web-api.json', //w-serv-hapi 1.0.87 起正名 fpTableTags（同 sso / perm）; 舊名 fnTableTags 於 1.0.86 傳到 w-serv-webdata 時不被讀取, 實際一直寫預設 tableTags.json
-    })
+    }
+
+
+    //WServHapiServer（w-serv-hapi 1.1.6 起設定錯誤於建構時同步拋出）：拋錯時先釋放已建立之 cacheSt 計時器、各資料表 ORM 連線與 srLog，再原樣拋出（R-RES-1）
+    try {
+        instWServHapiServer = new WServHapiServer(optServ)
+    }
+    catch (err) {
+        console.log('WServHapiServer init failed', err)
+        cst.clear()
+        closeAll().catch(() => {})
+        srLog.clear().catch(() => {})
+        throw err
+    }
+
+
+    //stop（R-RES-1，ADR-038）：w-serv-hapi 之 stop 只停止伺服器並釋放其下游；本套件自建之 cacheSt（TTL 偵測計時器）、各資料表 ORM（LMDB 連線）、
+    //srLog（transport worker）於其後依序釋放，使呼叫 stop 後行程不被本套件撐住。停止為終態，可重複呼叫並回傳同一 promise；
+    //釋放失敗不中斷其餘釋放，以 error 事件通知（同 w-serv-hapi：stop 恆 resolve）
+    let stopServ = instWServHapiServer.stop
+    let pmStop = null
+    instWServHapiServer.stop = () => {
+        if (pmStop !== null) {
+            return pmStop
+        }
+        pmStop = (async () => {
+            await stopServ()
+            for (let release of [() => cst.clear(), () => closeAll(), () => srLog.clear()]) {
+                try {
+                    await release()
+                }
+                catch (err) {
+                    evEmit(instWServHapiServer, 'error', [err], { tag: 'w-web-api' }) //同 w-serv-hapi: 監聽器之同步拋錯不中斷其餘釋放
+                }
+            }
+        })()
+        return pmStop
+    }
 
 
     return instWServHapiServer

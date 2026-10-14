@@ -14,6 +14,7 @@ async function initialTestData() {
 initialTestData()
     .catch((err) => {
         console.log('initialTestData catch', err)
+        process.exitCode = 1 //失敗以非零離開碼結束, 供呼叫端判斷(F9, ADR-038)
     })
 
 

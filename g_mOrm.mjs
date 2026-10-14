@@ -11,13 +11,8 @@ let st = getSettings()
 let url = st.dbUrl
 let db = st.dbName
 
-//WServOrm
-let opt = {
-    getUserById: null,
-    useCheckUser: false,
-    useExcludeWhenNotAdmin: false,
-}
-let r = WServOrm(ds, WOrm, url, db, opt)
+//WServOrm(w-serv-orm 1.1.10 之 opt 無設定鍵, 不給; 原給之三鍵已移除, ADR-038)
+let r = WServOrm(ds, WOrm, url, db)
 let { woItems, procOrm } = r
 
 

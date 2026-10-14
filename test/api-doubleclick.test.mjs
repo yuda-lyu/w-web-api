@@ -11,9 +11,8 @@
 import assert from 'assert'
 import http from 'http'
 import get from 'lodash-es/get.js'
-import obj2u8arr from 'wsemi/src/obj2u8arr.mjs'
-import u8arr2obj from 'wsemi/src/u8arr2obj.mjs'
 import { startServersOnce, baseUrl, resetToBaseSeed, woItems } from './tools/e2e-setup.mjs'
+import { callFun as callFunAt } from './tools/apiMain.mjs'
 
 
 let TOKEN = 'sys'
@@ -22,17 +21,10 @@ let DELAY_ECHO_MS = 500
 let GROUP_DC02 = 'api-doubleclick-dc02' //DC-02 新增列之群組（計數用；after 以 resetToBaseSeed 清除）
 
 
-//資料通道（w-converhp /api/main）：本體與回應皆為 obj2u8arr 編碼（同 api-tokenLeak.postMain）；
+//資料通道（w-converhp /api/main）：helper 收斂於 test/tools/apiMain.mjs（ADR-038）；
 //kpFunExt 之結果經 w-serv-webdata pm2resolve 為 { state:'success'|'error', msg }（msg 於 error 時為後端 reject 之 key）
 async function callFun(func, args) {
-    let res = await fetch(`${baseUrl}/api/main`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/octet-stream' },
-        body: Buffer.from(obj2u8arr({ func, input: { __sysInputArgs__: args, __sysToken__: TOKEN } })),
-    })
-    let data = u8arr2obj(new Uint8Array(await res.arrayBuffer()))
-    let state = get(data, 'success.output.state', '')
-    return { ok: state === 'success', state, msg: get(data, 'success.output.msg', null), data }
+    return callFunAt(baseUrl, TOKEN, func, args)
 }
 
 

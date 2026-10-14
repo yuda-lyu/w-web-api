@@ -9,10 +9,9 @@ import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import get from 'lodash-es/get.js'
-import obj2u8arr from 'wsemi/src/obj2u8arr.mjs'
-import u8arr2obj from 'wsemi/src/u8arr2obj.mjs'
 import procLang from '../server/procLang.mjs'
 import { startServersOnce, restartBackend, genTempSettings, baseUrl, resetToBaseSeed, woItems } from './tools/e2e-setup.mjs'
+import { postMain as postMainAt } from './tools/apiMain.mjs'
 
 
 let TOK_REJECT = '{token-for-reject}'
@@ -47,15 +46,9 @@ async function getText(url, opts) {
     return await res.text()
 }
 
-//資料通道（w-converhp /api/main）：本體與回應皆為 obj2u8arr 編碼
+//資料通道（w-converhp /api/main）：本體與回應皆為 obj2u8arr 編碼；helper 收斂於 test/tools/apiMain.mjs（ADR-038）
 async function postMain(authToken, payload, headers = {}) {
-    let res = await fetch(`${baseUrl}/api/main`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/octet-stream', ...headers },
-        body: Buffer.from(obj2u8arr(payload)),
-    })
-    let u8a = new Uint8Array(await res.arrayBuffer())
-    return { raw: Buffer.from(u8a).toString('utf8'), data: u8arr2obj(u8a) }
+    return postMainAt(baseUrl, authToken, payload, headers)
 }
 
 async function countGroup(g) {

@@ -33,11 +33,7 @@ let url = st.dbUrl
 let db = st.dbName
 let opt = {
 
-    bCheckUser: false,
-    getUserById: null,
-    bExcludeWhenNotAdmin: false,
-
-    serverPort: 11005,
+    serverPort: 11005, //integer 1–65535, otherwise construction throws 'invalid opt.serverPort'
     subfolder: '', //mapi
     urlRedirect: 'https://www.google.com/', //本機測試時得先編譯, 再瀏覽: http://localhost:11005/
 
@@ -96,4 +92,18 @@ let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, veri
 instWWebApi.on('error', (err) => {
     console.log(err)
 })
+
+//graceful shutdown: stops the server and releases the cache timer, database connections and log worker
+// await instWWebApi.stop()
 ```
+
+#### Behavior notes (w-serv-orm 1.1.11 / w-serv-hapi 1.1.6 / w-syslog 1.0.33)
+- `opt.useCheckUser`, `opt.getUserById` and `opt.useExcludeWhenNotAdmin` have been removed: `procOrm` of w-serv-orm no longer authorizes users. Passing any of them with a value other than `undefined`, `null` or `false` throws at construction.
+- The data channel exposes table reads only: `apis.select` (used by the front-end sync) is allowed for authenticated users, and every write goes through `saveApi` / `deleteApi`. Calling `apis.insert`, `apis.save` or `apis.del` directly through `/api/main` now returns `invalid func[apis.<method>]`. The sync still delivers the whole table, including `tokens` and `authConfigJson`, to any authenticated user, so decide who may log in with `getUserByToken` and the verify functions.
+- `/syncAndReplaceTabs` checks every given row `id` before it clears the group: an id with HTML markup, longer than 1978 bytes in UTF-8, repeated in the same batch, or already belonging to another group rejects the whole batch with `errRowInvalid`, and existing data stays untouched. Rows without `id` (or with `NaN` / `Infinity`) work as before and get a generated id.
+- Since w-serv-orm 1.1.11, a numeric row id sent to `/syncAndReplaceTabs` is stored as its string form (123 is stored as '123'), and the response lists it as a string. Before, the number was replaced by a generated id while the response still showed the number. A number and its string form are the same id, so syncing id 123 into a group while '123' belongs to another group is rejected with `errRowInvalid`.
+- Database failures are returned as language keys (`saveWriteFail` for writes, `getDataError` for reads) instead of the ORM's English text, which is written to the log.
+- `stop()` returns the same promise on repeated calls. If construction fails after resources were created, they are released before the error is thrown.
+- WWebApi does not register `process.on('unhandledRejection')` or `process.on('uncaughtException')`, and since w-serv-hapi 1.1.6 neither does w-serv-hapi. An unhandled rejection terminates the process (Node default), so run the service under a process manager such as PM2 or systemd.
+- Since w-syslog 1.0.33, a failure to write the log no longer terminates the service: it is reported on stderr (w-syslog emits `writeError`), and the service keeps running. Watch stderr to notice a log folder that cannot be written.
+- The published bundle (`main`) locates its statistics worker at first use (from the package's `server/` folder), so the package must be installed with its `server/` folder, as npm does by default.

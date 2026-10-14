@@ -85,7 +85,7 @@
 008          呼叫後端 saveApi(form)，reject 時落下方 .catch  [src/components/LayoutContentEdit.vue:submitSave]
                  lockSave('saveApi', userId)：同一使用者之儲存處理中再送出即 reject('saveInProgress')、不寫入（不排隊）；其內 kmx 序列化同 key（不同使用者對同一列）  [server/procApis.mjs:saveApi][server/lockSave.mjs:createLockSave]
                  funNew 過濾欄位、補時間戳；row 帶 id 則保留原 id（改名走 update）  [server/procApis.mjs:saveApi][src/schema/tables/apis.mjs:132-139]
-                 寫入 LMDB（save upsert）  [server/procApis.mjs:saveApi]
+                 寫入 LMDB（save upsert）；ORM 失敗 reject('saveWriteFail')，原文入 srLog（R-ERR-1，ADR-038）  [server/procApis.mjs:saveApi][server/ormErrKey.mjs:ormFail]
 009          .then: 設成功旗標 okSave  [src/components/LayoutContentEdit.vue:389]
 010          .catch: 設 errSave inline 紅字  [src/components/LayoutContentEdit.vue:390]
 011          okSave 為否則 return（短路）  [src/components/LayoutContentEdit.vue:391]
@@ -106,8 +106,8 @@
 006          同步檢測 + 開 loading（同改名）  [src/components/LayoutContentEdit.vue:submitSave]
 007          呼叫後端 saveApi(form)，form 無 id  [src/components/LayoutContentEdit.vue:submitSave]
                  lockSave('saveApi', userId)（同改名 008）：新列每次 funNew 產新 id，同一使用者並行之第 2 次若照常執行會多插入一列，故拒絕而不排隊  [server/procApis.mjs:saveApi]
-                 funNew 產生新 id（genIDSeq）、時間戳、isActive='y'；無 id 故走 insert  [server/procApis.mjs:saveApi][src/schema/tables/apis.mjs:132-139]
-                 寫入 LMDB（新筆）  [server/procApis.mjs:saveApi]
+                 funNew 產生新 id（genIDSeq）、時間戳、isActive='y'  [server/procApis.mjs:saveApi][src/schema/tables/apis.mjs:132-139]
+                 以 save 寫入 LMDB（主鍵不存在即新增一筆；與改名同一呼叫，ORM 失敗同 reject('saveWriteFail')）  [server/procApis.mjs:saveApi]
 008          .catch 設 errSave；okSave 為否則 return  [src/components/LayoutContentEdit.vue:submitSave]
 009          $emit('saved') → 回 docs（newMode=false）、syncData 重建樹，新節點出現（無舊 id 故預設選第一筆）  [src/components/LayoutContentEdit.vue:submitSave][src/components/LayoutContent.vue:609-613,464-470]
 010          先 updateLoading(false) 再成功 modal showCheckYes('已儲存')，await 至其關閉  [src/components/LayoutContentEdit.vue:submitSave]
@@ -127,7 +127,7 @@
 007          呼叫後端 deleteApi(form.id)，reject 時落下方 .catch  [src/components/LayoutContentEdit.vue:doDelete]
                  檢查 id 非空，否則 reject('errApiIdInvalid')（err-key，前端依 lang 反查顯示）  [server/procApis.mjs:deleteApi]
                  lockSave('deleteApi', userId, …, { errKey: 'deleteInProgress' })：同一使用者之刪除處理中再送出即 reject('deleteInProgress')（不排隊）；其內 kmx 序列化同一列  [server/procApis.mjs:deleteApi]
-                 LMDB 刪除單筆  [server/procApis.mjs:deleteApi]
+                 LMDB 刪除單筆；ORM 失敗 reject('saveWriteFail')，原文入 srLog（R-ERR-1）  [server/procApis.mjs:deleteApi]
 008          .then 設 okDel；.catch 設 errSave  [src/components/LayoutContentEdit.vue:doDelete]
 009          okDel 為否則 return（短路）  [src/components/LayoutContentEdit.vue:doDelete]
 010          $emit('deleted') → 清 apiSelect、回 docs、syncData 重建樹（被刪節點消失，改選第一筆）  [src/components/LayoutContentEdit.vue:doDelete][src/components/LayoutContent.vue:615-620,464-470]
@@ -145,6 +145,7 @@
 | inline 驗證紅字 | 找 `valRequired` / `valInvalidJson` | 對應欄位下方 .bk-err | 必填、JSON 格式各一鍵 |
 | 兜底錯誤 | 找 `anUnexpectedErrorOccurred` | showCheckYes modal（type:'error'，先關 loading） | 非預期例外統一一鍵 |
 | 同一使用者之存／刪處理中再送出 | 找 `saveInProgress` / `deleteInProgress` | errSave inline 紅字；UI 不可達——前端 `runSubmit('saveApi' / 'deleteApi')` 先擋，僅 API 直打之並行會收到 | 存、刪各一鍵（ADR-034） |
+| 資料庫寫入失敗 | 找 `saveWriteFail` | errSave inline 紅字（eng「Not all changes were written, and some may have taken effect. Please reload the page and check before making changes.」／cht「資料寫入未全部完成，部分變更可能已生效，請重新整理頁面確認後再操作」）；UI 不可達——僅資料庫寫入失敗時（單元測試以模擬之 ORM 失敗覆蓋） | 存、刪共用一鍵（ADR-038） |
 
 ## 錯誤處理分層
 
@@ -169,7 +170,7 @@
 
 - **驗證順序**：清空舊錯誤 → 同步檢測（全部 early-return 在開 loading 之前）→ 開 loading → 打 API（各自 catch + 旗標短路）→ 成功 emit + modal → finally 關 loading（順序屬 spec，對齊 §全域規範 5.1 core() 五段）。
 - **粒度**：
-  - 改名為 update（帶原 id，name 原地更新、舊名消失）；新增為 insert（無 id，funNew 產生新 id）——以「id 是否存在」分流。
+  - 改名為 update（帶原 id，name 原地更新、舊名消失）；新增為 insert（無 id，funNew 產生新 id）——以「id 是否存在」分流。後端兩者皆以 procOrm 之 save 寫入（主鍵已存在即覆寫、不存在即新增）；update／insert 指寫入結果，不是兩種呼叫（2026-10-14 補）。
   - 可預期錯誤走 inline 紅字（不打斷表單）；非預期走 showCheckYes modal（type:'error'，ADR-031；原載「非預期才 $alert」已不成立，2026-09-29 更正）。
 - **送出入口與連按**（ADR-034）：入口為「儲存」「刪除」兩顆原生 `<button>`（輸入框不在 `<form>` 內，無 Enter 送出）。全頁 loading、確認框與結果訊息框（WDialog）只擋滑鼠、不搶焦點，焦點留在按鈕時之鍵盤 Enter／空白鍵仍觸發 click；重入一律由 `runSubmit` 判斷：儲存自觸發至結果訊息框關閉、刪除自開確認框至結果訊息框關閉，期間再觸發即略過。後端以「操作:使用者 id」占位：同一使用者並行儲存之第 2 次回 `saveInProgress`、並行刪除回 `deleteInProgress`，皆不寫入；依序送出、不同使用者皆不受影響（不同使用者對同一列仍由 kmx 序列化）。
 - **邊界**：
@@ -185,3 +186,5 @@
 
 - **已修復（附修復紀錄）**（2026-09-29，ADR-034）：存／刪之重送防護不完整。①前端重入只靠元件 `submitting` 旗標，刪除之檢查在確認後之 `doDelete` 第一行，確認框開啟期間焦點仍在刪除鈕上，鍵盤 Enter 會再開一次確認框並覆寫單例 `CheckYesNo` 之 Promise（第 1 次永不落定）；②後端 `saveApi` 以 kmx 序列化「非拒絕」，同一使用者並行新增 2 次時第 2 次於第 1 次完成後仍執行，而新列每次 `funNew` 產新 id → 插入第 2 列（修改前以備份模組重現）。修復：前端以 `runSubmit('saveApi' / 'deleteApi')` 判斷重入（刪除自開確認框起整段、存刪皆至結果訊息框關閉）並移除 `submitting`；單例訊息框 `show()` 先結束前一個等待者；後端 `lockSave` 依使用者占位（第 2 次回 `saveInProgress` / `deleteInProgress`，不寫入）。驗證：unit-procApis 雙擊防護 6 案（修改前為紅）、`api-doubleclick`（真後端直打）、e2e-edit 全部案例。
 - **設計事實（記錄備查）**（2026-09-29，ADR-034）：同一使用者**依序**重送同一包新增資料（API 直打，第 2 次於第 1 次完成後才到）仍插入第 2 列——新列 id 由後端產生、無可比對之識別；本系統不以名稱為唯一鍵（業主定案）。UI 無此路徑：新增儲存成功後即離開新增模式（`onEditSaved` 設 `newMode=false`、`mode='docs'`，`src/components/LayoutContent.vue:588-592`）。
+- **本 spec 原載「無 id 故走 insert」不成立（設計事實（記錄備查）；發現於 2026-10-14）**：新增流程 007 原載「funNew 產生新 id…；無 id 故走 insert」，實為 `saveApi` 對新列與既有列皆以 `procOrm(userId, 'apis', 'save', [o])` 寫入，新列因 `funNew` 產生新 id 而成為新增（`server/procApis.mjs:saveApi`）。使用者可觀察之後果：無（畫面與流程不變）。層級：產品程式碼（本專案）。處置：新增流程 007 改寫；規則摘要補「update／insert 指寫入結果」。
+- **資料庫寫入失敗時回 ORM 之英文原文（已修復（附修復紀錄）；發現於 2026-10-14，2026-10-14 修復）**：w-serv-orm 1.1.x 之 `procOrm` 失敗以英文字串拒絕（如 `failed to save data`、`failed to delete data`），`saveApi`／`deleteApi` 原樣回前端，`$transErr` 查無此鍵。使用者可觀察之後果：儲存或刪除遇資料庫寫入失敗時，紅字不是語系文字。層級：產品程式碼（本專案）。修復紀錄：①本專案 2026-10-14（ADR-038 第 4 項，主控複審裁決 F8）；②`server/ormErrKey.mjs:ormFail`，套用於 `server/procApis.mjs:saveApi`／`deleteApi`／`getApisList`——寫入失敗回 `saveWriteFail`、讀取失敗回 `getDataError`，原文入 srLog；③後端程式不經前端產物，`saveWriteFail` 之文字由 `server/procLang.mjs` 經 kpLang 下發；④UI 不可達（正常操作造不出資料庫寫入失敗），以 `test/unit-procApis.test.mjs` 之「雙擊防護: procOrm 失敗時回 saveWriteFail」與「getApisList 之 procOrm 失敗 → 回 getDataError」驗證（修正前之模組為紅）；⑤無案例與標準圖受影響；⑥無轉交。

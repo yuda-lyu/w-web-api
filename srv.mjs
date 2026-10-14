@@ -23,11 +23,7 @@ let ssoAppToken = st.ssoAppToken
 let ssoLoginUrl = st.ssoLoginUrl
 let opt = {
 
-    useCheckUser: false,
-    getUserById: null,
-    useExcludeWhenNotAdmin: false,
-
-    serverPort: get(stApp, 'serverPort', 11005),
+    serverPort: get(stApp, 'serverPort', 11005), //須為 1–65535 之整數, 無效即建構拋錯(R-ORM-2, ADR-038)
     subfolder: '', //mapi
     urlRedirect: ssoLoginUrl, //未登入時導向SSO登入頁, 本機測試時得先編譯, 再瀏覽: http://localhost:11005/
 
@@ -127,6 +123,10 @@ let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verif
 instWWebApi.on('error', (err) => {
     console.log(err)
 })
+
+//行程層錯誤政策(R-PROC-1, ADR-038): 本參考部署與 WWebApi 皆不註冊 process 之 unhandledRejection / uncaughtException 監聽
+//(w-serv-hapi 1.1.6 起亦不代為註冊), 未處理之 rejection 依 Node 預設終止行程; 正式部署宜交行程管理器(如 PM2、systemd)自動重啟.
+//需優雅關機時呼叫 instWWebApi.stop(): 停止伺服器並釋放快取計時器、資料庫連線與 log worker(R-RES-1)
 
 
 //node srv.mjs

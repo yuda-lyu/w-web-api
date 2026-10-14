@@ -128,21 +128,21 @@
 002  main.js 掛載 App，啟動 WServHapiClient 長連線（useWaitToken）  [src/main.js:60-106]
 003  App.vue beforeMount 初始化語系、呼叫 w-ui-loginout 登入  [src/App.vue:47-98]
          開發模式於 localhost 自動以 query token 'sys' 送出 GET /api/getUserByToken?token=sys  [src/App.vue:92]
-004      後端取 token user：注入之 getUserByToken 經 wrapInjected 包裝，上游拋錯或 reject 視同查無（ADR-033）  [server/WWebApi.mjs:286]
-             token==='sys' 直接回傳管理員 user  [srv.mjs:61-63]
-             查無使用者（token 非字串，或回傳非非空物件）: reject('errUserNotFound')  [server/WWebApi.mjs:381-398]
-             驗證 user 欄位 id/email/name/isAdmin  [server/WWebApi.mjs:348-375]
-                 欄位不合: reject('errUserIdMissing'/'errUserEmailMissing'/'errUserNameMissing'/'errUserRoleMissing')  [server/WWebApi.mjs:353,359,365,372]
-             驗證權限 isAdmin==='y'（注入之 verifyClientUser 同經 wrapInjected，拋錯或 reject 視同無權限）  [srv.mjs:110][server/WWebApi.mjs:287,432]
-                 非管理員: reject('errUserNoPermission')  [server/WWebApi.mjs:438]
+004      後端取 token user：注入之 getUserByToken 經 wrapInjected 包裝，上游拋錯或 reject 視同查無（ADR-033）  [server/WWebApi.mjs:266]
+             token==='sys' 直接回傳管理員 user  [srv.mjs:57-59]
+             查無使用者（token 非字串，或回傳非非空物件）: reject('errUserNotFound')  [server/WWebApi.mjs:384-401]
+             驗證 user 欄位 id/email/name/isAdmin  [server/WWebApi.mjs:351-378]
+                 欄位不合: reject('errUserIdMissing'/'errUserEmailMissing'/'errUserNameMissing'/'errUserRoleMissing')  [server/WWebApi.mjs:356,362,368,375]
+             驗證權限 isAdmin==='y'（注入之 verifyClientUser 同經 wrapInjected，拋錯或 reject 視同無權限）  [srv.mjs:106][server/WWebApi.mjs:267,435]
+                 非管理員: reject('errUserNoPermission')  [server/WWebApi.mjs:441]
 005      登入成功: 更新連線態 / token / user  [src/App.vue:60-65]
 006      登入失敗: 導向 ___pmwapi___.urlRedirect  [src/App.vue:67-83]
 007  長連線建立後取 webInfor（webLogo/showLanguage/language/kpLang）  [src/main.js:71]
-             kpLang 由 procLang 產生（各分頁/欄位 i18n）  [server/WWebApi.mjs:247]
+             kpLang 由 procLang 產生（各分頁/欄位 i18n）  [server/WWebApi.mjs:244]
 008      取得成功: 寫入 webInfor、重刷語系、標記同步完成  [src/main.js:82-86]
 009  ready（連線態 csLogin 且 webInfor 就緒）成立後才渲染 <Layout>  [src/App.vue:104-116]
 010  後端將 apis 資料表推送前端，寫入 store.state.apis  [src/main.js:96-99][src/store/mutations.mjs:78-80]
-             資料源 woItems.apis.select 經 LMDB  [server/procApis.mjs:11-12]
+             資料源：後端推播資料表時間戳，前端同步以表操作 apis.select（不帶參數）取整表；經資料通道之 authorizeExec（只放行已認證者之 select，其餘回 errUserNoPermission）→ operOrm → procOrm → woItems.apis（LMDB）  [server/getOptDataChannel.mjs:getOptDataChannel][server/WWebApi.mjs:935]
 011  LayoutContent 之 changeApis 監看 apis（與 search）變動，呼叫 genTree  [src/components/LayoutContent.vue:368-375]
 012      依 levels.name 建巢狀物件、convertToTree 轉樹結構  [src/components/LayoutContent.vue:440-460]
 013      決定預設選取：保留上次 id，否則取第一筆 apis[0]  [src/components/LayoutContent.vue:464-470]
@@ -183,7 +183,7 @@
 | 概念 | 來源（優先序）| 流程影響 |
 |---|---|---|
 | 登入 token | URL `?token=sys`（w-ui-loginout 於 localhost 自動帶入）| 'sys' 在 srv.mjs 直接回管理員 user，免帳密 |
-| API 清單 | 後端 `woItems.apis.select` → LMDB，經長連線推送寫入 `store.state.apis` | 樹與 docs 全部資料源 |
+| API 清單 | 前端同步經資料通道呼叫表操作 `apis.select`（只放行已認證者之 select，R-DC-1）→ procOrm → LMDB，結果寫入 `store.state.apis` | 樹與 docs 全部資料源 |
 | 預設選取項 | 保留上次選取 id；否則第一筆 `apis[0]` | 決定載入後右側顯示哪一筆 |
 | 樹過濾 | `search` 字串（搜尋框 v-model）| 比對 name/keywords/url/levels/method（toLowerCase），空字串顯示全部 |
 | 抽屜顯隱 | `drawer` 布林（顯隱鈕 toggle）| 控制 WDrawer 收合/展開 |
@@ -204,6 +204,13 @@
 - **契約**：
   - token='sys' 僅開發模式捷徑；正式須真實 token 且 isAdmin==='y'。
   - 前端不主動輪詢，資料由後端 syncData 推送驅動重渲染。
+  - 資料通道只開放表讀取：前端同步所用之 `apis.select` 只放行已認證者（userId 非空），表寫入（`apis.insert`／`save`／`del`）不綁定、直打回 `invalid func[apis.<方法>]`；寫入一律經 kpFunExt 之 `saveApi`／`deleteApi`（R-DC-1，ADR-038）。同步把整表（含 `tokens`／`authConfigJson`）給已認證者，誰可登入由部署方之 `getUserByToken`／`verifyClientUser` 決定（ADR-022／033）。
   - 語系切換經 setLang 廣播 forceUpdate，全頁即時重渲染。
   - docs 請求區之 cURL `-X` 動詞經 `src/plugins/mShare.mjs` 之 `methodToHttpVerb` 轉換：資料層 `del` 顯示為 `DELETE`（`DEL` 非 HTTP 動詞，複製貼上即可執行；與測試分頁送出路徑共用同一函式，ADR-030）。樹之 method badge 仍顯示 `DEL`（視覺慣例）。
   - 左樹根節點標籤由語系鍵 `treeRootAll`（eng「All」／cht「全部」）於 template 取值，非烤進樹資料，語系就地切換即時更新；樹資料之根 key 為哨符 `__treeRootAll__`，不與任何 group 名稱相撞（ADR-030）。
+
+## 已知落差
+
+每條帶分類標籤（缺陷（待修）／設計事實（記錄備查）／待裁示（業主決定）／已修復（附修復紀錄））；修復後不刪、改標已修復。
+
+- **本 spec 原載之 API 清單資料源不成立（設計事實（記錄備查）；發現於 2026-10-14）**：原載「資料源 woItems.apis.select 經 LMDB  [server/procApis.mjs:11-12]」與參數來源表「後端 `woItems.apis.select` → LMDB」不成立——左樹與 docs 之資料由 w-serv-webdata 之同步取得：後端推播資料表時間戳，前端以表操作 `apis.select` 取整表，經資料通道之 `authorizeExec` → `operOrm`（`procOrm`）→ `woItems.apis`（`server/getOptDataChannel.mjs:getOptDataChannel`、`node_modules/w-serv-webdata/src/WServWebdataClient.mjs` 檔頭說明「同步時亦由之取用表操作select」）；`server/procApis.mjs` 之 `getApisList` 為 kpFunExt 之查詢函數，不是同步路徑。使用者可觀察之後果：無（畫面與流程不變）。層級：產品程式碼（本專案）與上游套件 w-serv-webdata。處置：執行流程 010 與參數來源表改寫；2026-10-14 資料通道改為只開放 select 並授權（ADR-038），同步之呼叫形狀不變（`test/api-dataChannel.test.mjs` 與參考部署實打：不帶參數之 `apis.select` 回整表）；畫面之左樹與 docs 照常（2026-10-14 全套 `npm test`：e2e-display 17 passing，標準圖比對全過、未重產）。

@@ -555,9 +555,13 @@ let kpLang = {
         eng: 'Invalid rows',
         cht: '資料列無效',
     },
-    errRowInvalid: { //syncAndReplaceTabs 逐列檢核：某列非物件或缺必填欄位（列索引與欄位名入 srLog）
-        eng: 'Invalid row data (each row must be an object with name and url)',
-        cht: '列資料無效（每列須為物件且 name 與 url 必填）',
+    errRowInvalid: { //syncAndReplaceTabs 逐列檢核：某列非物件、缺必填欄位或主鍵不合規則（列索引、欄位名與原因入 srLog；主鍵規則 R-SYNC-1，ADR-038）
+        eng: 'Invalid row data (each row must be an object with name and url; a given id must contain no HTML markup, be at most 1978 bytes, be unique in the batch and not belong to another group)',
+        cht: '列資料無效（每列須為物件且 name 與 url 必填；有給之 id 不得含 HTML 標記、不得超過 1978 位元組、同批不得重複且不得屬於其他群組）',
+    },
+    saveWriteFail: { //ORM 寫入失敗（save／insert／del），部分變更可能已生效；procOrm 之原文只入 srLog（R-ERR-1，ADR-038；用語同 w-web-sso）
+        eng: 'Not all changes were written, and some may have taken effect. Please reload the page and check before making changes.',
+        cht: '資料寫入未全部完成，部分變更可能已生效，請重新整理頁面確認後再操作',
     },
     errTokenNoPermission: {
         eng: 'Token does not have permission',

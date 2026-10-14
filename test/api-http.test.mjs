@@ -95,6 +95,11 @@ describe('api-http (HTTP API 整合 / 認證鏈)', function() {
             return await getJson(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ group, rows }) })
         }
 
+        beforeEach(async function() {
+            this.timeout(30000)
+            await resetToBaseSeed() //各案自備前置：前一案之寫入（含改造前會清空群組之行為）不影響下一案
+        })
+
         after(async function() {
             this.timeout(30000)
             await resetToBaseSeed() //清掉本 describe 寫入之 GROUP_NEW、還原 base seed
@@ -138,6 +143,71 @@ describe('api-http (HTTP API 整合 / 認證鏈)', function() {
                 assert.strictEqual(r.msg, 'errRowInvalid', `rows=${JSON.stringify(rows)} 應回 errRowInvalid（實得 ${JSON.stringify(r.msg)}）`)
             }
             assert.strictEqual(await countGroup(GROUP_SEED), n0, '拒絕後既有群組列數不變')
+        })
+
+        //R-SYNC-1（ADR-038）：有給之主鍵之可預期失敗一律在 delAll 之前擋下（errRowInvalid）、既有群組資料不動。
+        //改造前：含白名單外標籤之主鍵於 w-serv-orm 1.1.8 起之 insert 整批拒絕而群組已被 delAll 清空；超長主鍵於 LMDB insert 失敗且部分寫入；
+        //同批重複主鍵只寫第一筆卻回 success；屬他群組之主鍵被 insert 略過（不搬移）卻回 success。
+        let mkRow = (id, name) => ({ id, name, url: `http://sync/${name}`, method: 'get', levels: 'API' })
+
+        it('R-SYNC-1 主鍵含 HTML 標記（白名單外標籤）→ errRowInvalid、既有群組列數不變（不得先清空）', async function() {
+            let n0 = await countGroup(GROUP_SEED)
+            let r = await postRows(GROUP_SEED, [mkRow('api-http-xss-ok', 'x1'), mkRow('api-http<script>x', 'x2')])
+            assert.strictEqual(r.state, 'error', `應 error（實得 ${JSON.stringify(r)}）`)
+            assert.strictEqual(r.msg, 'errRowInvalid', `應回 errRowInvalid（實得 ${JSON.stringify(r.msg)}）`)
+            assert.strictEqual(await countGroup(GROUP_SEED), n0, '拒絕後既有群組列數不變')
+        })
+
+        it('R-SYNC-1 主鍵超過 1978 位元組 → errRowInvalid、既有群組列數不變（不得部分寫入）', async function() {
+            let n0 = await countGroup(GROUP_SEED)
+            let r = await postRows(GROUP_SEED, [mkRow('api-http-long-ok', 'l1'), mkRow('x'.repeat(1979), 'l2'), mkRow('api-http-long-ok3', 'l3')])
+            assert.strictEqual(r.msg, 'errRowInvalid', `應回 errRowInvalid（實得 ${JSON.stringify(r)}）`)
+            assert.strictEqual(await countGroup(GROUP_SEED), n0, '拒絕後既有群組列數不變')
+            assert.strictEqual((await woItems.apis.select({ id: 'api-http-long-ok' })).length, 0, '不得部分寫入')
+        })
+
+        it('R-SYNC-1 同批非空主鍵重複 → errRowInvalid、既有群組列數不變', async function() {
+            let n0 = await countGroup(GROUP_SEED)
+            let r = await postRows(GROUP_SEED, [mkRow('api-http-dup', 'd1'), mkRow('api-http-dup', 'd2')])
+            assert.strictEqual(r.msg, 'errRowInvalid', `應回 errRowInvalid（實得 ${JSON.stringify(r)}）`)
+            assert.strictEqual(await countGroup(GROUP_SEED), n0, '拒絕後既有群組列數不變')
+        })
+
+        it('R-SYNC-1 主鍵現屬他群組 → errRowInvalid、兩個群組皆不變', async function() {
+            let nSeed = await countGroup(GROUP_SEED)
+            let nNew = await countGroup(GROUP_NEW)
+            let rowSeed = (await woItems.apis.select({})).find((v) => v.group === GROUP_SEED)
+            let r = await postRows(GROUP_NEW, [mkRow(rowSeed.id, 'moved')])
+            assert.strictEqual(r.msg, 'errRowInvalid', `應回 errRowInvalid（實得 ${JSON.stringify(r)}）`)
+            assert.strictEqual(await countGroup(GROUP_SEED), nSeed, '原群組不變')
+            assert.strictEqual(await countGroup(GROUP_NEW), nNew, '目標群組不變')
+            assert.strictEqual((await woItems.apis.select({ id: rowSeed.id }))[0].group, GROUP_SEED, '該列仍屬原群組')
+        })
+
+        //w-serv-orm 1.1.11 起字串型主鍵欄之數字主鍵存為其字串形式、回應之 id 為字串；跨群組查詢以 woItems 直呼（不經 procOrm 之轉型），
+        //故 pickRowIds 須一律為 String(id)，否則數字主鍵之跨群組同鍵漏判（insert 略過已存在者卻回 success；w-serv-orm 之建議書 S3）
+        it('R-SYNC-1 數字主鍵存為其字串形式；跨群組同鍵（數字與其字串形式）皆拒且兩群組不變', async function() {
+            let GROUP_B = 'api-http-sync-num-b'
+            let r1 = await postRows(GROUP_NEW, [mkRow(123, 'num')])
+            assert.strictEqual(r1.state, 'success', `應 success（實得 ${JSON.stringify(r1)}）`)
+            assert.deepStrictEqual(r1.msg, [{ id: '123' }], '回應之 id 為字串')
+            let rs = await woItems.apis.select({ id: '123' })
+            assert.strictEqual(rs.length, 1, '庫內以字串 123 存放')
+            assert.strictEqual(rs[0].group, GROUP_NEW)
+            for (let id of [123, '123']) {
+                let r = await postRows(GROUP_B, [mkRow(id, 'moved')])
+                assert.strictEqual(r.msg, 'errRowInvalid', `主鍵 ${JSON.stringify(id)} 屬他群組應拒（實得 ${JSON.stringify(r)}）`)
+            }
+            assert.strictEqual(await countGroup(GROUP_B), 0, '目標群組不變')
+            assert.strictEqual((await woItems.apis.select({ id: '123' }))[0].group, GROUP_NEW, '該列仍屬原群組')
+        })
+
+        it('R-SYNC-1 主鍵恰為 1978 位元組（上限）→ success、以該主鍵寫入', async function() {
+            let id = 'b'.repeat(1978)
+            let r = await postRows(GROUP_NEW, [mkRow(id, 'boundary'), mkRow('', 'no-id')])
+            assert.strictEqual(r.state, 'success', `上限內應 success（實得 ${JSON.stringify(r).slice(0, 300)}）`)
+            assert.strictEqual((await woItems.apis.select({ id })).length, 1, '應以該主鍵寫入')
+            assert.strictEqual(await countGroup(GROUP_NEW), 2, '不帶主鍵之列照常由 ORM 補主鍵寫入')
         })
 
         it('rows 全部合法 → success、以新列取代該群組（id／timeCreate 由 ORM 補齊；再同步即取代）', async function() {

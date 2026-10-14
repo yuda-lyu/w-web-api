@@ -88,7 +88,7 @@ describe('unit-procApis (錯誤路徑 + 正常路徑)', function() {
         assert.strictEqual(captured.id, 'fixed-id-1', '既有 id 應被保留')
     })
 
-    //ADR-031：getApisList 經 procOrm（與 save/del 同一入口），ORM 層政策（useCheckUser / useExcludeWhenNotAdmin）才套到讀取；改造前直呼 woItems.select 繞過
+    //ADR-031：getApisList 經 procOrm（與 save/del 同一入口），擴充之前後處理會一併套到讀取；改造前直呼 woItems.select 繞過（w-serv-orm 1.1.9 起不檢查使用者、不依使用者過濾，ADR-038）
     it('getApisList: 以 ("apis","select",{}) 呼叫 procOrm 並回傳其結果（不直呼 woItems）', async function() {
         let calls = []
         let procOrm = async (...a) => {
@@ -238,21 +238,44 @@ describe('unit-procApis (錯誤路徑 + 正常路徑)', function() {
         assert.strictEqual(maxActive, 1, '同一列之刪除以 kmx 序列化')
     })
 
-    it('雙擊防護: procOrm 失敗時原樣 reject 並釋放占位（同一使用者可再送出；存／刪皆同）', async function() {
+    //R-ERR-1（ADR-038）：procOrm 之失敗字串（w-serv-orm 1.1.8 起為英文，如 getMapOrm.mjs 之 'failed to save data'、'failed to delete data'）不外露：
+    //存／刪回語系鍵 saveWriteFail、原文入 srLog；占位照常釋放（原期望為原樣轉出，且替身仍為 1.1.8 前之中文字串）
+    it('雙擊防護: procOrm 失敗時回 saveWriteFail（原文入 srLog）並釋放占位（同一使用者可再送出；存／刪皆同）', async function() {
         let n = 0
         let procOrm = async (userId, table, method) => {
             n += 1
             if (n === 1 || n === 3) {
-                return Promise.reject(method === 'save' ? '儲存資料失敗' : '刪除資料失敗') //mapOrm 之失敗字串
+                return Promise.reject(method === 'save' ? 'failed to save data' : 'failed to delete data') //mapOrm 之失敗字串（w-serv-orm 1.1.10）
             }
             return 'ok'
         }
-        let { saveApi, deleteApi } = procApis({ procOrm, ds, lockSave })
+        let logs = []
+        let srLog = { error: (o) => logs.push(o) }
+        let { saveApi, deleteApi } = procApis({ procOrm, ds, lockSave, srLog })
         let row = { id: 'id-dc-3', name: 'x', url: 'http://a', method: 'GET' }
-        await expectReject(() => saveApi('u1', row), '儲存資料失敗')
+        await expectReject(() => saveApi('u1', row), 'saveWriteFail')
         assert.strictEqual(await saveApi('u1', row), 'ok', '儲存失敗結束後占位已釋放')
-        await expectReject(() => deleteApi('u1', 'id-dc-3'), '刪除資料失敗')
+        await expectReject(() => deleteApi('u1', 'id-dc-3'), 'saveWriteFail')
         assert.strictEqual(await deleteApi('u1', 'id-dc-3'), 'ok', '刪除失敗結束後占位已釋放')
+        assert.deepStrictEqual(logs, [
+            { event: 'kpfun-saveApi-orm', err: 'saveWriteFail', orm: 'failed to save data' },
+            { event: 'kpfun-deleteApi-orm', err: 'saveWriteFail', orm: 'failed to delete data' },
+        ], 'procOrm 原文只入 srLog')
+    })
+
+    it('R-ERR-1: getApisList 之 procOrm 失敗 → 回 getDataError（原文入 srLog）；Error 型拒絕只記名稱不記訊息', async function() {
+        let logs = []
+        let srLog = { error: (o) => logs.push(o) }
+        let { getApisList } = procApis({ procOrm: async () => Promise.reject('failed to select data'), ds, srLog })
+        await expectReject(() => getApisList('u1'), 'getDataError')
+        let err = new TypeError('secret-in-message')
+        let { saveApi } = procApis({ procOrm: async () => Promise.reject(err), ds, lockSave, srLog })
+        await expectReject(() => saveApi('u1', { name: 'x', url: 'http://a', method: 'GET' }), 'saveWriteFail')
+        assert.deepStrictEqual(logs, [
+            { event: 'kpfun-getApisList-orm', err: 'getDataError', orm: 'failed to select data' },
+            { event: 'kpfun-saveApi-orm', err: 'saveWriteFail', orm: '(object) TypeError' },
+        ])
+        assert.ok(!JSON.stringify(logs).includes('secret-in-message'), 'Error 之 message 不得入 log')
     })
 
     it('雙擊防護: 未注入 lockSave → saveApi／deleteApi reject 且不呼叫 procOrm（fail-closed，不以無占位模式執行）', async function() {
