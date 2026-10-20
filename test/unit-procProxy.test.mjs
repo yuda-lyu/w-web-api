@@ -29,6 +29,12 @@ function makeHandler(port) {
                 res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': ['a=1', 'b=2'], 'X-Resp': 'yes' })
                 res.end('{"ok":true,"n":1}')
             }
+            else if (p.startsWith('/protohdr')) {
+                res.setHeader('__proto__', 'marker')
+                res.setHeader('X-Ordinary', 'ok')
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end('{}')
+            }
             else if (p.startsWith('/arr')) {
                 res.writeHead(200, { 'Content-Type': 'application/json' })
                 res.end('[{"id":1},{"id":2}]')
@@ -213,6 +219,16 @@ describe('unit-procProxy', function() {
 
         await proxyRequest({ method: 'POST', url: `${BASE}/p`, headers: [['Content-Type', 'text/plain']], body: { a: 1 } })
         assert.strictEqual(lastReceived().headers['content-type'], 'text/plain', '鍵值對型標頭已給之 Content-Type 亦不得被覆蓋')
+    })
+
+    //R-KEY-01：回應標頭名由目標伺服器決定，原型鍵名（__proto__）亦須為自有資料屬性，不得因一般指派被忽略而遺失；其餘標頭、輸出形狀（一般物件）不變
+    it('PROXY-R-001 回應標頭含 __proto__：保留為自有屬性，headers 仍為一般物件', async function() {
+        let r = await proxyRequest({ method: 'GET', url: `${BASE}/protohdr`, headers: {} })
+        assert.strictEqual(r.status, 200)
+        assert.strictEqual(Object.getPrototypeOf(r.headers), Object.prototype)
+        assert.strictEqual(Object.getOwnPropertyDescriptor(r.headers, '__proto__').value, 'marker')
+        assert.strictEqual(r.headers['x-ordinary'], 'ok')
+        assert.ok(JSON.stringify(r.headers).includes('"__proto__":"marker"'))
     })
 
     //回應契約（對齊改造前 axios 輸出形狀）：可 parse 者回物件／陣列，否則原文；status / statusText / headers / durationMs 齊備；

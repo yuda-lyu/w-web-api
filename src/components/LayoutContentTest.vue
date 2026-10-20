@@ -225,7 +225,6 @@
 
 <script>
 import get from 'lodash-es/get.js'
-import each from 'lodash-es/each.js'
 import isestr from 'wsemi/src/isestr.mjs'
 import isobj from 'wsemi/src/isobj.mjs'
 import j2o from 'wsemi/src/j2o.mjs'
@@ -351,19 +350,9 @@ export default {
         },
 
         jsonToRows: function(jsonStr) {
-            // let vo = this
-            let rows = []
-            if (!isestr(jsonStr)) {
-                return rows
-            }
-            let obj = j2o(jsonStr)
-            if (!isobj(obj)) {
-                return rows
-            }
-            each(obj, function(v, k) {
-                rows.push(mkRow(k, String(v)))
-            })
-            return rows
+            let vo = this
+            //預設 Query／Headers JSON 之鍵為使用端給定之任意字串（含 length，如分頁參數），依自有鍵走訪，見 mShare.jsonToKvPairs（R-OBJ-ITER-01）
+            return vo.$s.jsonToKvPairs(jsonStr).map(([k, v]) => mkRow(k, v))
         },
 
         seedFromItem: function(itm) {

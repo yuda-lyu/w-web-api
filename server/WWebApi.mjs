@@ -606,10 +606,13 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         })
 
         //偵測b64自動恢復
+        //列物件由外部應用送入, 欄位名可為任意字串(含 length): 一律依自有可列舉鍵走訪(Object.keys), 不用 lodash each——
+        //後者對具非負整數 length 之物件改走索引 0..length-1(真實欄位被略過致還原靜默失效, length 極大時空轉阻塞事件迴圈), R-OBJ-ITER-01
         if (keyTable === 'apis') {
             each(rows, (row, krow) => {
                 // console.log(kapi, row.name)
-                each(row, (v, k) => {
+                for (let k of Object.keys(row)) {
+                    let v = row[k]
                     // console.log(k, v)
                     if (isestr(v)) {
                         if (strleft(v, 7) === 'base64:') {
@@ -620,7 +623,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                             rows[krow][k] = v
                         }
                     }
-                })
+                }
             })
         }
 

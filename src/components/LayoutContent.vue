@@ -277,14 +277,12 @@
 
 <script>
 import get from 'lodash-es/get.js'
-import set from 'lodash-es/set.js'
 import each from 'lodash-es/each.js'
 import size from 'lodash-es/size.js'
 import trim from 'lodash-es/trim.js'
 import find from 'lodash-es/find.js'
 import filter from 'lodash-es/filter.js'
 import cloneDeep from 'lodash-es/cloneDeep.js'
-import isobj from 'wsemi/src/isobj.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import dtmapping from 'wsemi/src/dtmapping.mjs'
 import convertToTree from 'wsemi/src/convertToTree.mjs'
@@ -436,20 +434,18 @@ export default {
 
             //tr
             let tr = {}
-            let kpTree = {}
+            let kpTree = Object.create(null) //鍵為 API id(外部同步可給任意字串主鍵), 無原型 (R-KEY-01)
             each(apis, (v) => {
 
-                //id, levels
+                //id, levels(節點路徑陣列: levels 依 . 分層, name 為單一葉名, 不把 name 內之 . 或 [ 當路徑, 見 mShare.apiTreePath)
                 let id = v.id
-                let levels = `${v.levels}.${v.name}`
+                let levels = vo.$s.apiTreePath(v.levels, v.name)
 
                 //save
                 kpTree[id] = v
 
-                //check
-                if (!isobj(get(tr, levels))) {
-                    set(tr, levels, id)
-                }
+                //寫入樹物件(各層以自有鍵判斷與寫入, 名稱為 __proto__ 等原型鍵名者亦保留, 見 mShare.apiTreeSet)
+                vo.$s.apiTreeSet(tr, levels, id)
 
             })
             // console.log('tr', cloneDeep(tr))

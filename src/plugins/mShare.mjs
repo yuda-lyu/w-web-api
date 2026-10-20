@@ -1,6 +1,9 @@
 //前後端共用函數區
+import toPath from 'lodash-es/toPath.js'
 import isobj from 'wsemi/src/isobj.mjs'
 import isarr from 'wsemi/src/isarr.mjs'
+import isestr from 'wsemi/src/isestr.mjs'
+import j2o from 'wsemi/src/j2o.mjs'
 
 
 function isJsonContainer(v) {
@@ -94,6 +97,63 @@ function kvRowsToPairs(rows) {
 }
 
 
+//jsonToKvPairs：API 定義之預設 Query／Headers JSON 字串（defaultQueryJson、defaultHeadersJson）→ 有序鍵值對 [[key, valueString], ...]。
+//規則（R-OBJ-ITER-01）：鍵為使用端（API 定義者或外部同步）給定之任意字串，含 `length`（如分頁參數 { "start": 0, "length": 10 }）——
+//一律依自有可列舉鍵走訪（Object.keys）；改造前以 lodash each 走訪，具非負整數 length 之物件改走索引 0..length-1，
+//真實鍵被略過並產生 key 為 0..length-1、值為 'undefined' 之假列（length: 0 則整表為空）。
+//非字串、空字串、解析後非一般物件（陣列、純值）→ []；值一律轉字串。
+function jsonToKvPairs(jsonStr) {
+    let pairs = []
+    if (!isestr(jsonStr)) {
+        return pairs
+    }
+    let obj = j2o(jsonStr)
+    if (!isobj(obj)) {
+        return pairs
+    }
+    for (let k of Object.keys(obj)) {
+        pairs.push([k, String(obj[k])])
+    }
+    return pairs
+}
+
+
+//apiTreePath：API 於左側樹中之節點路徑（陣列）。levels 以 `.` 分層（設計，seed 如 '寵物.狗狗'），name 為葉名，整段視為單一層級。
+//why（R-KEY-01）：name 為使用端（API 定義者或外部同步）給定之任意字串；改造前以 `${levels}.${name}` 字串交給 lodash get／set，
+//name 內之 `.` 或 `[` 被解析為路徑——多出中間層，且葉（值為 id 字串）遇後來之 `a.b` 時被 set 換成物件，先前之 API 自樹上消失。
+//dot 與 `[` 皆不出現於 name 時，路徑與改造前相同（含 levels 為空字串：改造前 '.name' 解析為 ['', name]，此處以 `${levels}.` 解析、末段換成 name，結果相同）。
+function apiTreePath(levels, name) {
+    let path = toPath(`${levels}.`) //末段恆為空字串（levels 之後的 `.` 之右側）
+    path[path.length - 1] = `${name}`
+    return path
+}
+
+
+//apiTreeSet：依節點路徑（apiTreePath）把 API id 寫入樹物件 tr（葉為 id 字串、群組為物件）。
+//語意同改造前之 `if (!isobj(get(tr, path))) set(tr, path, id)`：該路徑已是群組（物件）則不覆寫；否則建立中間群組並寫入葉（途中遇葉〔id 字串〕時換成群組）。
+//差異（R-KEY-01）：各層一律以自有鍵判斷與寫入——lodash get 對 `__proto__`、`constructor` 等取得繼承值（Object.prototype、Object 函數）而誤判為既有群組，
+//致名稱為此類字串之 API 自樹上消失；自有資料屬性以 defineProperty 寫入（含 __proto__，一般指派會被忽略）。
+function apiTreeSet(tr, path, id) {
+    let own = (o, k) => Object.prototype.hasOwnProperty.call(o, k)
+    let def = (o, k, v) => Object.defineProperty(o, k, { value: v, writable: true, enumerable: true, configurable: true })
+    let cur = tr
+    for (let i = 0; i < path.length - 1; i++) {
+        let k = path[i]
+        let nx = own(cur, k) ? cur[k] : undefined
+        if (!isobj(nx)) {
+            nx = {}
+            def(cur, k, nx)
+        }
+        cur = nx
+    }
+    let last = path[path.length - 1]
+    if (!(own(cur, last) && isobj(cur[last]))) {
+        def(cur, last, id)
+    }
+    return tr
+}
+
+
 export {
     METHODS,
     isJsonContainer,
@@ -101,5 +161,8 @@ export {
     methodToHttpVerb,
     escapeHtml,
     jsonHighlight,
-    kvRowsToPairs
+    kvRowsToPairs,
+    jsonToKvPairs,
+    apiTreePath,
+    apiTreeSet
 }

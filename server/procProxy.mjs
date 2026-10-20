@@ -223,9 +223,10 @@ function procProxy(opt = {}) {
             }
 
             //headers → 物件；set-cookie 多值以陣列呈現
+            //標頭名由目標伺服器決定(可為 __proto__ 等原型鍵名): 一律以自有資料屬性保存(一般指派 resHeaders['__proto__'] = v 會被忽略而遺失該標頭, R-KEY-01)
             let resHeaders = {}
             res.headers.forEach((v, k) => {
-                resHeaders[k] = v
+                Object.defineProperty(resHeaders, k, { value: v, writable: true, enumerable: true, configurable: true })
             })
             let cookies = res.headers.getSetCookie()
             if (cookies.length > 0) {
