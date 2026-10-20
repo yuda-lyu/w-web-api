@@ -284,8 +284,9 @@ export default {
             return map(gs, function(vs, timeKey) {
                 let merged = { time: timeKey, data: {} }
                 dataKeyList.forEach(function(k) {
+                    //事件名 k 以自有屬性取值（不把事件名組成 lodash 路徑字串：含 . 或 [ 之事件名會被解析為路徑而恆為 0），見 mShare.getFreqVal（R-KEY-01）
                     merged.data[k] = sumBy(vs, function(item) {
-                        return get(item, `data.${k}`, 0)
+                        return vo.$s.getFreqVal(item, k)
                     })
                 })
                 return merged
@@ -327,7 +328,7 @@ export default {
                     type: 'bar',
                     barWidth: barWidthPct,
                     data: map(data, function(item) {
-                        return get(item, `data.${valueKey}`, 0)
+                        return vo.$s.getFreqVal(item, valueKey)
                     }),
                     itemStyle: { color: vo.colorOf(valueKey) },
                     emphasis: { focus: 'series' },
@@ -358,7 +359,7 @@ export default {
             let sumLastN = function(ev, n) {
                 let bs = arr.slice(-n)
                 return reduce(bs, function(s, item) {
-                    return s + get(item, `data.${ev}`, 0)
+                    return s + vo.$s.getFreqVal(item, ev)
                 }, 0)
             }
             let rows = vo.allEvents.map(function(ev) {

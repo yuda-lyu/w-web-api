@@ -1,7 +1,7 @@
 //unit：R-OBJ-ITER-01／R-KEY-01 站點守門（CLAUDE_rulebook.md〈迭代使用端傳入之物件與使用端字串鍵〉站點全集之可執行版）
 //  - 已套站點不再出現列舉之寫法；
-//  - 統計頁（LayoutContentStats.vue）以 `data.${事件名}` 字串取值：事件名含 `.` 或 `[` 時被 lodash 當路徑而恆得 0。事件名皆為程式碼常數，
-//    本檔守門其字面值不含 `.`、`[`（新增事件名須同守此限制，或改以陣列路徑取值）。
+//  - 統計頁（LayoutContentStats.vue）取時間桶 data 內事件名之值：改造前以 `data.${事件名}` 字串交 lodash get（事件名含 `.` 或 `[` 時被當路徑而恆得 0），
+//    現經 mShare.getFreqVal 以自有屬性取值（SITE-API-005），事件名不再受 `.`、`[` 限制；事件名仍不得為保留字 count 或原型鍵名（統計頁與 staLogsCore 以事件名為物件鍵，SITE-API-004）。
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
@@ -36,9 +36,10 @@ describe('unit-iterSites (R-OBJ-ITER-01 / R-KEY-01 站點守門)', function() {
         assert.ok(!/\bset\(\s*tr\s*,/.test(src), '不得 set(tr, …)')
     })
 
-    it('SITE-API-004 統計事件名（log 之 event）不含 . 與 [，且不為保留字 count 或原型鍵名（統計頁以 data.<事件名> 字串取值；staLogsCore 以事件名為鍵）', function() {
+    it('SITE-API-004 統計事件名（log 之 event）不為保留字 count 或原型鍵名（統計頁與 staLogsCore 以事件名為物件鍵）', function() {
         //事件名來源: ①event: '字面值' ②event: `樣板字串`(內插部分以 X 代入) ③wrapRouteErrLog('名稱')(事件名即名稱) ④wrapErrLog('名稱')(事件名為 'kpfun-' + 名稱)
-        let reserved = new Set(['count', 'length', 'constructor', '__proto__', 'prototype', 'toString', 'valueOf', 'hasOwnProperty'])
+        //保留集合: Object.prototype 之全部自有名稱（constructor、toString、__proto__、isPrototypeOf、__defineGetter__ …）加統計保留字與常見陷阱名
+        let reserved = new Set([...Object.getOwnPropertyNames(Object.prototype), 'count', 'length', 'prototype'])
         let names = []
         for (let rel of listMjs('server')) {
             let src = fs.readFileSync(path.join(root, rel), 'utf8')
@@ -56,8 +57,26 @@ describe('unit-iterSites (R-OBJ-ITER-01 / R-KEY-01 站點守門)', function() {
             }
         }
         assert.ok(names.length >= 25, `應掃到既有之事件名（實得 ${names.length}）`)
-        let bad = names.filter(([, nm]) => /[.[\]]/.test(nm) || reserved.has(nm)).map(([rel, nm]) => `${rel}: ${nm}`)
+        let bad = names.filter(([, nm]) => reserved.has(nm)).map(([rel, nm]) => `${rel}: ${nm}`)
         assert.deepStrictEqual(bad, [])
+    })
+
+    it('SITE-API-005 統計頁（LayoutContentStats.vue）取 data 內事件名之值經 mShare.getFreqVal，不以 data.<事件名> 路徑字串交給 lodash', function() {
+        let src = read('src/components/LayoutContentStats.vue')
+        //src/ 全目錄（.vue 與 .mjs／.js）皆不得以樣板字串 `data.${…}` 組 lodash 路徑
+        let files = fs.readdirSync(path.join(root, 'src'), { recursive: true }).filter((f) => /\.(vue|mjs|js)$/.test(f)).map((f) => path.join('src', f))
+        //註解不計（說明文字會提及改造前的寫法）
+        let stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+        let bad = files.filter((f) => /`data\.\$\{/.test(stripComments(read(f))))
+        assert.deepStrictEqual(bad, [], '不得以樣板字串 data.<事件名> 組路徑字串')
+        //三處取值各自傳入正確的鍵：重採樣加總（k）、圖表系列（valueKey）、事件統計表（ev）；各恰一處
+        assert.strictEqual((src.match(/vo\.\$s\.getFreqVal\(item, k\)/g) || []).length, 1, '重採樣加總應取 k')
+        assert.strictEqual((src.match(/vo\.\$s\.getFreqVal\(item, valueKey\)/g) || []).length, 1, '圖表系列應取 valueKey')
+        assert.strictEqual((src.match(/vo\.\$s\.getFreqVal\(item, ev\)/g) || []).length, 1, '事件統計表應取 ev')
+        assert.ok(/function getFreqVal\(/.test(read('src/plugins/mShare.mjs')))
+        //元件以 vo.$s 取用：main.js 須以命名空間匯入 mShare 並掛為 Vue.prototype.$s（否則統計頁於執行期拋 undefined）
+        let main = read('src/main.js')
+        assert.ok(/import \* as s from '\.\/plugins\/mShare\.mjs'/.test(main) && /Vue\.prototype\.\$s = s/.test(main), 'main.js 應註冊 $s = mShare')
     })
 
 })

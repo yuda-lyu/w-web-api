@@ -154,6 +154,19 @@ function apiTreeSet(tr, path, id) {
 }
 
 
+//getFreqVal：統計頁取時間桶 { time, data: { count, [事件名]: 次數 } } 內某事件名之值（自有屬性，缺鍵或值為 undefined 回預設值 def）。
+//why（R-KEY-01）：事件名當作 data 內的鍵；改造前以 lodash get(item, `data.${事件名}`, 0) 取值，事件名含 `.` 或 `[` 時被解析為路徑（圖表、加總與事件統計表恆為 0），
+//原型鍵名（constructor 等）則取得繼承值。此處一律以自有屬性判斷與取值，事件名不再受字元限制。
+function getFreqVal(item, key, def = 0) {
+    let d = (item !== null && typeof item === 'object') ? item.data : null
+    if (d === null || typeof d !== 'object' || !Object.prototype.hasOwnProperty.call(d, key)) {
+        return def
+    }
+    let v = d[key]
+    return v === undefined ? def : v
+}
+
+
 export {
     METHODS,
     isJsonContainer,
@@ -164,5 +177,6 @@ export {
     kvRowsToPairs,
     jsonToKvPairs,
     apiTreePath,
-    apiTreeSet
+    apiTreeSet,
+    getFreqVal
 }
