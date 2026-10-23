@@ -346,7 +346,7 @@ async function prepareExtPromo() {
     await woItems.apis.save([{ id: c.id, group: 'promo-group' }])
 }
 
-//E2E-017 真實 user path：①搜尋並點「取得貓咪清單」（後台列，可編輯）→ 點「編輯」分頁 → 於權杖欄輸入（未存）②（外部應用以該列之 id 代替來源鍵、外部欄位完全相同地匯入：只補 srcKey，推播之列摘要不變）
+//E2E-017 真實 user path：①搜尋並點「取得貓咪清單」（後台列，可編輯）→ 點「編輯」分頁 → 於權杖欄輸入（未存）②（外部應用以等於該列 id 之 srcKey、外部欄位完全相同地匯入＝一次性遷移〔I15〕：只補 srcKey，推播之列摘要不變）
 //③畫面轉為外部列（上方出現唯讀說明、欄位轉唯讀），權杖草稿保留 ④點儲存 → 成功（本系統擁有欄位可存；舊畫面之空 srcKey 不被誤判為改身分欄）
 async function runE2E017(page, lang) {
     let shots = {}
@@ -360,8 +360,8 @@ async function runE2E017(page, lang) {
     assert.strictEqual(await page.locator('.bk-ext').count(), 0, '編輯當下為後台列: 無說明')
     await typeIntoInput(page, ctlOf(page, lb.tokens), 'tok-promo')
 
-    //步驟2：外部應用匯入（以 id 代替來源鍵，外部欄位與庫內完全相同）→ 該列補 srcKey = id
-    let batch = { id: rowC.id }
+    //步驟2：外部應用匯入（srcKey 等於該列既有之 id＝一次性遷移，外部欄位與庫內完全相同；不得帶 id）→ 該列補 srcKey = id
+    let batch = { srcKey: rowC.id }
     for (let f of fieldsExternal) {
         if (f !== 'group') {
             batch[f] = rowC[f]
@@ -402,8 +402,8 @@ async function runE2E018(page, lang) {
     await openEdit(page, lang)
     await typeIntoInput(page, ctlOf(page, lb.description), 'draft-before-promotion')
 
-    //步驟2：外部應用匯入（以 id 代替來源鍵、外部欄位與庫內相同）→ 補 srcKey
-    let batch = { id: rowC.id }
+    //步驟2：外部應用匯入（srcKey 等於該列既有之 id＝一次性遷移、外部欄位與庫內相同；不得帶 id）→ 補 srcKey
+    let batch = { srcKey: rowC.id }
     for (let f of fieldsExternal) {
         if (f !== 'group') {
             batch[f] = rowC[f]

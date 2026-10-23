@@ -2,13 +2,14 @@
 //POST /syncAndReplaceTabs 依外部自訂之來源鍵 srcKey 於 apis 表鎖內差異同步（新增／刪除／修改／不變），回 { nAdd, nUpdate, nDel, nSame }。
 //真後端（隔離子行程：獨立 lmdb、埠 8552，SlowOrm 注入人為延遲與失敗；不碰專案 ./db 與 11005），走實際匯入入口（含 base64: 還原、clearXSS 改寫、轉型）。
 //每個 it 對應規格驗收 I1～I14（括號）與 inv01 缺陷（E8 同步換 id、C4b 本系統擁有欄位被清空、A5 timeCreate 重設、A1 不取鎖、ADR-016 非原子）。
-//相容（現行 major，主控建議、使用者尚未確認）：列未給 srcKey 而給 id 者以 id 為來源鍵（I13）；兩者皆無者該列每次新增（其餘有鍵之列仍差異同步，不再整批 delAll＋insert）並記警告；下一 major srcKey 必填。
+//不提供呼叫端相容（2026-10-23 使用者裁示；規格 §9、驗收 I13／I15；ADR-046）：srcKey 即刻必填——缺（含只送 id）、空、非字串 → 整批 errRowInvalid（＝規格之 srcKeyInvalid）；
+//列帶 id（即使同時有 srcKey）→ 整批 idNotAllowed；皆零寫入。舊資料遷移（I15，一次性、非呼叫端相容）：既有無 srcKey 之外部列，批次 srcKey 等於其 id 者視為同一列並補 srcKey，id 不變、本地欄位保留。
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import { buildBaseline } from 'w-serv-orm/src/baseline.mjs'
 import contract, { fieldsLocal } from '../src/schema/contracts/apis.mjs'
-import { startApiServer, sleep } from './tools/apiHarness.mjs'
+import { startApiServer, sleep, mkLegacyRow } from './tools/apiHarness.mjs'
 
 
 let PORT = 8552
@@ -208,7 +209,7 @@ describe('api-import (外部匯入: srcKey 差異同步)', function() {
             }
         })
 
-        it('身分欄: 範圍（group）由請求決定，批次列自帶之 group 不採用——新增與修改皆然，不致寫入他群組；批次列自帶之 id／srcKey 以外之身分鍵亦不影響', async function() {
+        it('身分欄: 範圍（group）由請求決定，批次列自帶之 group 不採用——新增與修改皆然，不致寫入他群組', async function() {
             let r1 = await imp([mkExt('g1', { group: 'other-scope' }), mkExt('g2')])
             assert.deepStrictEqual(r1.msg, { nAdd: 2, nUpdate: 0, nDel: 0, nSame: 0 })
             let rs = await S.list()
@@ -219,12 +220,6 @@ describe('api-import (外部匯入: srcKey 差異同步)', function() {
             rs = await S.list()
             assert.strictEqual(byKey(rs, 'g1', G).name, 'renamed')
             assert.strictEqual(rs.filter((v) => v.group === 'other-scope').length, 0)
-            //相容路徑（有列無來源鍵 → delAll＋insert）亦同
-            let r3 = await imp([{ name: 'legacy-n', url: 'http://l/n', group: 'other-scope' }])
-            assert.strictEqual(r3.state, 'success', JSON.stringify(r3))
-            rs = await S.list()
-            assert.strictEqual(rs.filter((v) => v.group === 'other-scope').length, 0)
-            assert.strictEqual(rs.filter((v) => v.group === G).length, 1)
         })
 
         it('I6 補: 本系統擁有欄位有值之列，於「外部內容不變」之重送中零寫入（不因本地欄不同而誤判為改變）', async function() {
@@ -252,7 +247,7 @@ describe('api-import (外部匯入: srcKey 差異同步)', function() {
             assert.deepStrictEqual(after.sort((x, y) => x.id.localeCompare(y.id)), before.sort((x, y) => x.id.localeCompare(y.id)), `${label}: 拒收後庫內完全不變（零寫入）`)
         }
 
-        it('I7: 缺／空／非字串／不合規／同批重複的 srcKey → 整批 errRowInvalid、零寫入（其餘合法列亦不寫）', async function() {
+        it('I7: 空／非字串／不合規／同批重複的 srcKey 與其他列檢核失敗 → 整批 errRowInvalid、零寫入（其餘合法列亦不寫）；缺 srcKey 與列帶 id 見 I13', async function() {
             let before = await seed()
             let ok = mkExt('good-new')
             let cases = {
@@ -263,13 +258,12 @@ describe('api-import (外部匯入: srcKey 差異同步)', function() {
                 'srcKey 含 HTML 標記': [ok, mkExt('<script>alert(1)</script>')],
                 'srcKey 含白名單標籤': [ok, mkExt('<b>key</b>')],
                 'srcKey 為孤立代理字元': [ok, mkExt('\ud800')],
-                'id 代替者以控制字元起首': [ok, { id: '\u0001' + 'x'.repeat(1977), name: 'n', url: 'http://u' }],
                 'name 經字元清理後為空': [ok, { ...mkExt('x'), name: '<!--x-->' }],
                 '外部欄位為物件': [ok, { ...mkExt('x'), description: { a: 1 } }],
                 '外部欄位為陣列': [ok, { ...mkExt('x'), keywords: ['a'] }],
                 'srcKey 超過 1978 位元組': [ok, mkExt('k'.repeat(1979))],
                 '同批 srcKey 重複': [ok, mkExt('dup'), mkExt('dup')],
-                'srcKey 與他列以 id 代替之值重複': [ok, mkExt('dup'), { name: 'n', url: 'http://u', id: 'dup' }],
+                'srcKey 為 base64: 空值（還原後為空字串）': [ok, mkExt('x', { srcKey: 'base64:' })],
                 '缺必填 name': [ok, { srcKey: 'k', url: 'http://u' }],
                 '缺必填 url': [ok, { srcKey: 'k', name: 'n' }],
                 'name 為 base64: 空值': [ok, { srcKey: 'k', name: 'base64:', url: 'http://u' }],
@@ -295,7 +289,7 @@ describe('api-import (外部匯入: srcKey 差異同步)', function() {
             await expectNoChange(before, 'I8')
         })
 
-        it('I9／I10: 他群組、後台自建之列永不被觸及；相同 srcKey 於不同群組各自獨立；以 id 代替 srcKey 而撞他群組之 id → 拒收且雙方不變', async function() {
+        it('I9／I10: 他群組、後台自建之列永不被觸及；相同 srcKey 於不同群組各自獨立；srcKey 與他群組某列之 id 同值不構成配對（於本群組新增）；列帶他群組某列之 id → idNotAllowed 且雙方不變', async function() {
             let before = await seed()
             //同 srcKey 於另一群組：各自獨立
             let r = await imp([mkExt('a', { name: 'in-other-group' })], 'ext2')
@@ -309,12 +303,19 @@ describe('api-import (外部匯入: srcKey 差異同步)', function() {
             assert.deepStrictEqual(r2.msg, { nAdd: 0, nUpdate: 0, nDel: 1, nSame: 1 })
             let after = await S.list()
             assert.deepStrictEqual(after.filter((v) => v.group !== G), b2.filter((v) => v.group !== G), '他群組與後台自建（ui）之列完全不動')
-            //以 id 代替 srcKey 而該 id 屬他群組之列 → 拒收、雙方不變
+            //列帶他群組某列之 id（外部不得指定 id）→ 整批拒收、雙方不變
             let uiRow = after.find((v) => v.group === 'ui')
             let before3 = await S.list()
-            let r3 = await imp([mkExt('a'), { name: 'steal', url: 'http://s', id: uiRow.id }])
-            assert.deepStrictEqual({ state: r3.state, msg: r3.msg }, { state: 'error', msg: 'errRowInvalid' })
+            let r3 = await imp([mkExt('a'), mkExt('steal', { id: uiRow.id })])
+            assert.deepStrictEqual({ state: r3.state, msg: r3.msg }, { state: 'error', msg: 'idNotAllowed' })
             assert.deepStrictEqual(await S.list(), before3, '雙方不變')
+            //srcKey 與他群組某列之 id 同值：srcKey 的命名空間是各群組自己的，不配對、不觸及該列，於本群組新增
+            let r3b = await imp([mkExt('a'), mkExt(uiRow.id)])
+            assert.deepStrictEqual(r3b.msg, { nAdd: 1, nUpdate: 0, nDel: 0, nSame: 1 })
+            let after3 = await S.list()
+            assert.deepStrictEqual(after3.find((v) => v.id === uiRow.id), uiRow, '他群組該列完全不動')
+            assert.strictEqual(byKey(after3, uiRow.id).group, G)
+            assert.notStrictEqual(byKey(after3, uiRow.id).id, uiRow.id)
             //group 空字串＝後台自建之列，不是來源範圍
             let r4 = await S.sync('tokApp', { group: '', rows: [mkExt('a')] })
             assert.strictEqual(r4.msg, 'errGroupInvalid')
@@ -419,63 +420,115 @@ describe('api-import (外部匯入: srcKey 差異同步)', function() {
     })
 
     //--------------------------------------------------------------------------
-    describe('相容（現行 major；I13）與舊呼叫端', function() {
+    describe('不提供呼叫端相容（I13）、一次性遷移（I15）與其他', function() {
 
-        it('I13: 列未給 srcKey 而給 id → 以 id 為來源鍵（新增列沿用該 id）、行為與現行一致；重送冪等；並記警告', async function() {
-            let rows = [{ id: 'legacy-1', name: 'L1', url: 'http://l/1' }, { id: 'legacy-2', name: 'L2', url: 'http://l/2' }]
-            let r1 = await imp(rows)
-            assert.deepStrictEqual(r1.msg, { nAdd: 2, nUpdate: 0, nDel: 0, nSame: 0 })
-            let rs = await S.list()
-            assert.ok(rs.find((v) => v.id === 'legacy-1'), '新增列沿用外部給的 id（行為與現行一致）')
-            assert.strictEqual(rs.find((v) => v.id === 'legacy-1').srcKey, 'legacy-1')
-            let r2 = await imp(rows)
-            assert.deepStrictEqual(r2.msg, { nAdd: 0, nUpdate: 0, nDel: 0, nSame: 2 })
-            assert.deepStrictEqual((await S.list()).map((v) => v.id).sort(), ['legacy-1', 'legacy-2'])
+        it('I13: 缺 srcKey（無該欄）／只送 id／srcKey 與 id 並送／混批（部分列缺 srcKey）→ 整批拒收（errRowInvalid＝規格之 srcKeyInvalid；列帶 id 為 idNotAllowed）、零寫入（庫內完全不變、ORM 零呼叫）、srLog 無相容分支之警告', async function() {
+            let rows0 = await (async () => {
+                await imp([mkExt('a'), mkExt('b')])
+                await S.fun('tokA', 'saveApi', [{ name: 'ui-row', url: 'http://ui', method: 'get', group: 'ui' }])
+                return await S.list()
+            })()
+            let a0 = byKey(rows0, 'a')
+            await S.getOps(true)
+            let noKey = { name: 'no-key', url: 'http://nk/1' }
+            let cases = [
+                ['缺 srcKey', [noKey], 'errRowInvalid'],
+                ['只送 id（沿用既有列之 id 亦不得代替 srcKey）', [{ id: a0.id, name: a0.name, url: a0.url }], 'errRowInvalid'],
+                ['只送 id（全新之 id）', [{ id: 'legacy-1', name: 'L1', url: 'http://l/1' }], 'errRowInvalid'],
+                ['混批：有鍵之列＋缺 srcKey 之列', [mkExt('a'), noKey, mkExt('with-key')], 'errRowInvalid'],
+                ['混批：有鍵之列＋只送 id 之列', [mkExt('a'), { id: 'legacy-x', name: 'k2', url: 'http://k/2' }], 'errRowInvalid'],
+                ['srcKey 與 id 並送', [mkExt('a', { id: a0.id })], 'idNotAllowed'],
+                ['srcKey 與全新之 id 並送', [mkExt('new-k', { id: 'forged-id' })], 'idNotAllowed'],
+                ['混批：僅一列帶 id', [mkExt('a'), mkExt('b'), mkExt('c', { id: 'x' })], 'idNotAllowed'],
+                ['id 為空字串（仍屬帶 id）', [mkExt('c', { id: '' })], 'idNotAllowed'],
+                ['id 為 null（仍屬帶 id）', [mkExt('c', { id: null })], 'idNotAllowed'],
+            ]
+            for (let [label, rows, key] of cases) {
+                await S.getOps(true)
+                let r = await imp(rows)
+                assert.deepStrictEqual(await S.getOps(true), [], `${label}: 驗證在任何 ORM 呼叫之前（零呼叫）`)
+                assert.deepStrictEqual({ state: r.state, msg: r.msg }, { state: 'error', msg: key }, `${label}: ${JSON.stringify(r)}`)
+                assert.ok(!JSON.stringify(r).includes('forged-id') && !JSON.stringify(r).includes(a0.id), `${label}: 錯誤回應不回顯 id 值`)
+                assert.deepStrictEqual(await S.list(), rows0, `${label}: 庫內完全不變（零寫入）`)
+            }
             let txt = await readLogs()
-            assert.ok(txt.includes('syncAndReplaceTabs-idAsSrcKey'), '應記警告（下一 major 起 srcKey 必填）')
+            assert.ok(!txt.includes('syncAndReplaceTabs-idAsSrcKey') && !txt.includes('syncAndReplaceTabs-noSrcKey'), '相容分支之警告事件已不存在')
+            assert.ok(txt.includes('idNotAllowed'), '列帶 id 之拒收入 srLog（只含事件、範圍、列索引、欄位名）')
+            assert.ok(!txt.includes('forged-id'), 'srLog 不含 id 值')
         })
 
-        it('I13 補: 既有外部列無 srcKey（遷移前資料）→ 首次差異同步命中時於鎖內補上 srcKey = id，不計入 nUpdate、id 不變', async function() {
-            //以 UI 路徑建一列（srcKey 空）當作遷移前之外部列，並指定其 group；再以 id 代替 srcKey 匯入同內容
-            let u = await S.fun('tokA', 'saveApi', [{ name: 'old-ext', url: 'http://o/1', method: 'get', group: G }])
-            let id = u.msg[0].id
-            let row = (await S.list())[0]
-            let r = await imp([{ id, name: row.name, url: row.url, method: row.method, group: G, order: row.order, description: row.description, version: row.version, levels: row.levels, keywords: row.keywords, state: row.state, creator: row.creator, dataSource: row.dataSource, mdInputParams: row.mdInputParams, inputExample: row.inputExample, mdOutputParams: row.mdOutputParams, outputExample: row.outputExample }])
-            assert.deepStrictEqual(r.msg, { nAdd: 0, nUpdate: 0, nDel: 0, nSame: 1 })
-            let now = (await S.list())[0]
-            assert.strictEqual(now.id, id)
-            assert.strictEqual(now.srcKey, id, '補上 srcKey = id')
-            //之後可改以 srcKey 匯入（srcKey = 原 id）：命中同一列
-            let r2 = await imp([mkExt(id, { name: row.name, url: row.url, description: row.description, levels: row.levels, version: row.version, keywords: row.keywords, state: row.state, creator: row.creator, dataSource: row.dataSource })])
-            assert.strictEqual(r2.msg.nAdd, 0, JSON.stringify(r2))
-            assert.strictEqual((await S.list()).length, 1)
-        })
-
-        it('批次中有列兩者皆無（無 srcKey 亦無 id）→ 該列每次新增（配新 id），其餘有鍵之列仍差異同步、本系統擁有欄位不被清（不再整批 delAll＋insert；外審 sol#5）；記警告；他群組不動', async function() {
-            await imp([mkExt('a'), mkExt('b')])
-            await imp([mkExt('o')], 'other')
-            //後台為 a 設定本系統擁有欄位
-            let a0 = byKey(await S.list(), 'a')
-            let setLocal = await S.fun('tokA', 'saveApi', [{ ...a0, tokens: 'MY-TOKEN', authType: 'bearer', contentType: 'text/plain', testBaseUrl: 'http://t' }, { baseline: baselineOf(a0) }])
-            assert.ok(setLocal.ok, JSON.stringify(setLocal))
-            let aSet = byKey(await S.list(), 'a')
-            let r = await imp([mkExt('a'), { name: 'k1', url: 'http://k/1' }, mkExt('with-key')])
+        it('I15: 既有外部列無 srcKey（舊同步寫入或相容期所寫；遷移前資料）、批次 srcKey 等於其 id → 視為同一列、於鎖內補上 srcKey；id 不變、本地欄位（tokens 等）與 timeCreate 保留；內容相同不計 nUpdate；其後只認 srcKey、重送零寫入', async function() {
+            //遷移前之列：L1 無 srcKey 欄（升版前）、L2 srcKey 為空字串（相容期無鍵列）、L3 對不上；K 為已有 srcKey 之列（id 與 srcKey 不同）
+            await S.seed([mkLegacyRow('L1', G), mkLegacyRow('L2', G, { srcKey: '' }), mkLegacyRow('L3', G), mkLegacyRow('Kid', G, { srcKey: 'K' }), mkLegacyRow('O1', 'other')])
+            let before = await S.list()
+            let l1 = before.find((v) => v.id === 'L1')
+            assert.ok(!l1.srcKey, '前提: L1 無 srcKey（遷移前資料）')
+            let rowOf = (id, over = {}) => ({ name: `legacy-${id}`, url: `http://legacy/${id}`, description: `desc-${id}`, method: 'get', version: 'v1', levels: 'L.1', keywords: 'kw', state: 'ok', creator: 'c', dataSource: 'd', ...over })
+            await S.getOps(true)
+            //批次: L1（內容相同）、L2（改名）、K（已有 srcKey，內容相同）、Kid（srcKey 等於 Kid 列之 id，但該列已有 srcKey=K，不得以 id 配對 → 新增）、N（全新）；L3、O1 不在批次內／不在本群組
+            let r = await imp([mkExt('L1', rowOf('L1')), mkExt('L2', rowOf('L2', { name: 'renamed' })), mkExt('K', rowOf('Kid', { name: 'legacy-Kid' })), mkExt('Kid'), mkExt('N')])
             assert.strictEqual(r.state, 'success', JSON.stringify(r))
-            assert.deepStrictEqual(r.msg, { nAdd: 2, nUpdate: 0, nDel: 1, nSame: 1 }, 'a 不變、b 被刪、k1 與 with-key 新增')
+            assert.deepStrictEqual(r.msg, { nAdd: 2, nUpdate: 1, nDel: 1, nSame: 2 }, 'L1 補鍵(同)、K 不變(同)、L2 改名(更新)、Kid／N 新增、L3 刪除')
+            let after = await S.list()
+            //L1: 同一列, srcKey 補為 id, id 不變, 本地欄位與 timeCreate 保留, 外部擁有欄位不變
+            let l1b = after.find((v) => v.id === 'L1')
+            assert.strictEqual(l1b.srcKey, 'L1')
+            for (let f of [...fieldsLocal, 'timeCreate', 'isActive', 'name', 'url', 'description']) {
+                assert.strictEqual(l1b[f], l1[f], `L1 的 ${f} 保留`)
+            }
+            //L2: 同一列(id 不變)，srcKey 補為 id，名稱更新，本地欄位保留
+            let l2 = before.find((v) => v.id === 'L2')
+            let l2b = after.find((v) => v.id === 'L2')
+            assert.strictEqual(l2b.srcKey, 'L2')
+            assert.strictEqual(l2b.name, 'renamed')
+            assert.strictEqual(l2b.timeCreate, l2.timeCreate)
+            for (let f of fieldsLocal) {
+                assert.strictEqual(l2b[f], l2[f], `L2 的本地欄位 ${f} 保留`)
+            }
+            //L3 對不上 → 刪舊
+            assert.strictEqual(after.find((v) => v.id === 'L3'), undefined)
+            //K 列(id=Kid, srcKey=K): 只認 srcKey; 批次 'Kid' 是新增列, 內部 id 由系統產生, K 列完全不動
+            assert.deepStrictEqual(after.find((v) => v.id === 'Kid'), before.find((v) => v.id === 'Kid'))
+            let kidNew = byKey(after, 'Kid')
+            assert.ok(kidNew && kidNew.id !== 'Kid', '新增列, 內部 id 由系統產生')
+            assert.ok(byKey(after, 'N'))
+            //他群組不動
+            assert.deepStrictEqual(after.find((v) => v.id === 'O1'), before.find((v) => v.id === 'O1'))
+            //其後只認 srcKey: 重送同一批 → 零寫入
+            await S.getOps(true)
+            let r2 = await imp([mkExt('L1', rowOf('L1')), mkExt('L2', rowOf('L2', { name: 'renamed' })), mkExt('K', rowOf('Kid', { name: 'legacy-Kid' })), mkExt('Kid'), mkExt('N')])
+            assert.deepStrictEqual(r2.msg, { nAdd: 0, nUpdate: 0, nDel: 0, nSame: 5 })
+            assert.deepStrictEqual((await S.getOps(true)).filter((o) => o.op !== 'select'), [], '零寫入')
+            let byId = (x, y) => x.id.localeCompare(y.id)
+            assert.deepStrictEqual((await S.list()).sort(byId), after.slice().sort(byId), '重送後庫內完全不變（含 timeUpdate）')
+        })
+
+        it('I15 補: 遷移前之列於首次匯入時，批次 srcKey 未等於其 id 者依差異同步（刪舊增新）；刪除無 srcKey 之列記 warn（syncAndReplaceTabs-delNoSrcKey）、不靜默', async function() {
+            await S.seed([mkLegacyRow('U1', G), mkLegacyRow('U2', G, { srcKey: '' })])
+            let txt0 = await readLogs()
+            let n0 = (txt0.match(/syncAndReplaceTabs-delNoSrcKey/g) || []).length
+            let r = await imp([mkExt('u-new-1'), mkExt('u-new-2')])
+            assert.deepStrictEqual(r.msg, { nAdd: 2, nUpdate: 0, nDel: 2, nSame: 0 })
             let rs = await S.list()
-            assert.strictEqual(rs.filter((v) => v.group === G).length, 3)
-            assert.strictEqual(rs.filter((v) => v.group === 'other').length, 1, '他群組不動')
-            assert.deepStrictEqual(byKey(rs, 'a'), aSet, '有鍵且命中之列（含 tokens／authType／contentType／testBaseUrl）完全不動')
-            assert.strictEqual(byKey(rs, 'with-key').srcKey, 'with-key')
-            let k1 = rs.find((v) => v.name === 'k1')
-            assert.strictEqual(k1.srcKey, '')
-            //再送：無來源鍵列不配對 → 換新 id；其餘不動
-            let r2 = await imp([mkExt('a'), { name: 'k1', url: 'http://k/1' }, mkExt('with-key')])
-            assert.deepStrictEqual(r2.msg, { nAdd: 1, nUpdate: 0, nDel: 1, nSame: 2 })
-            let k1b = (await S.list()).find((v) => v.name === 'k1')
-            assert.notStrictEqual(k1b.id, k1.id)
-            let txt = await readLogs()
-            assert.ok(txt.includes('syncAndReplaceTabs-noSrcKey'), '應記警告「未給來源鍵」')
+            assert.deepStrictEqual(rs.map((v) => v.srcKey).sort(), ['u-new-1', 'u-new-2'])
+            assert.ok(!rs.some((v) => v.id === 'U1' || v.id === 'U2'), '舊列已刪')
+            let txt1 = await readLogs()
+            let n1 = (txt1.match(/syncAndReplaceTabs-delNoSrcKey/g) || []).length
+            assert.ok(n1 > n0, `刪除無來源鍵之列須記 warn：${n0} → ${n1}`)
+        })
+
+        it('I15 補2: 庫內同 group 之有效來源鍵撞名（srcKey=\'x\' 之列與 id=\'x\' 之無鍵列並存）→ 無法唯一配對，整批 errRowInvalid、零寫入、不靜默刪改（規格 §5 第 4 步；與批次內容無關）', async function() {
+            await S.seed([mkLegacyRow('ex', G, { srcKey: 'x' }), mkLegacyRow('x', G)])
+            let before = await S.list()
+            await S.getOps(true)
+            for (let rows of [[mkExt('z')], [mkExt('x')], [mkExt('ex')]]) {
+                let r = await imp(rows)
+                assert.deepStrictEqual({ state: r.state, msg: r.msg }, { state: 'error', msg: 'errRowInvalid' }, JSON.stringify(rows.map((v) => v.srcKey)))
+                assert.deepStrictEqual((await S.getOps(true)).filter((o) => o.op !== 'select'), [], '零寫入')
+            }
+            let byId = (x, y) => x.id.localeCompare(y.id)
+            assert.deepStrictEqual((await S.list()).sort(byId), before.slice().sort(byId), '庫內完全不變')
+            assert.ok((await readLogs()).includes('dbDuplicate'), '原因入 srLog')
         })
 
         it('欄位型別：有限數字／布林轉字串存入（前端以字串處理 method 等）；含孤立代理字元之外部欄位正規化後重送冪等（外審 sol#3、#4）', async function() {
@@ -495,10 +548,10 @@ describe('api-import (外部匯入: srcKey 差異同步)', function() {
             assert.deepStrictEqual((await imp(rows2)).msg, { nAdd: 0, nUpdate: 0, nDel: 0, nSame: 2 })
         })
 
-        it('大批次（以 id 代替 srcKey 之 1200 列）：既有主鍵衝突檢查之 $in 分批，真實 lmdb 可成功匯入、重送冪等（外審 sol#9）', async function() {
+        it('大批次（1200 列）：真實 lmdb 可成功匯入、重送冪等、一次差異同步全數刪除（外審 sol#9）', async function() {
             let rows = []
             for (let k = 0; k < 1200; k++) {
-                rows.push({ id: `bulk-${k}`, name: `bulk-${k}`, url: 'http://b' })
+                rows.push({ srcKey: `bulk-${k}`, name: `bulk-${k}`, url: 'http://b' })
             }
             let r1 = await imp(rows)
             assert.deepStrictEqual(r1.msg, { nAdd: 1200, nUpdate: 0, nDel: 0, nSame: 0 }, JSON.stringify(r1).slice(0, 200))
@@ -509,17 +562,17 @@ describe('api-import (外部匯入: srcKey 差異同步)', function() {
             assert.deepStrictEqual(r3.msg, { nAdd: 1, nUpdate: 0, nDel: 1200, nSame: 0 })
         })
 
-        it('R-SYNC-1 沿用: 以 id 代替 srcKey 時，含 HTML 標記／超過 1978 位元組／同批重複的 id 亦整批拒收；id 恰 1978 位元組可用', async function() {
+        it('R-SYNC-1 沿用: srcKey 含 HTML 標記／超過 1978 位元組／同批重複亦整批拒收；srcKey 恰 1978 位元組可用（含多位元組字元之位元組計）', async function() {
             let before = await S.list()
-            let mk = (id, n) => ({ id, name: n, url: `http://s/${n}` })
-            for (let rows of [[mk('ok-1', 'a'), mk('x<script>y', 'b')], [mk('ok-2', 'a'), mk('x'.repeat(1979), 'b')], [mk('d', 'a'), mk('d', 'b')]]) {
+            let mk = (srcKey, n) => ({ srcKey, name: n, url: `http://s/${n}` })
+            for (let rows of [[mk('ok-1', 'a'), mk('x<script>y', 'b')], [mk('ok-2', 'a'), mk('x'.repeat(1979), 'b')], [mk('d', 'a'), mk('d', 'b')], [mk('中'.repeat(660), 'a')]]) {
                 let r = await imp(rows)
                 assert.deepStrictEqual({ state: r.state, msg: r.msg }, { state: 'error', msg: 'errRowInvalid' })
             }
             assert.deepStrictEqual(await S.list(), before, '零寫入')
-            let id = 'b'.repeat(1978)
-            let r = await imp([mk(id, 'boundary')])
-            assert.deepStrictEqual(r.msg, { nAdd: 1, nUpdate: 0, nDel: 0, nSame: 0 }, JSON.stringify(r).slice(0, 200))
+            let key = 'b'.repeat(1978)
+            let r = await imp([mk(key, 'boundary'), mk('中'.repeat(659), 'cjk')])
+            assert.deepStrictEqual(r.msg, { nAdd: 2, nUpdate: 0, nDel: 0, nSame: 0 }, JSON.stringify(r).slice(0, 200))
         })
 
     })

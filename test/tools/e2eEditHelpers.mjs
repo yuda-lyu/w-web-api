@@ -123,7 +123,7 @@ async function otherDelete(name) {
 }
 
 
-//otherImport: 外部應用（token=sys）以 POST /syncAndReplaceTabs 匯入（rows 可用 id 代替 srcKey 以還原已刪之列）；後端因此推播至已開啟之頁面
+//otherImport: 外部應用（token=sys）以 POST /syncAndReplaceTabs 匯入（rows 須帶 srcKey、不得帶 id；srcKey 等於既有無 srcKey 列之 id 者視為同一列並補 srcKey＝一次性遷移）；後端因此推播至已開啟之頁面
 async function otherImport(group, rows) {
     let res = await fetch(`${baseUrl}/syncAndReplaceTabs?token=sys&keyTable=apis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group, rows }) })
     let j = await res.json()

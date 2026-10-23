@@ -9,7 +9,7 @@ import b642str from 'wsemi/src/b642str.mjs'
 import genIDSeq from 'wsemi/src/genIDSeq.mjs'
 import { digestRow } from 'w-serv-orm/src/baseline.mjs'
 import { fieldsExternal, fieldsLocal } from '../src/schema/contracts/apis.mjs'
-import { checkRowIds, pickRowIds, maxIdBytesDef } from './checkSyncRows.mjs'
+import { checkRowIds, maxIdBytesDef } from './checkSyncRows.mjs'
 import { pickErrName, pickErrCode } from './maskLog.mjs'
 
 
@@ -18,21 +18,16 @@ import { pickErrName, pickErrCode } from './maskLog.mjs'
 //語意: 外部來源把它所管理之某一 group 之「完整清單」送入, 本系統依外部自訂之來源鍵 srcKey, 於表鎖內將該 group 之庫內資料同步成與清單一致——
 //  批次有、庫無 → 新增(本系統配新 id); 庫有、批次無 → 刪除; 兩邊皆有而外部擁有欄位不同 → 修改(保留 id); 相同 → 不寫。不再 delAll＋insert(消除 ADR-016 之非原子)。
 //欄位歸屬(src/schema/contracts/apis.mjs): 外部擁有(fieldsExternal)依批次寫入; 本系統擁有(fieldsLocal: tokens、authType、authConfigJson、testBaseUrl、default*Json、contentType)匯入一律不寫(修 C4b);
-//  timeCreate 只於新增時由 ORM 寫(修 A5); id、srcKey、isActive 等其餘批次所帶之鍵一律忽略。
-//整批驗證、全有或全無: 缺／空／重複 srcKey、不合規則之來源鍵、欄位型別不合、會動到範圍外之列 → 整批拒收、零寫入(errRowInvalid, 原因入 srLog 不回顯值)。空批次由呼叫端拒收(errRowsInvalid)。
+//  timeCreate 只於新增時由 ORM 寫(修 A5); isActive、timeCreate、userIdUpdate 等其餘批次所帶之鍵一律忽略(id 例外: 列帶 id 即整批拒收 idNotAllowed)。
+//整批驗證、全有或全無: 缺／空／非字串／重複 srcKey、不合規則之來源鍵、列帶 id、欄位型別不合、會動到範圍外之列 → 整批拒收、零寫入(原因入 srLog 不回顯值)。空批次由呼叫端拒收(errRowsInvalid)。
+//  對應規格之固定錯誤鍵: srcKeyInvalid ＝ 本套件既有之 errRowInvalid(srLog 之 field='srcKey'、reason='srcKey'|'unicode'|'xss'|'bytes'|'dup'); idNotAllowed ＝ 新增之 idNotAllowed。
 //
-//相容(現行 major; 主控建議, 使用者尚未確認; 下一 major srcKey 必填):
-//  ① 列未給 srcKey 而給 id 者, 以 id 值為來源鍵(新增時亦以該 id 為內部 id, 行為與現行一致), 並記警告 syncAndReplaceTabs-idAsSrcKey;
-//  ② 批次中有列兩者皆無 → 該列每次匯入皆為新增(配新 id, 與現行「未帶 id 者每次換 id」同), 其餘有鍵之列仍依來源鍵差異同步(本系統擁有欄位與 id 不受影響), 並記警告 syncAndReplaceTabs-noSrcKey;
-//     （不再整批 delAll＋insert: 該作法會連同有鍵之列一併清掉其本系統擁有欄位，外審 sol#5）
-//  ③ 既有外部列無 srcKey 者, 以其 id 為有效來源鍵(首次差異同步命中時於鎖內補上 srcKey, 不計入 nUpdate)。
+//不提供呼叫端相容(原則 11、規格 外部匯入之定義與機制.md §9; 使用者 2026-10-23 裁示): srcKey 即刻必填, 不以 id 代替; 外部不得指定內部 id(列帶 id 即整批拒收); 無「兩者皆無之列每次新增」與整批 delAll＋insert。
+//資料遷移(一次性, 不是呼叫端相容): 既有外部列無 srcKey 者(舊同步寫入), 以其 id 為有效來源鍵——批次 srcKey 等於其 id 者視為同一列, 於鎖內補上 srcKey(id 不變、本系統擁有欄位保留, 補值不計入 nUpdate);
+//  其後只認 srcKey; 對不上者依差異同步處理(批次無者刪除、批次有而庫無者新增, 引用連帶清理)。
 //鎖: 與 saveApi／deleteApi 同一把 apis 表鎖(withTabLocks), 讀取、比對、寫入全在鎖內。
 //寫入中途失敗: 以讀取時之快照補償還原(只處理已開始之步驟所涉之列: 刪除本批新增者、重插被改或被刪者之原列), 補償後回讀驗證, 失敗(含 ORM 逐筆 ok:0)則記 srLog 並回 saveWriteFail; 可預見之失敗(格式、型別、重複、跨範圍)全在寫入前攔下。
-//log: 不記列內容與來源鍵; ORM 失敗字串中之 id[...] 一律遮蔽(相容路徑之 id 即外部來源鍵, 可能為個資)。
-
-
-//hasId: 是否為「有給主鍵」——非空字串或有限數字(同 checkSyncRows.mjs; NaN、±Infinity 與其他型別視為未給)
-let hasId = (id) => isestr(id) || (typeof id === 'number' && Number.isFinite(id))
+//log: 不記列內容與來源鍵; ORM 失敗字串中之 id[...] 一律遮蔽(遷移前之既有列其 id 可能即外部來源鍵, 可能為個資)。
 
 
 //own: 取自有屬性值(不讀原型鏈), 無則 undefined。列物件由外部應用送入, 欄位名可為任意字串(R-OBJ-ITER-01 / R-KEY-01)
@@ -107,7 +102,7 @@ let chunks = (arr, n) => {
 let nIn = 1000
 
 
-//maskOrm: ORM 失敗之原文入 log 前遮蔽主鍵(w-serv-orm 之失敗字串含 id[...]; 相容路徑之 id 即外部來源鍵)
+//maskOrm: ORM 失敗之原文入 log 前遮蔽主鍵(w-serv-orm 之失敗字串含 id[...]; 遷移前之既有列其 id 可能即外部來源鍵)
 let maskOrm = (err) => {
     if (isestr(err)) {
         return err.slice(0, 200).replace(/id\[[^\]]*\]/g, 'id[*]')
@@ -150,7 +145,7 @@ function createSyncApis(deps = {}) {
      * @param {String} userId 輸入操作者 id(app 權杖之使用者), 寫入 userIdUpdate
      * @param {Object} inp 輸入 { group, rows }, group 為非空字串, rows 為非空陣列
      * @param {String} [keyTable='apis'] 輸入資料表名(僅供 log)
-     * @returns {Promise<Object>} 回傳 { nAdd, nUpdate, nDel, nSame }; 失敗 reject 固定語系鍵(errGroupInvalid、errRowsInvalid、errRowInvalid、getDataError、saveWriteFail)
+     * @returns {Promise<Object>} 回傳 { nAdd, nUpdate, nDel, nSame }; 失敗 reject 固定語系鍵(errGroupInvalid、errRowsInvalid、errRowInvalid、idNotAllowed、getDataError、saveWriteFail)
      */
     let syncApis = async (userId, inp, keyTable = tab) => {
 
@@ -183,10 +178,17 @@ function createSyncApis(deps = {}) {
             }
         }
 
+        //rejectId: 列帶 id → 整批拒收（外部不得指定內部 id; 列索引入 srLog, 不回顯 id 值）
+        let rejectId = (index) => {
+            logw('error', { event: 'syncAndReplaceTabs', err: 'idNotAllowed', keyTable, group, index, field: 'id' })
+            console.log(`[API]syncAndReplaceTabs/check rows[${index}]: id not allowed`)
+            return Promise.reject('idNotAllowed')
+        }
+
         //逐列正規化與檢核（鎖外、純函數: 不讀寫資料庫）
+        //優先序: 任一列有欄位／來源鍵規則之缺陷（errRowInvalid）先於「列帶 id」（idNotAllowed）——後者待整批通過全部來源鍵規則（含位元組上限與同批重複）後才報，idAt 記第一個帶 id 之列
         let items = []
-        let nIdAsKey = 0
-        let nNoKey = 0
+        let idAt = -1
         for (let k = 0; k < rows.length; k++) {
             let raw = rows[k]
 
@@ -206,86 +208,54 @@ function createSyncApis(deps = {}) {
             }
             ext.group = group //範圍欄由請求決定, 不採批次所帶之值
 
-            //來源鍵: srcKey 優先(鍵存在即須為非空字串, null／空字串／其他型別皆拒); 無 srcKey 而給 id 者以 id 值為來源鍵(相容, 內部 id 沿用該值); 兩者皆無 → 該列每次新增
+            //來源鍵: srcKey 必填（不提供相容: 缺、null、空字串或非字串皆整批拒收, 不以 id 代替）
             let srcKey = restoreB64(own(raw, 'srcKey'))
-            let key = ''
-            let source = 'none'
-            if (srcKey !== undefined) {
-                if (!isestr(srcKey)) {
-                    return rejectRow(k, 'srcKey', 'srcKey') //null、空字串或非字串
-                }
-                key = srcKey
-                source = 'srcKey'
-            }
-            else {
-                let id = restoreB64(own(raw, 'id'))
-                if (hasId(id)) {
-                    key = String(id)
-                    source = 'id'
-                    nIdAsKey++
-                }
-                else {
-                    nNoKey++
-                }
+            if (!isestr(srcKey)) {
+                return rejectRow(k, 'srcKey', 'srcKey')
             }
 
-            //來源鍵之字元規則: 不得為孤立代理字元(儲存編碼往返會改寫); srcKey 不得含 HTML 標記(含白名單標籤, 如 <b>); 以 id 代替者不得以控制字元起首(LMDB 鍵編碼須跳脫而多 1 位元組, 使上限檢查失準)
-            if (source !== 'none') {
-                let field = source === 'srcKey' ? 'srcKey' : 'id'
-                if (hasLoneSurrogate(key)) {
-                    return rejectRow(k, field, 'unicode')
-                }
-                if (source === 'srcKey' && /<[A-Za-z/!?]/.test(key)) {
-                    return rejectRow(k, field, 'xss')
-                }
-                if (source === 'id' && key.charCodeAt(0) < 0x20) {
-                    return rejectRow(k, field, 'ctrl')
-                }
+            //外部不得指定內部 id: 列帶 id（不論值為何）→ 整批拒收（見下方 idAt）
+            if (idAt < 0 && own(raw, 'id') !== undefined) {
+                idAt = k
             }
 
-            items.push({ index: k, key, source, ext })
+            //來源鍵之字元規則: 不得為孤立代理字元(儲存編碼往返會改寫); 不得含 HTML 標記(含白名單標籤, 如 <b>)
+            if (hasLoneSurrogate(srcKey)) {
+                return rejectRow(k, 'srcKey', 'unicode')
+            }
+            if (/<[A-Za-z/!?]/.test(srcKey)) {
+                return rejectRow(k, 'srcKey', 'xss')
+            }
+
+            items.push({ index: k, key: srcKey, ext })
         }
 
-        //來源鍵規則（srcKey 與以 id 代替者同一套）: 不含會被 ORM 改寫之標記、不超過 ORM 主鍵長度上限、同批不重複（R-SYNC-1 之 checkRowIds）
-        let itemsKeyed = items.filter((v) => v.source !== 'none')
-        let badKey = checkRowIds(itemsKeyed.map((v) => ({ id: v.key })), { maxIdBytes: maxIdBytesDef })
+        //來源鍵規則: 不含會被 ORM 改寫之標記、不超過 ORM 主鍵長度上限、同批不重複（R-SYNC-1 之 checkRowIds）
+        let badKey = checkRowIds(items.map((v) => ({ id: v.key })), { maxIdBytes: maxIdBytesDef })
         if (badKey !== null) {
-            let v = itemsKeyed[badKey.index]
-            return rejectRow(v.index, v.source === 'srcKey' ? 'srcKey' : 'id', badKey.reason)
+            return rejectRow(items[badKey.index].index, 'srcKey', badKey.reason)
         }
 
-        if (nIdAsKey > 0) {
-            logw('warn', { event: 'syncAndReplaceTabs-idAsSrcKey', keyTable, group, n: nIdAsKey }) //未給 srcKey 而以 id 代替（下一 major 起 srcKey 必填）
-        }
-        if (nNoKey > 0) {
-            logw('warn', { event: 'syncAndReplaceTabs-noSrcKey', keyTable, group, n: nNoKey }) //未給來源鍵（下一 major 起 srcKey 必填）；該些列每次新增
+        //列帶 id → 整批拒收（上列所有檢核通過後才報，使「欄位／來源鍵缺陷」恆優先於 idNotAllowed）
+        if (idAt >= 0) {
+            return rejectId(idAt)
         }
 
         //newRow: 新增列 = 外部擁有欄位 + 來源鍵 + 本系統擁有欄位之初始值 + isActive; timeCreate／timeUpdate／userIdUpdate 由 procOrm 寫
         //本系統擁有欄位初始為空字串（同改造前 ltdtmapping 補 ''; 測試分頁視空 contentType 為不補 Content-Type, ADR-031）
-        //id: 以 id 代替 srcKey 者沿用該 id; 其餘由本系統先行配號（補償需預知本批新增之 id）
+        //id: 由本系統先行配號（補償需預知本批新增之 id）
         let newRow = (item) => {
-            let o = { id: item.source === 'id' ? item.key : genIDSeq(), ...item.ext, srcKey: item.source === 'none' ? '' : item.key, isActive: 'y' }
+            let o = { id: genIDSeq(), ...item.ext, srcKey: item.key, isActive: 'y' }
             for (let f of fieldsLocal) {
                 o[f] = ''
             }
             return o
         }
 
-        //failOrm: ORM 失敗改回語系鍵, 原文遮蔽主鍵後入 srLog（R-ERR-1; 不同於 ormFail: 相容路徑之主鍵即外部來源鍵）
+        //failOrm: ORM 失敗改回語系鍵, 原文遮蔽主鍵後入 srLog（R-ERR-1; 不同於 ormFail: 遷移前之既有列其主鍵可能即外部來源鍵）
         let failOrm = (step, key) => (err) => {
             logw('error', { event: 'syncAndReplaceTabs-orm', err: key, orm: maskOrm(err), keyTable, group, step })
             return Promise.reject(key)
-        }
-
-        //selectByIds: 依主鍵分批讀取(避開 $in 上限)
-        let selectByIds = async (ids, step) => {
-            let rs = []
-            for (let part of chunks(ids, nIn)) {
-                let r = await woItems[tab].select({ id: { $in: part } }).catch(failOrm(step, 'getDataError'))
-                rs.push(...r)
-            }
-            return rs
         }
 
         //restoreAll: 寫入中途失敗之補償——刪除本批新增者與已開始之步驟所涉之原列, 再把原列（讀取時之快照）重插, 使庫內回到匯入前狀態; 完成後回讀驗證
@@ -329,7 +299,7 @@ function createSyncApis(deps = {}) {
             let existing = await woItems[tab].select({ group })
                 .catch(failOrm('select', 'getDataError'))
 
-            //有效來源鍵 = srcKey, 無 srcKey 之既有列以其 id 為有效來源鍵（相容）
+            //有效來源鍵 = srcKey; 無 srcKey 之既有列（舊同步寫入或後台自建）以其 id 為有效來源鍵——一次性資料遷移: 批次 srcKey 等於其 id 者視為同一列並補上 srcKey（非呼叫端相容）
             let kpExist = new Map()
             for (let e of existing) {
                 let ek = isestr(own(e, 'srcKey')) ? e.srcKey : String(e.id)
@@ -341,20 +311,16 @@ function createSyncApis(deps = {}) {
                 kpExist.set(ek, e)
             }
 
-            //比對 → 新增、修改、刪除、不變; 無來源鍵之列不配對（每次新增）
+            //比對 → 新增、修改、刪除、不變
             let rowsAdd = []
             let rowsUpd = []
             let rowsOldTouched = [] //被改（含補 srcKey）之原列快照
             let nUpdate = 0
             let nSame = 0
             let matched = new Set()
-            let itemsIdNew = []
             for (let v of items) {
-                let e = v.source === 'none' ? undefined : kpExist.get(v.key)
+                let e = kpExist.get(v.key)
                 if (e === undefined) {
-                    if (v.source === 'id') {
-                        itemsIdNew.push(v)
-                    }
                     rowsAdd.push(newRow(v))
                     continue
                 }
@@ -382,24 +348,9 @@ function createSyncApis(deps = {}) {
                 }
             }
 
-            //相容(以 id 為來源鍵之新增列沿用該 id 為內部 id): 該 id 不得已存在於庫內（他 group、或同 group 但來源鍵不同者）, 否則 insert 會略過而回報成功
-            if (itemsIdNew.length > 0) {
-                let ids = pickRowIds(itemsIdNew.map((v) => ({ id: v.key })))
-                let rsExist = await selectByIds(ids, 'selectId')
-                let groupById = new Map()
-                for (let r of rsExist) {
-                    groupById.set(String(r.id), r.group)
-                }
-                for (let v of itemsIdNew) {
-                    if (groupById.has(v.key)) {
-                        return rejectRow(v.index, 'id', groupById.get(v.key) !== group ? 'group' : 'idConflict')
-                    }
-                }
-            }
-
             let r = { nAdd: rowsAdd.length, nUpdate, nDel: rowsDel.length, nSame }
 
-            //混雜列提示(原則 3, 不得靜默): 被刪者中有無 srcKey 之列(升版前即在此 group 之後台自建列、或相容路徑歷次匯入新增之無鍵列)——批次未以其 id 列入即刪(D6; 前端對此類列亦有標記, README Upgrade Notes)
+            //混雜列提示(原則 3, 不得靜默): 被刪者中有無 srcKey 之列(升版前即在此 group 之後台自建列、或舊同步寫入而尚未被遷移命中之列)——批次 srcKey 未等於其 id 者即刪(D6; 前端對此類列亦有標記, README Upgrade Notes)
             let nDelNoKey = rowsDel.filter((e) => !isestr(own(e, 'srcKey'))).length
             if (nDelNoKey > 0) {
                 logw('warn', { event: 'syncAndReplaceTabs-delNoSrcKey', keyTable, group, n: nDelNoKey })

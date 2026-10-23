@@ -13,6 +13,15 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Upgrade Notes
 
+### Breaking change since 1.1.14：外部匯入須送 `srcKey`、不得送 `id`（不提供呼叫端相容）
+
+**破壞性變更**——外部端（`POST /syncAndReplaceTabs` 之呼叫端與 `provideTabs`）須改：
+- **每列必須帶 `srcKey`**（外部自訂、於該 `group` 內唯一且穩定之非空字串）。缺 `srcKey`、`srcKey` 為 `null`／空字串／非字串（含「只送 `id`」）→ **整批拒收** `errRowInvalid`（即規格之 `srcKeyInvalid`；列索引與原因只入伺服端 srLog，不回顯值）、零寫入。**不再以 `id` 代替 `srcKey`**，也不再有「`srcKey` 與 `id` 皆無之列每次新增」與其警告事件（`syncAndReplaceTabs-idAsSrcKey`、`syncAndReplaceTabs-noSrcKey`）。
+- **不得送 `id`**：任一列帶 `id`（即使同時帶 `srcKey`；`id` 為 `null`／空字串亦然）→ **整批拒收** `idNotAllowed`（`server/procLang.mjs` 有 eng／cht 文字）、零寫入。內部 `id` 由本系統產生，外部不得指定；因此外部匯入也不能再使已刪除之列以原 `id` 重現。
+- **`provideTabs(url, keyTable, group, rows)`**：白名單不再含 `id`（`rows` 內有 `id` 欄位也不送出）；任一列缺 `srcKey`（缺、空字串或非字串）→ 於呼叫端即 reject（`Error`，只含列索引）、不送出。
+- **一次性資料遷移（不是呼叫端相容）**：升級前已存在、無 `srcKey` 之外部列（舊版同步寫入，或 1.1.14 相容期所寫），於**首次匯入**時，批次 `srcKey` **等於其 `id`** 者視為同一列，於 `apis` 表鎖內補上 `srcKey`——`id` 不變、`tokens` 等本系統擁有欄位與 `timeCreate` 保留；外部擁有欄位內容相同只補鍵、不計入 `nUpdate`，內容不同則照一般修改更新並計入 `nUpdate`；其後只認 `srcKey`。**對不上者依差異同步處理**：批次無者刪除、批次有而庫無者新增（配新 `id`）；刪除無 `srcKey` 之列記 warn `syncAndReplaceTabs-delNoSrcKey`。故外部端欲保留既有列之 `id` 與本地欄位，**首次匯入請以其 `id` 作為 `srcKey`**，之後繼續沿用該值即可。注意：`srcKey` 與其他欄位一樣會先還原 `base64:` 前綴（字面值以 `base64:` 開頭之舊 `id` 須自行以 `base64:` 包裝後再送）；`srcKey` 不得含 HTML 標記、不得超過 1978 位元組，舊 `id` 若不符（含標記者）無法以其值作為 `srcKey`，該列視為對不上而刪舊增新。
+- 部署端無須遷移腳本；後台對外部列之保護、多人同時編輯、差異同步之其餘行為不變。
+
 ### Upgrading from 1.1.13 and earlier（多人同時編輯、外部匯入）
 
 需要 `w-serv-orm` 1.1.17 以上。**單一行程部署**，同一資料表只由同一個 `WServOrm` 實例寫入（離線工具如 `g_initialTestData.mjs` 須在服務停止時執行）。
@@ -22,7 +31,7 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 - 於 `apis` 表鎖內依 `srcKey` 比對：批次有、庫無 → 新增（配新 `id`）；庫有、批次無 → 刪除；兩邊皆有而外部擁有欄位不同 → 修改（保留 `id`）；相同 → 不寫。**不再 `delAll`＋`insert`**：內容不變之重送零寫入、`id` 不變、不使後台持有之畫面失效；整批驗證全有或全無（缺／空／`null`／重複 `srcKey`、含 HTML 標記（含 `<b>` 等白名單標籤）、孤立代理字元、超過 1978 位元組、缺 `name`／`url`（以字元清理後之值為準）、外部欄位為物件／陣列／`NaN`、撞他群組之列皆整批拒收 `errRowInvalid`、零寫入；有限數字與布林會轉為字串存入，如 `method: 7` 存為 `'7'`）；空批次拒收（`errRowsInvalid`，清空某來源須另以明確操作）；寫入中途失敗以快照補償還原，不留部分寫入。
 - 回應由原本之 insert 結果 `[{ id }]` 改為 `{ nAdd, nUpdate, nDel, nSame }`。`provideTabs(url, keyTable, group, rows)` 之 `rows` 請改帶 `srcKey`，成功時 resolve 該計數。
 - **本系統擁有之欄位不再被匯入清空**：`tokens`、`authType`、`authConfigJson`、`testBaseUrl`、`defaultHeadersJson`、`defaultQueryJson`、`defaultBodyJson`、`contentType` 由本站編輯表單管理，匯入一律不寫（即使批次帶了也忽略；新增列初始為空字串）。原版每次同步會把既有列之這 8 欄清成空字串。`timeCreate` 只在新增時寫（原版每次同步重設）；既有列被匯入改動時 `userIdUpdate` 記為 app 權杖之使用者。
-- **相容（現行 major；下一 major 起 `srcKey` 必填）**：列未給 `srcKey` 而給 `id` 者，以 `id` 值為來源鍵（新增列沿用該值為內部 `id`，行為與現行一致）並記警告 `syncAndReplaceTabs-idAsSrcKey`；批次中有列「`srcKey` 與 `id` 皆無」者，**該列每次匯入皆為新增（配新 `id`，同原版「未帶 `id` 者每次換 `id`」；前次由此新增之列因不在批次的來源鍵內而被刪）**並記警告 `syncAndReplaceTabs-noSrcKey`，同批其餘有鍵之列仍依來源鍵差異同步（其 `id`、本系統擁有欄位不受影響；**不再整批 `delAll`＋`insert`**，該作法會連同有鍵之列一併清掉本系統擁有欄位）；既有外部列無 `srcKey` 者（升級前資料）以其 `id` 為有效來源鍵，**首次差異同步命中時自動補上 `srcKey = id`**（無需遷移腳本，補值不計入 `nUpdate`）。建議外部端盡早改帶 `srcKey`（值可沿用原 `id`）。
+- **`srcKey` 必填、不得送 `id`**：1.1.14 曾有之相容（列未給 `srcKey` 而給 `id` 者以 `id` 代替；「`srcKey` 與 `id` 皆無」之列每次新增）**已移除**，缺 `srcKey` 或列帶 `id` 皆整批拒收（見上方「Breaking change since 1.1.14」）。既有外部列無 `srcKey` 者（升級前資料）：首次匯入時批次 `srcKey` 等於其 `id` 者視為同一列並於鎖內補上 `srcKey`（一次性遷移，無需遷移腳本，補值不計入 `nUpdate`），其後只認 `srcKey`。
 - 後台在外部 `group` 內自建之列（`srcKey` 為空）會在下次該 `group` 匯入時被刪（`group` 為外部來源之統一管理鍵，同原版；預設 `lockExternalRows: 'y'` 時後台已不能在外部管理之 `group` 新增或改入列，此句適用於既有資料與 `'n'`，見下方「外部列受保護」）；`group` 為空字串不是來源範圍，拒收 `errGroupInvalid`。
 
 **多人同時編輯（行為變更）**：
@@ -39,8 +48,8 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 - **寫入之值即檢查之值**：預設開啟時，後台送來之 `group` 須為字串（缺欄或 `null` 亦可；陣列、數字、布林、物件與含孤立代理字元之字串回 `errApiRowInvalid`），外部列通過檢查後只寫入 `id` 與本系統擁有欄位（外部擁有欄位已驗證與庫內相同，不再寫入）。
 - **選項**：`WWebApi(…, { lockExternalRows: 'y' })`（預設）；給 `'n'` 回到升版前行為（後台可改可刪外部列、可在外部管理之 `group` 新增與改入；下次匯入仍以外部為主）。參考部署由 `settings.json` 之 `lockExternalRows` 經 `srv.mjs` 轉入。外部匯入（`syncAndReplaceTabs`）不受此選項影響。未知值（如 `'N'`）一律維持開啟。
 - **升版前請盤點**（唯讀，須先停止服務）：`node g_auditExternalRows.mjs` 列出升版後會被鎖定之外部列數、外部管理之 `group`，以及其中之「混雜列」。升版後庫中 `srcKey` 非空之列即視為外部列而唯讀。
-- **混雜列（外部管理之 `group` 內 `srcKey` 為空之列，如升版前即存在之後台自建列）**：**不鎖、不自動刪除**（可編輯、可刪除、可改到其他 `group`），前端於樹狀清單與編輯頁顯示警告。**下次對該 `group` 匯入時，批次未以其 `id` 列入者會被刪除**（記 warn `syncAndReplaceTabs-delNoSrcKey`）；以 `id` 列入者保留並補上 `srcKey = id`，之後成為外部列。想保留者請於匯入前把它改到其他 `group`。
-- **相容期無來源鍵之列不受保護**：批次中 `srcKey` 與 `id` 皆無之列（每次匯入新增、`srcKey` 為空），以及升版前尚未被匯入命中之列，無從與後台自建者區分，視為後台列。要得到保護請外部端改帶 `srcKey`（值可沿用原 `id`）。
+- **混雜列（外部管理之 `group` 內 `srcKey` 為空之列，如升版前即存在之後台自建列）**：**不鎖、不自動刪除**（可編輯、可刪除、可改到其他 `group`），前端於樹狀清單與編輯頁顯示警告。**下次對該 `group` 匯入時，批次 `srcKey` 未等於其 `id` 者會被刪除**（記 warn `syncAndReplaceTabs-delNoSrcKey`）；`srcKey` 等於其 `id` 者保留並補上 `srcKey = id`（一次性遷移），之後成為外部列。想保留者請於匯入前把它改到其他 `group`。
+- **無來源鍵之列不受保護**：升版前尚未被匯入命中之列（舊版同步寫入、1.1.14 相容期所寫之無鍵列、後台自建列）`srcKey` 為空，無從與後台自建者區分，視為後台列。外部匯入自此不再產生無鍵列（`srcKey` 必填）；要得到保護請外部端以其 `id` 作為 `srcKey` 匯入一次。
 
 ### Upgrading from 1.1.11 and earlier
 
@@ -141,8 +150,8 @@ instWWebApi.on('error', (err) => {
 #### Behavior notes (w-serv-orm 1.1.11 / w-serv-hapi 1.1.6 / w-syslog 1.0.33)
 - `opt.useCheckUser`, `opt.getUserById` and `opt.useExcludeWhenNotAdmin` have been removed: `procOrm` of w-serv-orm no longer authorizes users. Passing any of them with a value other than `undefined`, `null` or `false` throws at construction.
 - The data channel exposes table reads only: `apis.select` (used by the front-end sync) is allowed for authenticated users, and every write goes through `saveApi` / `deleteApi`. Calling `apis.insert`, `apis.save` or `apis.del` directly through `/api/main` now returns `invalid func[apis.<method>]`. The sync still delivers the whole table, including `tokens` and `authConfigJson`, to any authenticated user, so decide who may log in with `getUserByToken` and the verify functions.
-- `/syncAndReplaceTabs` checks every given row key before it writes anything: a `srcKey` (or, when `srcKey` is not given, an `id`) with HTML markup, longer than 1978 bytes in UTF-8, repeated in the same batch, or (for an `id`) already belonging to another group rejects the whole batch with `errRowInvalid`, and existing data stays untouched. Since this version the endpoint is a `srcKey`-based differential sync (see "Upgrading from 1.1.13 and earlier"); a row with neither `srcKey` nor `id` is added as a new row (with a generated id) on every import, while the other rows of the same batch are still synchronized by key (no `delAll` any more, so locally owned fields of keyed rows are never cleared).
-- Since w-serv-orm 1.1.11, a numeric row id sent as `id` to `/syncAndReplaceTabs` is stored as its string form (123 is stored as '123'). A number and its string form are the same id, so syncing id 123 into a group while '123' belongs to another group is rejected with `errRowInvalid`.
+- `/syncAndReplaceTabs` checks every row before it writes anything: a missing, empty or non-string `srcKey`, or a `srcKey` with HTML markup, longer than 1978 bytes in UTF-8, or repeated in the same batch rejects the whole batch with `errRowInvalid`; a row that carries an `id` (any value, even together with a valid `srcKey`) rejects the whole batch with `idNotAllowed`; existing data stays untouched. The endpoint is a `srcKey`-based differential sync (see "Breaking change since 1.1.14" and "Upgrading from 1.1.13 and earlier"); there is no compatibility for callers that still send `id` instead of `srcKey`, and no `delAll`, so locally owned fields of keyed rows are never cleared. A `srcKey` is a plain string key: values that start with `base64:` are decoded before use (as for every field), so a key that literally starts with `base64:` (for example an old `id` of that form being migrated) must itself be sent base64-encoded with the `base64:` prefix.
+- `id` values are generated by the system. Since w-serv-orm 1.1.11 a numeric id is stored as its string form; this no longer matters for the import, because an `id` sent by the caller is rejected (`idNotAllowed`) and a numeric `srcKey` is rejected (`errRowInvalid`, a `srcKey` must be a string).
 - Database failures are returned as language keys (`saveWriteFail` for writes, `getDataError` for reads) instead of the ORM's English text, which is written to the log.
 - `stop()` returns the same promise on repeated calls. If construction fails after resources were created, they are released before the error is thrown.
 - WWebApi does not register `process.on('unhandledRejection')` or `process.on('uncaughtException')`, and since w-serv-hapi 1.1.6 neither does w-serv-hapi. An unhandled rejection terminates the process (Node default), so run the service under a process manager such as PM2 or systemd.

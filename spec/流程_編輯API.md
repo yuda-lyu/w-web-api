@@ -101,7 +101,7 @@
     - 測試資料：base seed；編輯「取得API清單」，Name 草稿「草稿-取得API清單-<lang>」；他人刪除「取得API清單」。
     - 操作：點「編輯／編輯」分頁 → 於 Name 欄輸入草稿 →（他人刪除此筆，出現提示）→ 點「儲存／儲存」。
     - 驗證：
-      1. 語意：提示出現後 Name 欄仍為草稿（未被換成列表第一筆之內容）、提示內無按鈕；點儲存後出現 `errApiRowNotFound` 紅字（eng「This API no longer exists …」／cht「此 API 已不存在…」）、草稿保留；DB 無原名、無草稿名（不復活）。**之後外部匯入把該 API 還原（以 `id` 代替來源鍵，同一 `id` 重新出現）：提示改為「已被他人更新」並出現「重新載入」鈕（先前「已不存在」之拒收狀態一併解除，不再卡在已刪除）、草稿仍保留；點重新載入後 Name 回到「取得API清單」、提示消失（無標準圖）。**
+      1. 語意：提示出現後 Name 欄仍為草稿（未被換成列表第一筆之內容）、提示內無按鈕；點儲存後出現 `errApiRowNotFound` 紅字（eng「This API no longer exists …」／cht「此 API 已不存在…」）、草稿保留；DB 無原名、無草稿名（不復活）。**之後該 API 以同一 `id` 重新出現（測試以直接寫庫模擬由備份還原，再由他人修改另一列觸發推播）：提示改為「已被他人更新」並出現「重新載入」鈕（先前「已不存在」之拒收狀態一併解除，不再卡在已刪除）、草稿仍保留；點重新載入後 Name 回到「取得API清單」、提示消失（無標準圖）。**〔2026-10-23 更正（ADR-046）：原載「外部匯入把該 API 還原（以 `id` 代替來源鍵，同一 `id` 重新出現）」不成立——外部不得送 `id`，匯入不能使已刪之列以原 `id` 重現（改以 `srcKey` 新增者配新 `id`）；此規則於使用者路徑上無對應操作，列為防禦性規則（見〈已知落差〉設計事實）。〕
       2. 視覺（2 步驟）：①輸入草稿（框住 Name 欄整列）`test/pics/conc/conc-{eng,cht}-E2E-008-1-draft.png`；②出現「已被他人刪除」提示（框住提示整顆）`...-E2E-008-2-deleted.png`，皆以 pixelmatch 容差比對。
     - 雙語：eng / cht 各一輪。
     - 清理：各 case 起跑前還原 base seed。
@@ -193,7 +193,7 @@
       2. 視覺（2 步驟）：①混雜列旁出現警告（框住該樹狀清單列）`test/pics/ext/ext-{eng,cht}-E2E-015-1-tree-warn.png`；②編輯頁上方出現警告（框住警告整顆）`...-E2E-015-2-notice.png`，皆以 pixelmatch 容差比對。
     - 雙語：eng / cht 各一輪。
     - 清理：各 case 起跑前還原 base seed 並重做前置。
-    - 備註：下次匯入的行為（README Upgrade Notes）：該 group 的批次以「srcKey 或 id」配對，未列入之無鍵列被刪並記 warn `syncAndReplaceTabs-delNoSrcKey`；以 `id` 列入者保留並補 `srcKey = id` 成為外部列。本系統不自動刪除任何資料。
+    - 備註：下次匯入的行為（README Upgrade Notes〈Breaking change since 1.1.14〉）：該 group 的批次以 `srcKey` 配對（無 `srcKey` 之既有列以其 `id` 為有效來源鍵，一次性遷移），批次 `srcKey` 未等於其 `id` 之無鍵列被刪並記 warn `syncAndReplaceTabs-delNoSrcKey`；`srcKey` 等於其 `id` 者保留並補 `srcKey = id` 成為外部列。本系統不自動刪除任何資料。
 
 - **E2E-016**（2026-10-23 新增，ADR-044）
   - title: 關閉外部列保護後回到原行為
@@ -212,7 +212,7 @@
   - title: 編輯中被匯入補上來源鍵，權杖仍可儲存
   - description: 使用者正在編輯一筆後台自建的 API（來源鍵為空）並已在權杖欄輸入內容、尚未儲存時，外部來源以該筆 API 的 id 匯入完全相同的內容，這筆 API 因此補上來源鍵、成為外部匯入的 API。此時編輯頁上方出現唯讀說明、名稱等欄位轉為唯讀，但因內容未變，不會出現「已被他人更新」提示，已輸入的權杖保留；按「儲存」仍可成功，權杖寫入、其餘欄位維持原內容。便於確認外部來源將後台資料納管時不會讓管理員的操作被誤擋。
   - flow:
-    - 測試資料：同 E2E-013 前置，另把「取得貓咪清單」之 group 改為專用之「promo-group」（後台列，來源鍵空）；匯入列以該列 id 代替來源鍵，外部擁有欄位逐欄取自庫內（內容相同）；權杖輸入「tok-promo」。
+    - 測試資料：同 E2E-013 前置，另把「取得貓咪清單」之 group 改為專用之「promo-group」（後台列，來源鍵空）；匯入列之 `srcKey` 等於該列 id（一次性遷移，不得帶 `id`），外部擁有欄位逐欄取自庫內（內容相同）；權杖輸入「tok-promo」。
     - 操作：於左樹搜尋「取得貓咪清單」並點選 → 點「編輯／編輯」分頁 → 於「Tokens／授權金鑰」欄輸入 →（外部匯入，補上來源鍵）→ 點「儲存／儲存」→ 成功 modal 點「OK／確認」。
     - 驗證：
       1. 語意：編輯當下無 `.bk-ext` 說明；匯入回應 `nUpdate` 為 0、庫內 `srcKey` 等於該列 id；匯入後頁面出現唯讀說明、名稱欄 `readonly`、無 `.bk-stale` 提示、權杖欄仍為「tok-promo」；儲存成功後庫內 tokens 為「tok-promo」、`srcKey` 仍為該列 id、16 個外部擁有欄位與前置相同（`group` 為 `promo-group`）。
@@ -377,7 +377,7 @@
 ### 外部列受保護（E2E-013～E2E-018；2026-10-23，ADR-044，原則 5「開了外部同步就以外部為主」）
 
 ```
-001  外部匯入（POST /syncAndReplaceTabs）寫入之列必帶 srcKey（以 id 代替來源鍵者亦補 srcKey=id）；後台不可寫 srcKey（伺服器專有欄位）→ 「外部列」＝ srcKey 為非空字串者；「外部管理之 group」＝ 該 group 內存在至少一列外部列；「混雜列」＝ 外部管理 group 內 srcKey 為空之列  [server/syncApis.mjs:newRow][src/schema/contracts/externalRows.mjs:isExternalRow,getExternalGroups,isMixedRow]
+001  外部匯入（POST /syncAndReplaceTabs）寫入之列必帶 srcKey（缺 srcKey 或列帶 id 整批拒收；遷移前之舊列於首次匯入命中〔批次 srcKey 等於其 id〕時補 srcKey=id）；後台不可寫 srcKey（伺服器專有欄位）→ 「外部列」＝ srcKey 為非空字串者；「外部管理之 group」＝ 該 group 內存在至少一列外部列；「混雜列」＝ 外部管理 group 內 srcKey 為空之列  [server/syncApis.mjs:newRow][src/schema/contracts/externalRows.mjs:isExternalRow,getExternalGroups,isMixedRow]
 002  WWebApi 讀 opt.lockExternalRows（預設 'y'；僅 'n' 或 false 關閉，未知值維持開啟），傳入 procApis，並於 getWebInfor 回 lockExternalRows 'y'|'n' 供前端；參考部署由 settings.json 經 srv.mjs 轉入  [server/WWebApi.mjs][srv.mjs]
 003  前端（lockOn＝webInfor.lockExternalRows 非 'n'）: 樹狀清單列依 store 全表算外部管理 group → 外部列旁鎖頭（ExtMark kind=lock）、混雜列旁警告（kind=warn），停留顯示 tooltip  [src/components/LayoutContent.vue:rowMark,rowMarkTip][src/components/ExtMark.vue]
 004  編輯既有列且 item 為外部列（isExt）: 上方 .bk-ext 唯讀說明；fieldsExternal 之欄位（13 個輸入框＋方法唯讀框）readonly 並於標籤旁顯示鎖頭；tokens／測試設定可編；刪除鈕 disabled（pointer-events:none，使停留落在外層 WTooltip 觸發區）並以 tooltip 說明；onClickDelete 保險 return  [src/components/LayoutContentEdit.vue:isExt,onClickDelete]
@@ -387,7 +387,7 @@
 008  saveApi 新增 → lockSave → withTabLocks(['apis']) 內 select({ group }) 新鮮讀取 → 該 group 有外部列 → reject saveExternalGroupDenied  [server/procApis.mjs:saveApi]
 009  deleteApi → guardWrite write(rows): 原列為外部列 → reject deleteExternalRowDenied  [server/procApis.mjs:deleteApi]
 010  拒收一律零寫入（procOrm 未被呼叫）、srLog 記 kpfun-<op>-external（事件、鍵、欄位名／原因，不記值）；rejectWrite 以 kpRejectKey 原樣轉出語系鍵  [server/procApis.mjs:rejectWrite,logExternal]
-011  外部匯入不受此選項影響（照常新增／修改／刪除外部列）；刪除 srcKey 為空之列（混雜列或相容路徑之無鍵列）時記 warn syncAndReplaceTabs-delNoSrcKey  [server/syncApis.mjs:syncApis]
+011  外部匯入不受此選項影響（照常新增／修改／刪除外部列）；刪除 srcKey 為空之列（混雜列或升版前舊同步／相容期所寫之無鍵列）時記 warn syncAndReplaceTabs-delNoSrcKey  [server/syncApis.mjs:syncApis]
 ```
 
 ## i18n 訊息粒度規則
@@ -449,13 +449,13 @@
   - `procOrm` 之 `opt`（`mustExist`）只由伺服端自組，客戶端第 3 參數只讀 `baseline`；基準格式或版本不識一律 `errBaselineFormat`，不得降級為不帶基準；庫內讀出之主鍵缺漏或重複（`rowsInvalid`）屬伺服端資料錯誤，回 `getDataError` 並記 srLog。
   - 最後修改者：schema 補 `userIdUpdate`，由 `procOrm` 於 save／insert 寫入操作者（外部匯入者為 app 權杖之使用者）。
 - **外部列受保護**（原則 5「開了外部同步就以外部為主」，ADR-044，選項 `lockExternalRows` 預設 `'y'`；判定 `src/schema/contracts/externalRows.mjs`，前後端 import 同一檔）：
-  - 外部列＝`srcKey` 為非空字串之列（匯入寫入、後台不可寫）；外部管理之 group＝該 group 內存在外部列者；混雜列＝該 group 內 `srcKey` 為空之列。相容期無來源鍵之匯入列（`srcKey`、`id` 皆無）與升版前尚未被匯入命中之列 `srcKey` 為空，無從與後台自建者區分，一律視為後台列（不鎖）。
+  - 外部列＝`srcKey` 為非空字串之列（匯入寫入、後台不可寫）；外部管理之 group＝該 group 內存在外部列者；混雜列＝該 group 內 `srcKey` 為空之列。升版前尚未被匯入命中之列（舊同步寫入、1.1.14 相容期所寫之無鍵列）`srcKey` 為空，無從與後台自建者區分，一律視為後台列（不鎖）；自 2026-10-23（ADR-046）起外部匯入不再產生無鍵列。
   - 外部列：後台不可刪除（`deleteExternalRowDenied`）；不可改 `group`、`srcKey` 與外部擁有欄位（契約 `fieldsExternal` 16 欄＝`provideTabs` 的 `ks_apis` 白名單去 `srcKey`／`id`；`saveExternalRowChanged`）；可改本系統擁有欄位（契約 `fieldsLocal` 8 欄，含 `tokens`）。「改」指客戶端帶來之值與庫內不同；整列原樣送回（如編輯表單只改 tokens）不算改，缺欄不比，數字與其字串形式視為同一。外部列帶來「非空且與庫內不同」的 `srcKey` 亦算改（空值不算：持舊畫面之整列回聲，見〈已知落差〉設計事實）；後台列帶來的 `srcKey` 仍不採用也不拒（run01 A7 行為不變）。
   - 外部管理之 group：後台不可新增列、不可把列改入（`saveExternalGroupDenied`）；判定於表鎖內新鮮讀取該 group，與外部匯入同鎖（匯入先取鎖則新增於匯入完成後被拒；新增先取鎖則該列於隨後之匯入被刪，結果同樣是 group 內只有外部列）。混雜列之 group 未改者不攔（原就在其內，其他欄位照常可改、可刪）；改到另一個外部管理 group 則攔。
   - **檢查之值即寫入之值**（外審補強）：`group` 須為合法形狀（缺欄、null 或合法 Unicode 字串；陣列、數字、布林、物件、含孤立代理字元者 → `errApiRowInvalid`，僅選項開啟時檢查）；外部列通過守門後只寫 `id` 與本系統擁有欄位（外部擁有欄位已驗證與庫內相同，不再寫入，免得數字回聲與庫內舊值被 ORM 改寫）；主鍵只讀一次；group 比對用寫入後之值（字元清理）。
   - 違規整次拒收、零寫入（`procOrm` 未被呼叫）；與基準比對之先後：持舊基準者先得 `saveStale`（先動先贏），持最新基準或不帶基準者得上列拒收鍵。
   - 選項 `'n'`：回到升版前行為（後台可改可刪外部列、可在外部管理 group 新增與改入），匯入照常以外部為主；外部匯入本身不受此選項影響。
-  - 混雜列「提示但不自動刪除」（原則 3）：前端於樹狀清單與編輯頁顯示警告；匯入時被刪的無來源鍵之列記 warn `syncAndReplaceTabs-delNoSrcKey`；升版前以 `node g_auditExternalRows.mjs` 盤點。下次匯入的行為不變（run01 D6）：批次未以 `id` 列入者被刪，以 `id` 列入者保留並補 `srcKey = id`。
+  - 混雜列「提示但不自動刪除」（原則 3）：前端於樹狀清單與編輯頁顯示警告；匯入時被刪的無來源鍵之列記 warn `syncAndReplaceTabs-delNoSrcKey`；升版前以 `node g_auditExternalRows.mjs` 盤點。下次匯入的行為不變（run01 D6）：批次 `srcKey` 未等於其 `id` 者被刪，等於其 `id` 者保留並補 `srcKey = id`（2026-10-23 ADR-046 由「以 `id` 列入」更正為「`srcKey` 等於其 `id`」）。
 - **邊界**：
   - 新筆 method 預設 'get'；blankApi 不帶 id 是走 insert 的關鍵。
   - 刪除取消（'close'）靜默不報錯。
@@ -473,9 +473,10 @@
 - **資料庫寫入失敗時回 ORM 之英文原文（已修復（附修復紀錄）；發現於 2026-10-14，2026-10-14 修復）**：w-serv-orm 1.1.x 之 `procOrm` 失敗以英文字串拒絕（如 `failed to save data`、`failed to delete data`），`saveApi`／`deleteApi` 原樣回前端，`$transErr` 查無此鍵。使用者可觀察之後果：儲存或刪除遇資料庫寫入失敗時，紅字不是語系文字。層級：產品程式碼（本專案）。修復紀錄：①本專案 2026-10-14（ADR-038 第 4 項，主控複審裁決 F8）；②`server/ormErrKey.mjs:ormFail`，套用於 `server/procApis.mjs:saveApi`／`deleteApi`／`getApisList`——寫入失敗回 `saveWriteFail`、讀取失敗回 `getDataError`，原文入 srLog；③後端程式不經前端產物，`saveWriteFail` 之文字由 `server/procLang.mjs` 經 kpLang 下發；④UI 不可達（正常操作造不出資料庫寫入失敗），以 `test/unit-procApis.test.mjs` 之「雙擊防護: procOrm 失敗時回 saveWriteFail」與「getApisList 之 procOrm 失敗 → 回 getDataError」驗證（修正前之模組為紅）；⑤無案例與標準圖受影響；⑥無轉交。
 - **已修復（附修復紀錄）：多人同時編輯之缺陷（發現於 2026-10-22 inv01 探測，2026-10-23 修復，ADR-043）**：①E5 修改已被刪除之列使其復活（含從未存在之 id，E5b）；②E6 刪除不存在之列仍回成功；③E7 編輯中收到推播（無關列、同一列、列被刪）或於搜尋框輸入即重建表單，草稿靜默丟棄，原列被刪時編輯器換成列表第一筆（A6、P1～P4）；④A3 舊畫面存檔靜默回寫外部同步之新值；⑤A1／A2 外部同步不取鎖、存檔與刪除異鍵不互斥（刪除成功後被延遲中之存檔復活）；⑥A4 無最後修改者；⑦A7 `saveApi` 採客戶端 `timeCreate`（可偽造）。使用者可觀察之後果：他人刪除後的舊畫面存檔使列復活；編輯到一半的內容因他人更新或自己搜尋而消失；用舊畫面存檔蓋掉他人／外部的更新。層級：產品程式碼（本專案）。修復紀錄：①本專案 2026-10-23（排程第 112 項）；②後端 `server/procApis.mjs`（`guardWrite`、`withTabLocks`、`mustExist`、`pickWriteRow`）、契約 `src/schema/contracts/apis.mjs`、schema 補 `userIdUpdate`、前端 `LayoutContent.vue`（genTree）／`LayoutContentEdit.vue`（initFromItem、onItemChange、提示）；③後端程式不經前端產物，前端變更需重建 dist（已建置）；④證據：`test/api-concurrency.test.mjs`（E5～E6、A1～A4、A7、V1、V3、V5～V7、V9、V10、V13、V14）、`test/unit-procApis.test.mjs`、`test/unit-contract.test.mjs`、`test/e2e-concurrent.test.mjs`（E7、A6、V10、V11）；修前紅：同一批測試對 HEAD 之 `server/`、`src/` 全紅（見 `sgud/rule/rulebook_concurrency.md` §6）；⑤新增案例 E2E-006～E2E-010 與新標準圖 `test/pics/conc/`，既有案例與標準圖 0 張改變；⑥無轉交。
 - **已修復（附修復紀錄）：外部匯入之缺陷（發現於 2026-10-22，2026-10-23 修復，ADR-043，原則 11）**：①E8 同步相同內容重送，未帶 id 之列內部 id 全換；②C4b 同步把本站編輯表單管理之 8 欄（tokens／authType／authConfigJson／testBaseUrl／default*Json／contentType）清成空字串；③A5 同步重設 `timeCreate`；④ADR-016 `delAll`＋`insert` 非原子。使用者可觀察之後果：每次同步使後台編輯過的金鑰、認證與測試設定消失；內部 id 每次改變。層級：產品程式碼（本專案）。修復紀錄：①本專案 2026-10-23；②`server/syncApis.mjs`（`srcKey` 差異同步、欄位歸屬、補償）；③`provideTabs` 白名單加 `srcKey`；④證據：`test/api-import.test.mjs`（I1～I14）、`test/unit-syncApis.test.mjs`；⑤無 e2e 案例受影響；⑥無轉交。
-- **設計事實（記錄備查）：外部匯入之相容與同群組後台列（2026-10-23，ADR-043）**：①現行 major：列未給 `srcKey` 而給 `id` 者以 `id` 值為來源鍵（新增列沿用該 `id` 為內部 id，行為與現行一致），記警告 `syncAndReplaceTabs-idAsSrcKey`；批次中有列兩者皆無則該列每次匯入皆為新增（配新 `id`；本文原載「整批沿用 `delAll`＋`insert`」不成立：run01 外審實測該作法會清掉有鍵之列的本系統擁有欄位，已改為全程無 `delAll`，見 ADR-043 決策 5；2026-10-23 更正），記警告 `syncAndReplaceTabs-noSrcKey`；既有外部列無 `srcKey` 者，首次差異同步命中時於鎖內補上 `srcKey = id`（不計入 `nUpdate`）；下一 major 起 `srcKey` 必填（相容做法為主控建議，使用者尚未確認）。②`group` 為外部來源之統一管理鍵（schema 註解）：後台在外部 group 內自建之列（`srcKey` 空），其有效來源鍵為其 `id`，批次未含者於下次該 group 匯入時被刪（與改造前 `delAll({ group })` 同）。③匯入回應為 `{ nAdd, nUpdate, nDel, nSame }`（原回 insert 結果 `[{ id }]`）。
+- **設計事實（記錄備查）：外部匯入之不提供相容、一次性遷移與同群組後台列（2026-10-23，ADR-043；①於同日 run04 更正〔ADR-046〕）**：①**不提供呼叫端相容（使用者 2026-10-23 裁示）**：`srcKey` 即刻必填，缺 `srcKey`（含只送 `id`）整批拒收 `errRowInvalid`、列帶 `id` 整批拒收 `idNotAllowed`、零寫入；〔原載「現行 major：列未給 `srcKey` 而給 `id` 者以 `id` 為來源鍵並記警告 `syncAndReplaceTabs-idAsSrcKey`；兩者皆無則該列每次新增並記警告 `syncAndReplaceTabs-noSrcKey`；下一 major 起 `srcKey` 必填（相容做法為主控建議，使用者尚未確認）」不成立：已移除，見 ADR-046〕；保留者僅一次性資料遷移：既有外部列無 `srcKey` 者，批次 `srcKey` 等於其 `id` 時視為同一列、於鎖內補上 `srcKey = id`（`id` 不變，不計入 `nUpdate`）。②`group` 為外部來源之統一管理鍵（schema 註解）：後台在外部 group 內自建之列（`srcKey` 空），其有效來源鍵為其 `id`，批次 `srcKey` 未等於其 `id` 者於下次該 group 匯入時被刪（與改造前 `delAll({ group })` 同）。③匯入回應為 `{ nAdd, nUpdate, nDel, nSame }`（原回 insert 結果 `[{ id }]`）。
+- **設計事實（記錄備查）：列以同一 id 重新出現之前端規則無使用者路徑可觸發（2026-10-23，ADR-046）**：E2E-008 末段所驗「曾被回已不存在之列以同一 `id` 重新出現 → 解除拒收狀態」（sol#13，R-CONC-06）原由外部匯入以 `id` 代替來源鍵造成；外部不得送 `id` 後，匯入不能使已刪之列以原 `id` 重現。該規則留為防禦性規則（同步空窗後回來等），測試以直接寫庫模擬由備份還原。使用者可觀察之後果：外部匯入同內容之列會是新列（新 `id`），不會使已刪之舊列復活。
 - **設計事實（記錄備查）：升級前限制（2026-10-23，ADR-043）**：已開啟之舊版頁面與外部應用不帶基準，本 major 允許（仍取表鎖、只改不增、本系統擁有欄位不被匯入寫）；舊版頁面不受草稿保護（升級前限制，重新整理後即生效）。下一 major 後台必帶基準（未帶即拒收）。
 - **設計事實（記錄備查）：搜尋與選取脫鉤僅在編輯既有列時生效（2026-10-23，ADR-043）**：文件、測試分頁維持「搜尋結果不含目前選取者即改選第一筆」，以免改變展示流程 E2E-003 之畫面與既有標準圖。
 - **已修復（附修復紀錄）：後台可改可刪外部列（原標待裁示；2026-10-23 發現，同日由使用者裁示之原則 5 定案並修復，ADR-044）**：外部匯入規格第 7 節要求「外部列（`srcKey` 非空）後台不可刪除、不可改身分欄與外部擁有欄位」，run01 範圍未含，現況後台可改可刪外部列，下次匯入以外部為主覆蓋；後台在外部 group 內自建之列則於下次匯入被刪（run01 D6）。使用者可觀察之後果：管理員改了外部列的名稱或說明、或在外部 group 新增 API，下次匯入就被還原或移除，而畫面沒有任何預先提示。層級：產品程式碼（本專案）。修復紀錄：①本專案 2026-10-23（排程第 112 項 run02）；②後端 `server/procApis.mjs`（表鎖內以新鮮讀取之庫內原列判定）、共用判定 `src/schema/contracts/externalRows.mjs`、選項 `opt.lockExternalRows`（`server/WWebApi.mjs`、`srv.mjs`）、語系鍵 `server/procLang.mjs`、前端 `LayoutContentEdit.vue`／`LayoutContent.vue`／`ExtMark.vue`；③前端變更需重建 dist（e2e 啟動時建置）；④證據：`test/unit-externalRows.test.mjs`、`test/unit-procApis-external.test.mjs`、`test/api-externalRows.test.mjs`、`test/e2e-external.test.mjs`（E2E-013～E2E-018）；修前紅：同一批測試對修前之 `server/` 複本全紅（見 `sgud/rule/rulebook_backend.md` R-EXT-LOCK-01）；⑤新增案例 E2E-013～E2E-018 與新標準圖 `test/pics/ext/`，既有案例與標準圖 0 張改變；⑥無轉交。
-- **設計事實（記錄備查）：外部列判定與混雜資料（2026-10-23，ADR-044）**：外部列以 `srcKey` 非空判定。相容期（`srcKey`、`id` 皆無之匯入列，每次匯入新增）與升版前尚未被匯入命中之列 `srcKey` 為空，無從與後台自建者區分，視為後台列（不鎖）——要得到保護請外部端改帶 `srcKey`（README Upgrade Notes）。外部管理 group 內既有之後台列（混雜列）不鎖、不自動刪除，但下次匯入未以 `id` 列入者被刪；前端警告、匯入記 warn、升版前以 `g_auditExternalRows.mjs` 盤點。使用者可觀察之後果：混雜列可編輯、可刪除，但可能於下次匯入消失。
+- **設計事實（記錄備查）：外部列判定與混雜資料（2026-10-23，ADR-044）**：外部列以 `srcKey` 非空判定。升版前尚未被匯入命中之列（舊同步寫入、相容期所寫之無鍵列）`srcKey` 為空，無從與後台自建者區分，視為後台列（不鎖）——要得到保護請外部端以其 `id` 作為 `srcKey` 匯入一次（README Upgrade Notes；2026-10-23 ADR-046 起外部匯入不再產生無鍵列）。外部管理 group 內既有之後台列（混雜列）不鎖、不自動刪除，但下次匯入批次 `srcKey` 未等於其 `id` 者被刪；前端警告、匯入記 warn、升版前以 `g_auditExternalRows.mjs` 盤點。使用者可觀察之後果：混雜列可編輯、可刪除，但可能於下次匯入消失。
 - **設計事實（記錄備查）：`srcKey` 之處置（2026-10-23，ADR-044）**：`srcKey` 為伺服器專有欄位，客戶端值一律不採用。外部列帶來「非空且與庫內不同」之 `srcKey` 整次拒收（企圖改身分欄）；後台列帶來之 `srcKey` 不採用也不拒（run01 A7，`api-concurrency` A7 不變）；**空值（缺欄／null／空字串）一律不算**——持舊畫面之整列回聲帶載入當時之 `srcKey`，列於載入後才被匯入補上 `srcKey`（空 → id）時回聲為空字串，算改則「只改了權杖」之存檔被誤拒（`api-concurrency` V5 暴露，原實作將空字串算改，已修）。使用者可觀察之後果：該情形下編輯頁因 store 更新而轉為唯讀顯示，已輸入之權杖仍可儲存。

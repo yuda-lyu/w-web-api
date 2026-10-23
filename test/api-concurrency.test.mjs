@@ -275,8 +275,8 @@ describe('api-concurrency (多人同時編輯: 逐列基準、表鎖、只改不
         it('V5: 系統只改伺服器專有欄位（外部匯入補 srcKey、更新 timeUpdate／userIdUpdate）後，持舊基準之後台仍可存（不被誤擋）', async function() {
             let row = await mkRow('tokA', 'v5', { group: 'ext' }) //後台列：srcKey 為空
             let base = baselineOf(row)
-            //外部以 id 代替 srcKey 重送同內容（相容）→ 命中該列、補 srcKey（伺服器專有）、內容不變
-            let r = await S.sync('tokApp', { group: 'ext', rows: [{ id: row.id, name: row.name, url: row.url, method: row.method, levels: row.levels, group: 'ext', order: row.order, description: row.description, version: row.version, keywords: row.keywords, state: row.state, creator: row.creator, dataSource: row.dataSource, mdInputParams: row.mdInputParams, inputExample: row.inputExample, mdOutputParams: row.mdOutputParams, outputExample: row.outputExample }] })
+            //外部以 srcKey（等於該列既有之 id，一次性遷移，I15）重送同內容 → 命中該列、補 srcKey（伺服器專有）、內容不變
+            let r = await S.sync('tokApp', { group: 'ext', rows: [{ srcKey: row.id, name: row.name, url: row.url, method: row.method, levels: row.levels, group: 'ext', order: row.order, description: row.description, version: row.version, keywords: row.keywords, state: row.state, creator: row.creator, dataSource: row.dataSource, mdInputParams: row.mdInputParams, inputExample: row.inputExample, mdOutputParams: row.mdOutputParams, outputExample: row.outputExample }] })
             assert.strictEqual(r.state, 'success', JSON.stringify(r))
             assert.deepStrictEqual(r.msg, { nAdd: 0, nUpdate: 0, nDel: 0, nSame: 1 })
             let sys = await getRow(row.id)

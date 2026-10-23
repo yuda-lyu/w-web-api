@@ -16,6 +16,8 @@ let optExtra = process.argv[4] ? JSON.parse(process.argv[4]) : {}
 let delays = { select: 0, save: 0, del: 0, insert: 0, delAll: 0 }
 //fails: 人為注入失敗——fails[op] 為剩餘次數, 該操作被呼叫時先扣一次並 reject（寫入中途失敗: 外部匯入 I12）
 let fails = {}
+//failItems: 人為注入「逐筆 ok:0 但不 reject」(R18)——failItems[op] = { n: 剩餘次數, index: 失敗之筆序 }; 該筆不寫入、其餘筆照常寫入（部分寫入情境）, 回傳該 ORM 契約之結果形狀但該筆 ok 為 0
+let failItems = {}
 let ops = []
 let t00 = Date.now()
 let sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -37,6 +39,21 @@ let desc = (m, args) => {
 //instances: 各表 ORM 實例（opt.cl 為表名）, 供 IPC 'wipe' 直接清表——測試清理用, 不經 kpFunExt／表鎖（外部列受保護後 deleteApi 不能刪外部列, 清理不可再走 deleteApi）
 let instances = {}
 
+//runFailItem: 第 k 筆不寫入、其餘筆交真 ORM 寫入, 回傳形狀同 w-orm-lmdb——save／del 為逐筆陣列（第 k 筆 ok:0 附 err）, insert 為聚合物件 { n, nInserted, ok:0, err }
+let runFailItem = async (orig, m, args, k) => {
+    let a = args[0]
+    let rows = Array.isArray(a) ? a : [a]
+    let rest = rows.filter((v, i) => i !== k)
+    let r = rest.length > 0 ? await orig(rest, ...args.slice(1)) : []
+    let err = `INJECTED-ITEM-FAIL ${m}`
+    if (m === 'insert') {
+        return { n: rows.length, nInserted: rest.length, ok: 0, err }
+    }
+    let out = Array.isArray(r) ? r.slice() : []
+    out.splice(k, 0, m === 'save' ? { n: 1, nInserted: 0, nModified: 0, ok: 0, err } : { n: 1, nDeleted: 0, ok: 0, err })
+    return out
+}
+
 function SlowOrm(opt) {
     let wo = new WOrm(opt)
     ;(instances[opt.cl] = instances[opt.cl] || []).push(wo)
@@ -51,6 +68,15 @@ function SlowOrm(opt) {
                 if (fails[m] > 0) {
                     fails[m]--
                     return Promise.reject(new Error(`INJECTED-FAIL ${m}`))
+                }
+                if (failItems[m] && failItems[m].n > 0) {
+                    //index 為數字（每次同一筆序）或陣列（第 i 次被注入之呼叫用 index[i]）
+                    let fi = failItems[m]
+                    let k = Array.isArray(fi.index) ? fi.index[fi.used || 0] : fi.index
+                    fi.used = (fi.used || 0) + 1
+                    fi.n--
+                    rec.inj = 'item' //操作記錄標示本次為逐筆 ok:0 注入（測試據此證明注入確實命中, 非空轉）
+                    return await runFailItem(orig, m, args, k || 0)
                 }
                 return await orig(...args)
             }
@@ -91,10 +117,24 @@ process.on('message', async (msg) => {
         fails = { ...msg.value }
         process.send({ id: msg.id, ok: true })
     }
+    else if (msg.cmd === 'failItems') {
+        failItems = JSON.parse(JSON.stringify(msg.value || {}))
+        process.send({ id: msg.id, ok: true })
+    }
     else if (msg.cmd === 'wipe') {
         let wo = (instances[msg.table] || [])[0]
         if (wo) {
             await wo.delAll()
+        }
+        process.send({ id: msg.id, ok: true })
+    }
+    else if (msg.cmd === 'seed') {
+        //seed: 直接寫入列（測試鷹架: 模擬升版前既有資料, 如舊同步寫入而無 srcKey 欄之列; 不經 kpFunExt、表鎖與 procOrm, 欄位由呼叫端給齊）; 不計入操作記錄
+        let wo = (instances[msg.table] || [])[0]
+        if (wo) {
+            let n0 = ops.length
+            await wo.insert(msg.rows)
+            ops.length = n0
         }
         process.send({ id: msg.id, ok: true })
     }

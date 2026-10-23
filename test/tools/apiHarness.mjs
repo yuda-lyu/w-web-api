@@ -81,11 +81,20 @@ async function startApiServer({ name, port, opt = null }) {
         await ipc('wipe', { table })
     }
 
+    //seed: 直接寫入列（測試鷹架: 模擬升版前既有之資料, 如舊同步寫入而無 srcKey 欄之列; 不經 kpFunExt、表鎖與 procOrm, 列由呼叫端給齊, 見 mkLegacyRow）
+    let seed = async (rows, table = 'apis') => {
+        await ipc('seed', { table, rows })
+    }
+
     let setDelays = async (value) => {
         await ipc('delays', { value })
     }
     let setFails = async (value) => {
         await ipc('fails', { value })
+    }
+    //setFailItems: 注入逐筆 ok:0（不 reject）, value 如 { save: { n: 1, index: 0 } }, 見 apiServerChild 之 runFailItem
+    let setFailItems = async (value) => {
+        await ipc('failItems', { value })
     }
     let getOps = async (clear = false) => {
         let r = await ipc('ops', { clear })
@@ -116,11 +125,46 @@ async function startApiServer({ name, port, opt = null }) {
         fs.rmSync(cwd, { recursive: true, force: true })
     }
 
-    return { base, cwd, fun, sync, list, wipe, setDelays, setFails, getOps, now, stop }
+    return { base, cwd, fun, sync, list, wipe, seed, setDelays, setFails, setFailItems, getOps, now, stop }
 }
 
 
 let sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 
-export { startApiServer, sleep }
+//mkLegacyRow: 升版前既有之列（舊同步寫入或相容期所寫: 無 srcKey 欄; over 可覆寫任一欄, 如 { srcKey: '' } 模擬相容期之無鍵列）, 供 seed 用; 欄位齊全（含本系統擁有欄位之非空值，驗遷移保留）
+let mkLegacyRow = (id, group, over = {}) => ({
+    id,
+    group,
+    order: '',
+    name: `legacy-${id}`,
+    description: `desc-${id}`,
+    url: `http://legacy/${id}`,
+    method: 'get',
+    version: 'v1',
+    levels: 'L.1',
+    keywords: 'kw',
+    state: 'ok',
+    creator: 'c',
+    dataSource: 'd',
+    mdInputParams: '',
+    inputExample: '',
+    mdOutputParams: '',
+    outputExample: '',
+    tokens: `tok-${id}`,
+    testBaseUrl: '',
+    authType: 'bearer',
+    authConfigJson: '',
+    defaultHeadersJson: '',
+    defaultQueryJson: '',
+    defaultBodyJson: '',
+    contentType: 'text/plain',
+    timeCreate: '2026-01-01 00:00:00',
+    timeUpdate: '2026-01-01 00:00:00',
+    userIdUpdate: 'legacy-user',
+    isActive: 'y',
+    ...over,
+})
+
+
+export { startApiServer, sleep, mkLegacyRow }

@@ -76,7 +76,7 @@ describe('unit-contract (apis 寫入契約完整性)', function() {
         assert.strictEqual(row.isActive, 'y')
     })
 
-    it('C08 推送端 provideTabs 只送外部擁有欄位與身分鍵（srcKey、id 相容）：本系統擁有欄位與伺服器專有欄位不送', async function() {
+    it('C08 推送端 provideTabs 只送外部擁有欄位與來源鍵 srcKey（不送 id：外部不得指定內部 id；規格 §9）：本系統擁有欄位與伺服器專有欄位不送', async function() {
         let body = null
         let srv = await new Promise((resolve) => {
             let s = http.createServer((req, res) => {
@@ -98,8 +98,8 @@ describe('unit-contract (apis 寫入契約完整性)', function() {
             let msg = await provideTabs(`http://127.0.0.1:${PORT_STUB}/syncAndReplaceTabs?keyTable=apis&token=t`, 'apis', 'g', [all])
             assert.deepStrictEqual(msg, { nAdd: 1, nUpdate: 0, nDel: 0, nSame: 0 }, 'provideTabs resolve 伺服器回應之計數')
             let sent = Object.keys(body.rows[0]).sort()
-            assert.deepStrictEqual(sent, sorted(['srcKey', 'id', ...fieldsExternal]), '只送 srcKey、id（相容）與外部擁有欄位')
-            for (let k of [...fieldsLocal, 'timeCreate', 'timeUpdate', 'isActive', 'userIdUpdate']) {
+            assert.deepStrictEqual(sent, sorted(['srcKey', ...fieldsExternal]), '只送 srcKey 與外部擁有欄位')
+            for (let k of ['id', ...fieldsLocal, 'timeCreate', 'timeUpdate', 'isActive', 'userIdUpdate']) {
                 assert.ok(!(k in body.rows[0]), `${k} 不得送出`)
             }
             assert.strictEqual(body.group, 'g')

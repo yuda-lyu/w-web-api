@@ -8,7 +8,7 @@
 //- E2E-010：無未存修改時他人更新同一筆 → 表單自動重建；前端算之基準（經實際傳輸路徑）等於伺服端新鮮讀取所算；存檔後再開不被自己的基準誤擋（V10、規格 §8 新基準取自伺服端）。
 //- E2E-011：他人改了又改回載入時之內容 → 提示撤除、草稿保留、舊基準仍可存（基準全程凍結為載入快照）。
 //- E2E-012：既有列之載入資料無法自算基準（舊資料含過深巢狀值）→ 禁止存檔、不送出 saveApi（不降級為不帶基準）。
-//- 另：E2E-007 核對被拒存檔實際送出之基準＝載入快照（基準凍結）；E2E-008 末段核對原列被外部匯入還原後拒收狀態解除。
+//- 另：E2E-007 核對被拒存檔實際送出之基準＝載入快照（基準凍結）；E2E-008 末段核對原列以同一 id 重新出現（直接寫庫模擬由備份還原；外部不得指定 id，匯入不能使原 id 重現，ADR-046）後拒收狀態解除。
 //- E2E-019～E2E-022（api-run03，規格 §8「存檔成功後之新基準取自伺服端，且須立即取得」）：以 installPushHold 攔下推播使「存檔成功 → 推播未到」必然發生——
 //  E2E-019：存檔成功後（推播未到）左樹立即反映、立即再開編輯再存不被自己上一次之存檔誤擋；其後抵達之同內容推播不顯示「已被更新」、不重建表單。
 //  E2E-020：他人在我存檔之後改了同一列 → 我（以存檔回傳之列為基準）再存仍被拒（先動先贏不被削弱）。
@@ -36,7 +36,7 @@ import {
     REGEN
 } from './tools/e2e-setup.mjs'
 import { runBaselineCase, createBaselineGate, openCasePage, itemsUnionBox } from './tools/e2eLib.mjs'
-import { T, fieldRow, fieldInput, fieldTextarea, fieldRowBox, searchInput, staleBanner, waitStaleBanner, waitSaveModal, clickModalOk, dbRow, otherSave, otherDelete, otherImport, installRpcCapture, installPushHold } from './tools/e2eEditHelpers.mjs'
+import { T, fieldRow, fieldInput, fieldTextarea, fieldRowBox, searchInput, staleBanner, waitStaleBanner, waitSaveModal, clickModalOk, dbRow, otherSave, otherDelete, installRpcCapture, installPushHold } from './tools/e2eEditHelpers.mjs'
 
 
 let FLOW = 'conc'
@@ -197,9 +197,11 @@ async function runE2E008(page, lang) {
     assert.strictEqual(await nameInp.inputValue(), draft, '被拒後草稿仍保留')
     assert.ok(!(await dbRow(NAME_A)) && !(await dbRow(draft)), 'DB 無原列、無草稿名（已刪之列不復活）')
 
-    //步驟4（外審 sol#13；無標準圖）：外部匯入把該 API 還原（以 id 代替來源鍵，同一 id 重新出現）→ 不再視為已刪除：
+    //步驟4（外審 sol#13；無標準圖）：該 API 以同一 id 重新出現 → 不再視為已刪除：
     //提示改為「已被他人更新」並可重新載入（先前「已不存在」之拒收狀態一併解除）、草稿仍保留；重新載入後取還原之列
-    await otherImport('restored-e2e', [{ id: rowOrig.id, name: rowOrig.name, url: rowOrig.url, method: rowOrig.method }]) //專用範圍: 匯入為該範圍之完整清單, 不動其他群組之列
+    //2026-10-23（ADR-046）起外部不得指定 id，外部匯入不能再使原 id 重現（原以 id 代替來源鍵還原）；改以直接寫庫模擬「由備份還原」該列（同一 id；內容與載入時不同，否則依規格 §8 內容等於基準者自動撤提示），再由他人修改另一列觸發推播
+    await woItems.apis.insert([{ ...rowOrig, description: `restored-${lang}` }])
+    await otherSave(NAME_B, { description: `trigger-${lang}` })
     await waitStaleBanner(page, T[lang].staleChanged)
     assert.strictEqual(await staleBanner(page).locator('button').count(), 1, '列重新出現後可重新載入（不再卡在已刪除）')
     assert.strictEqual(await nameInp.inputValue(), draft, '草稿仍保留')

@@ -1,10 +1,11 @@
 //unit-syncRows：外部同步之主鍵檢核純函數（server/checkSyncRows.mjs；CLAUDE_rulebook.md R-SYNC-1；ADR-038）。不讀寫資料庫、不開埠。
+//2026-10-23（ADR-046）起，syncApis 以 { id: srcKey } 形狀傳入來源鍵（srcKey 即刻必填、外部不得送 id），本函數檢核對象為 srcKey 值；規則本身不變。
 //規則：有給之主鍵（非空字串或有限數字；NaN、±Infinity 視為未給，同 w-serv-orm 1.1.11）須 (a) clearXSS 不改寫 (b) UTF-8 ≤ 1978 位元組（LMDB 鍵長上限，2026-10-14 實測 1978 可寫、1979 失敗）
 //(c) 同批不重複 (d) 不屬他群組；未給主鍵（空字串、未給、其他型別）照常。回報第一個違反之 { index, field:'id', reason }。
-//重複與群組以 String(id) 比對：w-serv-orm 1.1.11 起字串型主鍵欄之有限數字主鍵存為其字串形式（123 存為 '123'、回應之 id 為 '123'），故 123 與 '123' 為同一主鍵；
-//pickRowIds 一律回傳 String(id)（跨群組查詢以 woItems 直呼、不經 procOrm 之轉型；2026-10-14 依 w-serv-orm 之建議書）。
+//重複與群組以 String(id) 比對：w-serv-orm 1.1.11 起字串型主鍵欄之有限數字主鍵存為其字串形式（123 存為 '123'、回應之 id 為 '123'），故 123 與 '123' 為同一主鍵。
+//pickRowIds（取本批主鍵供查既有群組）隨「以 id 代替 srcKey」之相容一併移除（其唯一呼叫端 syncApis 已不查既有主鍵）。
 import assert from 'assert'
-import { checkRowIds, pickRowIds, maxIdBytesDef } from '../server/checkSyncRows.mjs'
+import { checkRowIds, maxIdBytesDef } from '../server/checkSyncRows.mjs'
 
 
 let row = (id, extra = {}) => ({ id, name: 'n', url: 'http://x', group: 'G', ...extra })
@@ -52,14 +53,9 @@ describe('unit-syncRows（同步之主鍵檢核：R-SYNC-1）', function() {
         assert.deepStrictEqual(checkRowIds([row('dup'), row('dup'), row('y'.repeat(1979))], { group: 'G' }), { index: 1, field: 'id', reason: 'dup' })
     })
 
-    it('pickRowIds：只取有給之主鍵、去重、一律為字串（數字與其字串形式為同一主鍵；供以 woItems 直呼查詢既有群組）', function() {
-        assert.deepStrictEqual(pickRowIds([row('a'), row(''), row('a'), row(5), row(undefined), row('5'), row(1.5)]), ['a', '5', '1.5'])
-    })
-
-    it('NaN、±Infinity 視為未給主鍵（同 w-serv-orm 1.1.11 之補值規則）：checkRowIds 不檢查、pickRowIds 不取；0 與負數為有限數字照常', function() {
+    it('NaN、±Infinity 視為未給主鍵（同 w-serv-orm 1.1.11 之補值規則）：checkRowIds 不檢查；0 與負數為有限數字照常', function() {
         assert.strictEqual(checkRowIds([row(NaN), row(NaN), row(Infinity), row(Infinity), row(-Infinity)], { group: 'G' }), null, '不得因 Infinity 重複而報 dup')
         assert.strictEqual(checkRowIds([row(Infinity)], { group: 'G', groupById: new Map([['Infinity', 'OTHER']]) }), null, '不得以 Infinity 比對他群組')
-        assert.deepStrictEqual(pickRowIds([row(NaN), row(Infinity), row(-Infinity), row(0), row(-1)]), ['0', '-1'])
         assert.deepStrictEqual(checkRowIds([row(0), row('0')], { group: 'G' }), { index: 1, field: 'id', reason: 'dup' })
     })
 

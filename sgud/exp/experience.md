@@ -160,3 +160,23 @@
 - **操作窗斷言才抓得到「讀回移出表鎖」**: 兩請求並行、讀取與寫入皆延遲 150 ms 時, 只比各自回傳內容抓不到讀回搬到鎖外(外審 #8); 改斷言「先寫入者之讀回須在後一請求任何操作開始前結束」, 變異 B2 unit＋api 皆紅. 注意 procOrm `mustExist` 之存在檢查本身也會多一次 `$in` select, 不能假設每請求恰 3 個操作.
 - **變異複本法**: 後端與純函數的變異在 `tmp/<輪>/mut/<名>/` 複本施加(複製 `server/`、`src/schema`、`src/store`、`test/tools` 與要跑的測試檔, bare import 沿 repo `node_modules` 解析), 以一支 `run.mjs` 在鎖內逐個跑並彙總 passing／failing, 不動真檔; 前端接線(需 vue build)才暫時改真檔, 改前先備份、改後 `cmp` 驗還原逐位元相同.
 - **流程**: 兩槽被 w-web-sso／w-web-perm 長工作占約 50 分鐘; 起手即以 runner 排隊並在等鎖期間完成程式、測試、文件、外審(sol 約 10 分鐘回, 8 條); 取鎖後(08:33 起)unit(281)、api(109)、e2e 新案、變異、受影響 e2e 91 案、前端接線變異 6 個、穩定性重跑共約 50 分鐘跑完. 被守門 hook 擋過一次 `sed -i`(不小心夾在指令裡), 已改 Edit.
+
+## api-run04(2026-10-23): 移除外部匯入呼叫端相容——srcKey 即刻必填、外部不得送 id
+
+- **移除相容後, 舊測試有三種「偷靠相容」的形狀, 要靠站點全集找而非只改命名含「相容」者**: ①明寫以 `id` 代替來源鍵(api-http 的 R-SYNC-1 主鍵案、api-concurrency V5、e2e-external E2E-017/018、e2e-concurrent E2E-008 末段); ②批次列根本沒帶 `srcKey`、靠「無鍵列每次新增」通過(api-syncIter 全檔、api-http 「rows 全部合法」); ③驗「缺必填欄位」「非物件列」等**別的**規則, 但夾帶的合法列沒有 `srcKey`, 改後仍紅綠不變卻已是「因缺 srcKey 被拒」而非原本要驗的原因(api-http 缺 name／url 案: 須每列補合法 `srcKey` 才驗得到 name／url 規則). 盤點法: `git grep -nE "imp\(|\.sync\(|postRows\(|post\(" -- test` 逐站看批次列是否帶 `srcKey`; 改完讓「每個拒收案例只違反它想驗的那一條」.
+- **刪除一條相容分支會留下孤兒**: `pickRowIds`(僅供 id 衝突預檢)、`selectByIds`、`hasId`、`idConflict`／`ctrl` 原因、`$in` 分批測試的第一段斷言(改為成功路徑無 `$in` 查詢)——刪完以 `git grep` 找殘留引用再清.
+- **「同 id 重新出現」不再有使用者路徑**: 外部不得指定 id 後, 匯入新增者配新 id; e2e-concurrent E2E-008 末段原靠它驗前端「曾被回已不存在之列重新出現 → 解除拒收」(sol#13), 改以 `woItems.apis.insert([原列])` 直接寫庫模擬由備份還原, 再 `otherSave` 另一列觸發推播(待 e2e 實跑確認推播含該列; 見報告). 規則保留為防禦性規則, 記入 `rulebook_gaps.md` 設計事實.
+- **模擬「遷移前資料」要能繞過 procOrm**: 外部匯入已不能造出無 `srcKey` 之列, 測遷移與混雜列須直接寫庫. `apiHarness` 增 `seed(rows)`／`mkLegacyRow`(經 `apiServerChild` 的 IPC `seed`, 呼叫 SlowOrm 包裝的 `insert` 後把該筆從 `ops` 記錄剔除, 免得污染「零 ORM 呼叫」類斷言).
+- **「驗證在任何 ORM 呼叫之前」之斷言位置**: `S.list()` 走 kpFunExt 也會產生 select 操作記錄, 斷言 `getOps` 為空必須在 `imp()` 之後、`S.list()` 之前取出.
+- **變異驗證**: `tmp/api-run04/mutate.mjs` 在副本 `tmp/api-run04/mut/base/` 逐一套字串變異(18 個: 恢復 id 代替／降級為無鍵列／放寬 null 與空字串 id／改錯誤鍵／遷移不補鍵、補鍵計 nUpdate、補鍵連外部欄位一併重寫、已有鍵之列亦以 id 配對／新增列沿用 srcKey 為 id／靜默刪除不記 warn／provideTabs 白名單恢復 id、不驗 srcKey、只驗第一列／整批恢復 HEAD 版), 全部在 unit 層被抓; 每個 patch 先斷言模式恰命中 1 次. 修前紅則以 `git archive HEAD server src package.json` 解到 `tmp/api-run04/old/` 後複製新測試與 `test/tools`、以 `--cwd` 跑 mocha.
+- **harness 的副作用**: `api-http`／`api-syncIter`／e2e 經 `startServersOnce` 於 11005 空閒時 `npm run build`, 會刪改追蹤中的 `dist/*`(index.tmp、app*.js、umd 與 map)並使 `tableTags-web-api.json` 被後端改寫, 工作樹因此帶 dist 異動; 這不是本輪改動, 結束前以 `git archive HEAD dist tableTags-web-api.json` 還原追蹤檔、刪除建置產生之未追蹤雜湊檔(不用 checkout/reset).
+
+## api-run05(2026-10-23): ORM 逐筆 `ok:0` 查證(R18)——外審指稱的缺口要逐 mode 實測, 結果只有 insert 一處且在上游
+
+- **外審疑點別當結論, 也別直接加碼**: R18 說主路徑「不檢查逐筆 `ok:0`」。讀碼(procOrm 對 save／del 有檢查、insert 沒有)只是假設, 實測才定案——注入後 save／del／saveApi／deleteApi 全部正確補償, 只有 insert 回成功。若憑外審直接在 `syncApis` 加 `hasFailItem(procOrm 回傳)`, 會是不可達的死碼(insert／save 回傳只有 `[{id}]`, del 失敗已先 reject)。
+- **注入「逐筆 `ok:0` 但 resolve」要自己造部分寫入**: `SlowOrm` 原本只會 reject。新增 `failItems`(`apiServerChild.mjs` `runFailItem`)——第 k 筆不寫入、其餘筆交真 ORM 寫入, save／del 回逐筆陣列、insert 回聚合 `{ n, nInserted, ok:0 }`。若只回 `ok:0` 而不寫其餘筆, 就測不到「部分寫入」。每案要有「注入確實命中」之證明(操作記錄 `inj:'item'`), 否則一個空轉的綠燈看起來和真綠一樣。
+- **每個失敗步驟至少 2 筆, 才構成部分寫入**: 匯入批次設計成「2 修改、2 新增、2 刪除、2 不變」, 各步注入第 0 與第 1 筆。1 筆的批次失敗時「全沒寫」與「全有寫」難分。
+- **補償 `del` 的 `ok:0` 要讓失敗筆是「已被修改的原列」才有鑑別力**: 補償清單 = [新增列][被修改的原列][被刪的原列]; 若補償 `del` 失敗落在新增列, 事後回讀「新增列仍在」會自己抓到, 拿掉 `hasFailItem` 也不會紅; 落在被修改的原列, 則原列因已存在而被「重插」跳過, 回讀只比 id 存在而靜默通過, 只有 `hasFailItem` 擋得住。`failItems.index` 因此支援陣列(第 i 次被注入之呼叫用 `index[i]`)。
+- **變異與「上游修法模擬」都用記憶體內載入掛鉤, 不改 node_modules 也不改 repo**: `tmp/api-run05/hook/{register,loader}.mjs` 以 `NODE_OPTIONS=--import` 掛上 `module.register`, 在 `load` 階段改寫 `w-serv-orm/src/getMapOrm.mjs` 或 `server/syncApis.mjs` 的原始碼(每個 patch 先斷言 needle 命中次數, 並寫標記檔證明確實套用; 子行程 stdio 被忽略, 看不到 stdout)。同一手法可驗「建議書的修法落地後本套件測試是否轉綠」。環境變數經 `fork` 繼承, 不必動 harness。
+- **對上游缺口的 pending 寫法**: 不是把整案 `skip`, 而是只在「回應與庫內正好符合已知簽章」時 `this.skip()`, 其他形狀照判紅; 上游修好後自動轉為一般斷言。
+- **harness 副作用再次提醒**: `api-http`／`api-syncIter` 跑完後 `dist/*`／`tableTags-web-api.json` 可能被 `npm run build` 改寫; 本輪開跑前先快照(`tmp/api-run05/snap/`), 跑完比對雜湊, 異動則以快照還原(不用 checkout/reset)。

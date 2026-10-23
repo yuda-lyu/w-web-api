@@ -558,7 +558,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
 
     //syncAndReplaceTabs: 外部匯入（原則 11，R-IMPORT-01）——依外部自訂之來源鍵 srcKey 於 apis 表鎖內差異同步（新增／刪除／修改／不變），回 { nAdd, nUpdate, nDel, nSame }；
-    //必填欄位（apis 之 name／url，與前端編輯表單同步檢測對稱）、來源鍵規則、欄位歸屬、相容與失敗補償見 syncApis.mjs；此處只做陣列層檢核（group、rows）
+    //必填欄位（apis 之 name／url，與前端編輯表單同步檢測對稱）、來源鍵規則（srcKey 必填、列帶 id 拒收，不提供呼叫端相容）、欄位歸屬、一次性遷移與失敗補償見 syncApis.mjs；此處只做陣列層檢核（group、rows）
     let syncAndReplaceTabs = async (userId, inp, keyTable) => {
 
         //group

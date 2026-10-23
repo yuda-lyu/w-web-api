@@ -310,7 +310,7 @@ export default {
 | **R-CONC-06** 前端: 基準取自 store 列(非表單)並凍結; 推播同 id 列比對摘要(相同不動/不同且無未存修改重建/不同且有則保留並提示); 原列被刪停留並提示; 存檔被拒保留草稿; 曾被回「已不存在」之列重新出現時解除該拒收狀態; 既有列無法自算基準(`baselineBroken`)時禁止存檔/刪除、不降級為不帶基準; 搜尋與選取脫鉤僅編輯既有列; 存檔成功後新基準取自伺服端(不以送出值承接) | `LayoutContentEdit.vue`(initFromItem/onItemChange/markRejected)、`LayoutContent.vue`(genTree、selectGone) | `git grep -n "buildBaseline\|digestRow" -- src`(僅 LayoutContentEdit.vue); `git grep -n "editingExisting\|selectGone" -- src` | 已套(守 e2e-concurrent; 前端變異見 9.3) |
 | **R-CONC-07**(api-run03, ADR-045, 規格 §8「存檔成功後之新基準取自伺服端，且須立即取得」) 後端 `saveApi` 成功時，於**寫入所在之同一把表鎖內**以 `woItems.apis.select({id:{$in:[id]}})` 讀回該列，附於 procOrm save 逐筆結果陣列第 0 筆之 `row` 鍵（`id`、`ok` 等原鍵不變；新增含新 id；讀回拒絕／未命中／結果非物件陣列 → 原樣回傳、不使存檔失敗、讀回失敗入 srLog `…-readBack-orm`）；被拒（saveStale 等）不讀回。前端存檔／刪除成功後**立即**以回傳列更新 store（`applySavedRow`／`applyDeletedRow`），不等推播或輪詢；**新基準只取自回傳列，不取自送出之 form**（clearXSS 改寫）；保護: 修改既有列只在 store 列仍等於開啟編輯時之基準摘要才取代，store 列已等於回傳列不動、已是別的內容（他人其後之更新，推播先到）不回退、列已不在不復活；新增列 store 無才加入；刪除只在 store 列仍等於基準才移除 | 後端 1 處定義＋2 處呼叫（`procApis.mjs` `attachRow`：修改路徑 `guardWrite` 之 `write` 內、新增路徑 `withTabLocks` 內）；前端: `LayoutContentEdit.vue`（`submitSave` 取 `res[0].row`、`$emit('saved'|'deleted', payload)`）、`LayoutContent.vue`（`onEditSaved`／`onEditDeleted` commit）、`store/mutations.mjs`（`ApplySavedRow`／`ApplyDeletedRow`）、`store/applyRows.mjs`（純函數）。`deleteApi` 回傳形狀不變 | `git grep -n "attachRow" -- server`（應 3 處: 定義＋2 呼叫）; `git grep -nE "ApplySavedRow\|ApplyDeletedRow" -- src`（types 2、mutations 2、LayoutContent 2）; `git grep -n "applySavedRow\|applyDeletedRow" -- src`（僅 `store/`） | 已套（守 `unit-applyRows`、`unit-procApis` 後 5 案、`api-concurrency`「N1」等 5 案、`e2e-concurrent` E2E-019～022; 變異見 9.3） |
 
-### 9.2 規格驗收 → 測試(V1~V14 多人同時編輯; I1~I14 見 R-IMPORT-01)
+### 9.2 規格驗收 → 測試(V1~V14 多人同時編輯; I1~I15 見 R-IMPORT-01)
 
 | # | 適用 | 測試 |
 |---|---|---|
@@ -318,7 +318,7 @@ export default {
 | V2 | 是 | `api-import`「I1／V2／E8」(匯入前基準仍可存) |
 | V3 | 是 | `api-concurrency`「V3／A3」; `api-import` I4/I5/I11 |
 | V4 | **不適用**: 本表無雙方欄位(後台不可改且系統會寫之欄位), §1 | — |
-| V5 | 是 | `api-concurrency`「A7／V5」「V5: 系統只改伺服器專有欄位…」 |
+| V5 | 是 | `api-concurrency`「A7／V5」「V5: 系統只改伺服器專有欄位…」(2026-10-23 run04: 其中「外部匯入補 srcKey」改以 `srcKey` 等於該列既有 `id` 重送同內容〔一次性遷移, I15〕造成，不再以 `id` 代替來源鍵) |
 | V6 | 是 | `api-concurrency` E5/E5b、`unit-procApis` |
 | V7 | 是 | `api-concurrency` E6、`unit-procApis` |
 | V8 | **不適用**: 本套件無整表存檔(逐列 API); 對應風險「匯入不得動範圍外之列」見 `api-import` I9/I10 | — |

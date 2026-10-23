@@ -53,7 +53,8 @@ describe('api-syncIter (syncAndReplaceTabs 之 base64 還原 × 列物件含 len
         await resetToBaseSeed()
     })
 
-    let mk = (extra = {}) => ({ name: b64('Hello'), url: b64('http://x/y'), method: 'get', levels: 'API', ...extra })
+    //srcKey 必填（2026-10-23，原則 11、ADR-046：不提供以 id 代替或「無鍵列每次新增」之相容）；本檔驗 base64 還原與 length 欄位，列間以 srcKey 區分
+    let mk = (extra = {}) => ({ srcKey: 'si-1', name: b64('Hello'), url: b64('http://x/y'), method: 'get', levels: 'API', ...extra })
 
     it('AI-001 對照：無 length 欄位——name／url 之 base64 前綴字串皆還原', async function() {
         let r = await post([mk()])
@@ -77,14 +78,14 @@ describe('api-syncIter (syncAndReplaceTabs 之 base64 還原 × 列物件含 len
     })
 
     it('AI-003 同批多列：第一列含 length、第二列無——兩列皆還原', async function() {
-        let r = await post([mk({ length: 2, name: b64('One') }), mk({ name: b64('Two') })])
+        let r = await post([mk({ length: 2, name: b64('One') }), mk({ srcKey: 'si-2', name: b64('Two') })])
         assert.strictEqual(r.state, 'success', JSON.stringify(r))
         let names = (await rowsOf()).map((x) => x.name).sort()
         assert.deepStrictEqual(names, ['One', 'Two'])
     })
 
     it('AI-004 欄位值非 base64: 前綴者原樣；前綴為大小寫不同者不還原（既有語意不變）', async function() {
-        let r = await post([mk({ name: 'plain', url: 'http://x/y', length: 1 }), mk({ name: 'BASE64:SGVsbG8=', url: 'http://x/z', length: 1 })])
+        let r = await post([mk({ name: 'plain', url: 'http://x/y', length: 1 }), mk({ srcKey: 'si-2', name: 'BASE64:SGVsbG8=', url: 'http://x/z', length: 1 })])
         assert.strictEqual(r.state, 'success', JSON.stringify(r))
         let names = (await rowsOf()).map((x) => x.name).sort()
         assert.deepStrictEqual(names, ['BASE64:SGVsbG8=', 'plain'])

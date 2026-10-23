@@ -8,7 +8,7 @@ import fs from 'fs'
 import path from 'path'
 import { buildBaseline } from 'w-serv-orm/src/baseline.mjs'
 import contract, { fieldsExternal, fieldsLocal } from '../src/schema/contracts/apis.mjs'
-import { startApiServer, sleep } from './tools/apiHarness.mjs'
+import { startApiServer, sleep, mkLegacyRow } from './tools/apiHarness.mjs'
 
 
 let PORT_Y = 8555
@@ -261,20 +261,25 @@ describe('api-externalRows (外部列受保護: 刪除、改欄位、外部管�
         it('匯入使 group 變成外部管理後，該 group 先前存在之後台列隨匯入被刪（D6），其後新增被拒——後台自建之列不會留在外部 group', async function() {
             let loc = await mkLocal(S, 'before-import', { group: 'race' })
             let r = await imp(S, 'race', [mkExt('k1')])
-            assert.deepStrictEqual(r.msg, { nAdd: 1, nUpdate: 0, nDel: 1, nSame: 0 }, '批次未以 id 列入之後台列被刪')
+            assert.deepStrictEqual(r.msg, { nAdd: 1, nUpdate: 0, nDel: 1, nSame: 0 }, '批次 srcKey 未等於其 id 之後台列被刪')
             assert.strictEqual((await S.list()).find((v) => v.id === loc.id), undefined)
             let r2 = await S.fun('tokA', 'saveApi', [{ name: 'after-import', url: 'http://t/a', method: 'get', group: 'race' }])
             assert.deepStrictEqual(r2, { ok: false, msg: 'saveExternalGroupDenied' })
         })
 
-        it('group 內最後一列外部列被匯入刪除後（批次只剩無來源鍵之列）→ group 不再外部管理，後台可再新增', async function() {
+        it('匯入後外部管理之 group 恆含外部列（srcKey 必填且批次非空，不再有無鍵列）：舊外部列全被刪、批次只剩新列時 group 仍外部管理，後台新增仍被拒；缺 srcKey 之批次被整批拒收故不能把 group 變回無外部列', async function() {
             assert.strictEqual((await imp(S, 'gone', [mkExt('k1'), mkExt('k2')])).state, 'success')
             assert.strictEqual((await S.fun('tokA', 'saveApi', [{ name: 'try1', url: 'http://t/1', method: 'get', group: 'gone' }])).msg, 'saveExternalGroupDenied')
-            let r0 = await imp(S, 'gone', [{ name: 'nokey-only', url: 'http://x/nokey-only', method: 'get' }]) //兩列外部列皆被刪，批次僅一列無鍵列（相容路徑）
+            //缺 srcKey 之批次（原相容路徑之「無鍵列」）整批拒收、零寫入
+            let rBad = await imp(S, 'gone', [{ name: 'nokey-only', url: 'http://x/nokey-only', method: 'get' }])
+            assert.deepStrictEqual({ state: rBad.state, msg: rBad.msg }, { state: 'error', msg: 'errRowInvalid' })
+            assert.deepStrictEqual((await S.list()).filter((v) => v.group === 'gone').map((v) => v.srcKey).sort(), ['k1', 'k2'])
+            //舊外部列全被刪（批次為新 srcKey）：group 內只剩新外部列, 仍外部管理
+            let r0 = await imp(S, 'gone', [mkExt('k3')])
             assert.deepStrictEqual(r0.msg, { nAdd: 1, nUpdate: 0, nDel: 2, nSame: 0 })
-            assert.deepStrictEqual((await S.list()).filter((v) => v.group === 'gone').map((v) => v.srcKey), [''], 'group 內已無外部列')
+            assert.deepStrictEqual((await S.list()).filter((v) => v.group === 'gone').map((v) => v.srcKey), ['k3'])
             let r = await S.fun('tokA', 'saveApi', [{ name: 'try2', url: 'http://t/2', method: 'get', group: 'gone' }])
-            assert.ok(r.ok, JSON.stringify(r))
+            assert.deepStrictEqual(r, { ok: false, msg: 'saveExternalGroupDenied' })
         })
 
     })
@@ -282,15 +287,18 @@ describe('api-externalRows (外部列受保護: 刪除、改欄位、外部管�
     //--------------------------------------------------------------------------
     describe('混雜資料（完成條件 4: 外部 group 內已有 srcKey 為空之列：不鎖、不自動刪、下次匯入行為與 README 一致且有提示）', function() {
 
-        // 混雜列的成因: 相容路徑之無鍵列（批次中 srcKey 與 id 皆無之列）每次匯入新增、srcKey 為空
+        // 混雜列的成因（2026-10-23 起外部匯入不再產生無鍵列〔srcKey 必填〕）: 升版前已存在於外部管理 group 之列——相容期（批次中 srcKey 與 id 皆無之列）所寫之無鍵列（srcKey 為空字串）、
+        // 或升版前之後台列; 以 S.seed 直接寫入模擬此「遷移前資料」
         let seedMixed = async () => {
-            let r = await imp(S, 'mix', [mkExt('mk1'), { name: 'nokey', url: 'http://x/nokey', method: 'get', description: 'no source key' }])
+            let r = await imp(S, 'mix', [mkExt('mk1')])
             assert.strictEqual(r.state, 'success', JSON.stringify(r))
+            await S.seed([mkLegacyRow('nokey-id', 'mix', { srcKey: '', name: 'nokey', url: 'http://x/nokey', method: 'get', description: 'no source key' })])
             let rs = await S.list()
             let mixed = byName(rs, 'nokey')
             assert.strictEqual(mixed.srcKey, '', '無鍵列 srcKey 為空（混雜列）')
             return { ext: byKey(rs, 'mk1', 'mix'), mixed }
         }
+        let asBatch = (mixed) => mkExt(mixed.id, { name: mixed.name, url: mixed.url, method: mixed.method, description: mixed.description })
 
         it('混雜列不鎖: 可改任何欄位、可刪除、可改到非外部 group；改入另一外部 group 被拒', async function() {
             let { mixed } = await seedMixed()
@@ -305,23 +313,23 @@ describe('api-externalRows (外部列受保護: 刪除、改欄位、外部管�
             assert.ok(r4.ok, `混雜列（srcKey 空）可由後台刪除：${JSON.stringify(r4)}`)
         })
 
-        it('下次匯入: 批次未以 id 列入 → 混雜列被刪並記 warn（syncAndReplaceTabs-delNoSrcKey）；以 id 列入 → 保留並補 srcKey=id 成為外部列', async function() {
+        it('下次匯入: 批次 srcKey 未等於其 id → 混雜列被刪並記 warn（syncAndReplaceTabs-delNoSrcKey）；srcKey 等於其 id → 保留並補 srcKey=id 成為外部列（一次性遷移，I15）', async function() {
             let { mixed } = await seedMixed()
             let logs0 = await readLogs(S)
             let n0 = (logs0.match(/syncAndReplaceTabs-delNoSrcKey/g) || []).length
-            //以 id 列入: 命中混雜列，補 srcKey=id（成為外部列）
-            let r = await imp(S, 'mix', [mkExt('mk1'), { id: mixed.id, name: mixed.name, url: mixed.url, method: mixed.method, description: mixed.description }])
+            //srcKey 等於其 id: 命中混雜列，補 srcKey=id（成為外部列）
+            let r = await imp(S, 'mix', [mkExt('mk1'), asBatch(mixed)])
             assert.strictEqual(r.state, 'success', JSON.stringify(r))
-            assert.strictEqual(r.msg.nDel, 0, '以 id 列入者不刪')
+            assert.strictEqual(r.msg.nDel, 0, 'srcKey 等於其 id 者不刪')
             let kept = (await S.list()).find((v) => v.id === mixed.id)
             assert.strictEqual(kept.srcKey, mixed.id, '補 srcKey=id')
             assert.deepStrictEqual(await S.fun('tokA', 'deleteApi', [mixed.id]), { ok: false, msg: 'deleteExternalRowDenied' }, '成為外部列後即受保護')
-            //未列入: 另造一個混雜列（無鍵列）後以只含 mk1 之批次匯入 → 該列被刪
-            assert.strictEqual((await imp(S, 'mix', [mkExt('mk1'), mkExt('mk2'), { id: mixed.id, name: mixed.name, url: mixed.url, method: mixed.method, description: mixed.description }, { name: 'nokey2', url: 'http://x/nokey2', method: 'get' }])).state, 'success')
+            //未對應: 另寫入一個混雜列（無鍵列）後以不含其 id 之批次匯入 → 該列被刪
+            await S.seed([mkLegacyRow('nokey2-id', 'mix', { srcKey: '', name: 'nokey2', url: 'http://x/nokey2', method: 'get' })])
             let nokey2 = byName(await S.list(), 'nokey2')
             assert.strictEqual(nokey2.srcKey, '')
-            let r2 = await imp(S, 'mix', [mkExt('mk1'), mkExt('mk2'), { id: mixed.id, name: mixed.name, url: mixed.url, method: mixed.method, description: mixed.description }])
-            assert.strictEqual(r2.msg.nDel, 1, '未以 id 列入之混雜列被刪（README Upgrade Notes）')
+            let r2 = await imp(S, 'mix', [mkExt('mk1'), mkExt('mk2'), asBatch(mixed)])
+            assert.strictEqual(r2.msg.nDel, 1, '批次 srcKey 未等於其 id 之混雜列被刪（README Upgrade Notes）')
             assert.strictEqual(byName(await S.list(), 'nokey2'), null)
             let logs1 = await readLogs(S)
             let n1 = (logs1.match(/syncAndReplaceTabs-delNoSrcKey/g) || []).length

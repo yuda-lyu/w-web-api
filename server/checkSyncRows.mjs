@@ -12,7 +12,7 @@ let hasId = (id) => isestr(id) || (typeof id === 'number' && Number.isFinite(id)
 
 
 /**
- * 外部同步(syncAndReplaceTabs)之主鍵檢核(R-SYNC-1 第③項), 純函數, 不讀寫資料庫
+ * 外部同步(syncAndReplaceTabs)之來源鍵檢核(R-SYNC-1 第③項; 2026-10-23 起對象為 srcKey 值, 以 { id: srcKey } 形狀傳入), 純函數, 不讀寫資料庫
  *
  * 只檢查「有給主鍵」之列: 主鍵為非空字串或有限數字者; 空字串、未給、NaN、±Infinity 或其他型別視為未給, 由 w-serv-orm 補主鍵, 不在此限.
  * 依序檢查, 回報第一個違反: (a) xss: 字串主鍵經 wsemi clearXSS 會被改寫(同 w-serv-orm getMapOrm.mjs 之 getItemsIdXSS 判準; 其於 insert 時整批拒絕, 而同步已先 delAll)
@@ -57,30 +57,5 @@ function checkRowIds(rows, opt = {}) {
 }
 
 
-/**
- * 取本批中有給之主鍵(查詢資料庫既有群組用), 一律為 String(id) 並去重: 數字主鍵於庫內存為其字串形式(w-serv-orm 1.1.11 起),
- * 而 WWebApi 以 woItems 直呼查詢(不經 procOrm 之轉型), 查詢條件須與存放之型別一致; 保留數字時數字主鍵之跨群組同鍵會漏判(2026-10-14 w-serv-orm 實測)
- *
- * @param {Array} rows 輸入資料列陣列
- * @returns {Array} 回傳主鍵字串陣列(去重)
- */
-function pickRowIds(rows) {
-    let ids = []
-    let seen = new Set()
-    for (let r of rows) {
-        let id = r ? r.id : undefined
-        if (!hasId(id)) {
-            continue
-        }
-        let sid = String(id)
-        if (!seen.has(sid)) {
-            seen.add(sid)
-            ids.push(sid)
-        }
-    }
-    return ids
-}
-
-
-export { checkRowIds, pickRowIds, maxIdBytesDef }
+export { checkRowIds, maxIdBytesDef }
 export default checkRowIds

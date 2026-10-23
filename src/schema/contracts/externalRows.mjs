@@ -7,11 +7,11 @@ import { fieldsExternal, fieldsLocal } from './apis.mjs'
 //伺服端(server/procApis.mjs)為強制者, 前端(LayoutContent／LayoutContentEdit: 鎖頭、唯讀欄位、刪除鈕停用、群組提示)共用同一份判定, 不各自重寫。
 //置於 src/schema/contracts/(同 apis.mjs, 前後端 import 同一檔), 不掃入 gi.mjs 之 genIndex。
 //
-//判別(定案 D1): srcKey 為非空字串者為「外部列」——匯入(syncApis)寫入之列必有 srcKey(以 id 代替來源鍵者亦補 srcKey=id), 後台不可寫 srcKey(伺服器專有欄位, 不採客戶端值);
-//  srcKey 為空字串、缺欄或非字串者為「後台列」。相容期(來源鍵與 id 皆無之批次列, 見 syncApis ②)與升版前已存在而尚未被匯入命中之列 srcKey 為空, 無從與後台自建者區分, 一律視為後台列。
+//判別(定案 D1): srcKey 為非空字串者為「外部列」——匯入(syncApis)寫入之列必有 srcKey(外部必須送 srcKey, 不提供以 id 代替之相容; 遷移前之舊同步列於首次匯入命中時補 srcKey=id), 後台不可寫 srcKey(伺服器專有欄位, 不採客戶端值);
+//  srcKey 為空字串、缺欄或非字串者為「後台列」。升版前已存在而尚未被匯入命中之列(舊同步寫入或相容期所寫之無鍵列)srcKey 為空, 無從與後台自建者區分, 一律視為後台列。
 //外部管理之 group(D2): 該 group(非空字串)內存在至少一列外部列。匯入之批次＝該 group 之完整清單(syncApis D6), 後台自建於其中之列會於下次匯入被刪, 故後台不得在其中新增列、也不得把列改到該 group。
-//  group 內 srcKey 為空之列稱「混雜列」(升版前即已存在於外部管理 group 之後台列): 不鎖、不自動刪除, 由前端提示(下次匯入若批次未含其 id 即被刪, 見 README Upgrade Notes)。
-//鎖定欄位(D3): 外部列之 group、srcKey(身分欄)與 fieldsExternal(外部擁有欄位＝provideTabs 之 ks_apis 白名單去 srcKey／id)後台不可改; 本系統擁有欄位(fieldsLocal)與 tokens 可改。
+//  group 內 srcKey 為空之列稱「混雜列」(升版前即已存在於外部管理 group 之列): 不鎖、不自動刪除, 由前端提示(下次匯入若批次 srcKey 未等於其 id 即被刪, 見 README Upgrade Notes)。
+//鎖定欄位(D3): 外部列之 group、srcKey(身分欄)與 fieldsExternal(外部擁有欄位＝provideTabs 之 ks_apis 白名單去 srcKey)後台不可改; 本系統擁有欄位(fieldsLocal)與 tokens 可改。
 
 
 let hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k)
