@@ -1,0 +1,33 @@
+# 規則帳本分冊:前端 UI(w-web-api)
+
+> 本分冊自 `rulebook.md` 依類型拆出(2026-10-22, 全域 §14 過長整理); 節號與標題不變、內容只搬不刪; 索引見 `rulebook.md`.
+
+## 上方標題列 RWD(對照 ADR-032; 機制同 w-web-sso ADR-067)
+
+| 規則 | 站點全集 | 判準 | 盤點指令 |
+|---|---|---|---|
+| 寬窄版以內容實寬決定: `isNarrow = 20 + 識別區自然寬 + 語系選單 110 + 10 > 標題列寬`, 常數 `hd*` 須與寬版 template 結構一致; 自然寬以 canvas 依名稱 / 說明元素之**實際字型**量測(字級與字重來自 `--fs-h3` / `--fs-xs` / 600, 讀 computed style, 不寫死) | `src/components/Layout.vue`(`natLeftWidth` / `natRightWidth` / `isNarrow` / `readFonts`) | 已套(2026-09-24); 寬版標記與樣式不變, 窄版右側收為漢堡按鈕, 選單內為登入者(姓名 + Email)與語系(本系統無登出) | 探測 `scan` / `boundary` 段: 寬版之 canvas 與 DOM Range 差須 < 1px、門檻 ±2px 模式與計算一致 |
+| `v-show` 之元素其靜態 style 不含 `display`(Vue 2.7.16 `updateStyle` 每次重繪寫回靜態 style, 蓋掉 `display:none`), 需要 flex 則置於內層 | `Layout.vue` 漢堡容器(唯一 `v-show` 站點) | 已套 | Grep `v-show=` 於 `src/`, 逐處確認同元素靜態 style 無 `display` |
+| 以 v-model 控制開關之 `WPopup`, 觸發區內按鈕外包 `<div @click.stop>`(真實點擊於各監聽器之間先跑 microtask, 按鈕之 `toggleMenu` 關閉並重繪後觸發區仍收到同一 click 而重開); isolated 者不適用 | `Layout.vue` 漢堡選單(唯一 `WPopup` 站點) | 已套 | Grep `<WPopup` 於 `src/` |
+| 元件顏色 prop 以色碼給定並註明對應之設計變數(政策同 ADR-031 第 7 項「一律給 hex」: 元件之 `convertColor` 查不到色名時原樣回傳, 但 `white` / `transparent` 等會被攔; 會對顏色做運算之 prop 如 `WButtonCircle` 開陰影時以 `backgroundColor` 算陰影色亦須色碼; 既有 `LayoutContent` 之 `WTree` `'var(--c-1)'` 屬原樣回傳之例). 本區色碼對應 `--bg-1 #ffffff` / `--bg-3 #eceef1` / `--c-1 #1b1b1b` / `--c-2 #6b7280` | `Layout.vue` 漢堡按鈕與選單圖示 | 已套 | Grep `:\w*[Cc]olor\w*="'var(--` 於 `src/`, 逐處確認該 prop 未參與顏色運算 |
+| 驗收: 11005 後端 serve 已含改動之 dist 後, `node tmp/probe-header-rwd.mjs api <scan\|boundary\|tooltip\|menu\|flip\|touch>`, 各段末行 SUMMARY fails=0 | — | 見 ADR-032 | 觸控段之前置操作一律 tap(混用滑鼠會使 tap 後多出 mouseleave 之假象) |
+
+## 計算高度之容器(2026-09-29)
+
+| 規則 | 站點全集 | 判準 | 盤點指令 |
+|---|---|---|---|
+| 以計算值(px)設高之容器, 同一 style 帶上下 padding 或 border 者須 `box-sizing:border-box`(本 repo 無全域 box-sizing; 否則實高多出 padding＋border, 底部落到視窗外而看不到, 捲動截圖時還會把上方之分頁列擠出畫面) | 帶 padding / border 者 6 處皆已有: `Layout.vue:9`(標題列)、`LayoutContent.vue:49`(抽屜標頭)、`:146`(分頁列)、`LayoutContentEdit.vue:2`、`LayoutContentStats.vue:2`、`LayoutContentTest.vue:3`(2026-09-29 補; 原實高多 32px); 其餘計算高度站點(`LayoutContent.vue:32` / `:46`(僅右邊框) / `:67` / `:141` / `:155`、`LayoutContentStats.vue` 圖表區)無上下 padding / border | 已套 | Grep `height:\$\{` 於 `src/`, 逐處看同一 style 是否帶 padding 或上下 border; 改版面後以探測量「元素底緣 ≤ 視窗高」 |
+
+## 按鈕雙擊防護(對照 ADR-034; 機制同 w-web-sso ADR-074; 2026-09-29)
+
+`CLAUDE.md`「按鈕雙擊防護」段所稱「mutex key 格式與第 2 次呼叫之回應契約」載於本節(`CLAUDE_settings.md` 只放服務與 port). 該段之「`pm.resolve()` 放 handler 第一行」已由 ADR-034(w-web-sso ADR-074)修正, 本專案無 promiseUnlock 按鈕, 不適用.
+
+| 規則 | 站點全集 | 判準 | 盤點指令 |
+|---|---|---|---|
+| 有副作用之送出一律經 `vo.$ui.runSubmit('<key>', fn)`(`src/plugins/mUI.mjs` → `submitGuard.mjs`): 同 key 之流程進行中再觸發即略過; 同一操作之所有入口共用一個 key; 需先開確認框者自開框起整段包進; 原生 `<button>` 之 `:disabled` / 旗標只作顯示與輔助(重繪後才生效), 重入判斷一律交給 runSubmit; 流程範圍(同 w-web-sso): 有結果訊息框者涵蓋至其關閉——成功段先 `updateLoading(false)` 再 `await $dg.showCheckYes(...)`, 非預期例外之 `.catch` 回傳 `showCheckYes` 之 Promise; 無結果訊息框者(送出請求)至請求結束, 出現例外訊息框時同樣至其關閉(流程所開之訊息框一律涵蓋, 2026-09-29 主代理審查後統一) | runSubmit 3 處 3 key: `saveApi`(`LayoutContentEdit.onClickSave`)、`deleteApi`(`LayoutContentEdit.onClickDelete`, 含確認框, `doDelete` 回傳其 Promise)、`proxyRequest`(`LayoutContentTest.submitSend`); 有副作用之 `$fapi` 呼叫 3 處(`saveApi` / `deleteApi` / `proxyRequest`)皆在其內; 刻意不套: `getStaEvent`(查詢)、分頁切換、Query / Headers 列增刪(純前端) | 已套 | Grep `runSubmit\('` 於 `src/`(key 全集, 應為 3); Grep `\$fapi\.` 於 `src/`(除 `getStaEvent` 外每筆所在流程由 runSubmit 包覆); Grep `submitting` 於 `src/`(應為空) |
+| 單例訊息框之 `show()` 開新框前先結束前一個等待者: `CheckYes` → `pm.resolve()`(視同已按確定)、`CheckYesNo` → `pm.reject('close')`(視同選否), 對已結束者無作用(否則前一流程永不落定, 其 runSubmit 占位永不釋放) | `src/components/Common/CheckYes.vue`、`CheckYesNo.vue`(各 `show` 開頭; 同 w-web-sso) | 已套(2026-09-29) | Grep `if \(vo\.pm\)` 於 `src/components/Common/`(應 2 處); 新增其他以單例 pm 回傳之對話框時同樣處理 |
+| `mUI.updateLoading(false)` 呼叫 `sg.releaseBtnLocks()`(釋放 promiseUnlock 鎖; 本專案無此類按鈕, 目前無作用, 保持四專案一致); 日後新增 WButtonChip / WButtonCircle 送出鈕: `:promiseUnlock="true"`、handler 把 `msg.pm` 交 runSubmit 之 opt, 不得於 handler `pm.resolve()`(w-web-sso R-UI-01) | `src/plugins/mUI.mjs`(`updateLoading` / `runSubmit`) | 已套 | Grep `promiseUnlock` 於 `src/components/`(目前應為空; 有則逐一核對 handler); Grep `msg\.pm\.resolve\(\)` 於 `src/`(應為空) |
+| 後端依操作者占位(`server/lockSave.mjs`, wsemi cacheSt): key `<op>:<userId>`, 同一使用者之同一操作處理中再送出即 reject, **不排隊**(第 2 次不寫入、不送出); 不同使用者、不同操作互不影響; 結束(含失敗)即釋放; 不同使用者之並發原由局部 pmKeyMutex(kmx, `saveApi:<id>` / `saveApi:new:<name>` / `deleteApi:<id>`)處理, **2026-10-23(ADR-043)起 kmx 已移除, 改由 `apis` 表鎖(`withTabLocks`/`guardWrite`, 存檔/刪除/匯入共用)序列化; lockSave 包在表鎖外層**(`unit-procApis`「表鎖:」案守). **第 2 次回應契約**: `saveApi` → `'saveInProgress'`; `deleteApi` → `'deleteInProgress'`; `proxyRequest` → `'requestInProgress'`(i18n key, eng + cht 於 `procLang.mjs`; 前端 `$transErr` 顯示於 inline 錯誤列; srLog 經 `wrapErrLog` 記 `kpfun-<名>` + err) | `procApis.saveApi`(`saveApi:<userId>`)、`procApis.deleteApi`(`deleteApi:<userId>`, errKey `deleteInProgress`)、`procProxy.proxyRequestByUser`(`proxyRequest:<userId>`, errKey `requestInProgress`; `proxyRequest` 本身為不占位之代打核心); `WWebApi` 建唯一一份 `cacheSt()` + `createLockSave`, 注入 `procApis` 與 `procProxy`; kpFunExt `proxyRequest` 呼叫 `proxyRequestByUser(userId, reqSpec)`; 未注入 lockSave 時占位入口 reject 不執行(fail-closed) | 已套 | Grep `lockSave\(` 於 `server/`(應為 procApis 2、procProxy 1); Grep `lockSave` 於 `server/WWebApi.mjs`(建立 1 份並注入 2 處); Grep `InProgress` 於 `server/procLang.mjs`(3 鍵) |
+| **草稿保護提示(2026-10-23, 原則 10, ADR-043)**: 編輯既有 API 時收到他人更新/刪除之推播、或存檔/刪除被拒(`saveStale`/`errApiRowNotFound`/`errBaselineFormat`), 編輯區上方顯示 `.bk-stale` 提示(更新: 含「重新載入」鈕; 已刪: 不含); 平時 `v-if` 不渲染(不動既有排版與標準圖); 配色沿用既有警示色票(`--s-4xx`/`--s-4xx-bg`, 同 4xx 狀態卡)、字級 `--fs-sm`、圓角 `--radius-lg`、鈕樣式同 `.btn-cancel`; 文字走 `$t`(`staleChanged`/`staleDeleted`/`reloadData`, eng+cht 於 `procLang.mjs`) | `src/components/LayoutContentEdit.vue`(模板頂部 `.bk-stale`、`.bk-stale-*` 樣式)、`procLang.mjs` | 已套 | Grep `bk-stale` 於 `src/components/`(模板 1、樣式 3); e2e-concurrent E2E-007/008 標準圖 `conc-*-E2E-007-2-stale`、`conc-*-E2E-008-2-deleted` |
+| 測試 | 單元: `unit-submitGuard`(UNIT-SG-001～007)、`unit-lockSave`(UNIT-LS-001～005)、`unit-procApis`(「雙擊防護:」6 案 + 既有同 key 序列化案改兩位使用者)、`unit-procProxy`(PROXY-024～026); 真後端: `api-doubleclick`(DC-01～05, 只斷言與時序無關之不變式: 至少 1 成功、被拒者只能是占位 key、新增列筆數＝成功次數、echo 收到數＝成功次數、依序皆成功) | 單元已跑綠(2026-09-29, unit 層 97 passing; 單例訊息框之 `.vue` 無 SFC 測試設施, 未單元化); 主代理實跑(2026-09-29): 四單元檔 53、`api-doubleclick` 5、`e2e-edit` 10、`e2e-apitest` 28 皆 passing | `npx mocha --no-parallel test/unit-submitGuard.test.mjs test/unit-lockSave.test.mjs test/unit-procApis.test.mjs test/unit-procProxy.test.mjs --timeout 60000`; `npx mocha --no-parallel test/api-doubleclick.test.mjs --timeout 180000`(會 build 並起後端 11005) |
+

@@ -1,0 +1,169 @@
+//存檔／刪除成功後立即更新 store 列陣列之純函數(不依賴 Vue／DOM／window, 可單元測試; 多人同時編輯規格第8節「存檔成功後之新基準取自伺服端, 且須立即取得」)。
+//背景: store 列只由推播／輪詢整表覆寫(約 2 秒); 存檔成功後使用者立即再開編輯, 基準仍取自存檔前之 store 列, 會被自己上一次之存檔誤擋(saveStale)。
+//作法: 存檔 API 回傳寫入後之列(表鎖內新鮮讀回), 前端立即以之取代 store 列; 其後抵達之同內容推播, 列摘要相同, 編輯器不視為他人更新。
+//不得以自己送出之值當新基準(clearXSS 等會改寫字串)——只用伺服端回傳之列。
+//保護(回應與推播之先後、快照新舊皆不定; 先動先贏不被削弱): 以列摘要(內容)與 timeUpdate(伺服端寫入時之毫秒時間, 同一伺服器時鐘, 可比新舊)判斷, 寧可不動、交由推播為準:
+//  ①回應抵達時, 只在 store 列仍等於「開啟編輯時之基準」且不比回傳列新(timeUpdate)時才取代——store 列已是別的內容(他人其後之更新其推播先到)、
+//    或摘要雖同但較新(他人改了又改回基準內容; 外部匯入補上伺服器專有欄位 srcKey)皆不回退;
+//  ②其後抵達之整表快照, 若其中我剛寫入之列比我寫入的舊(快照在我寫入之前讀取、晚於回應才抵達), 保留我寫入之列(createRecentRows)。
+import cloneDeep from 'lodash-es/cloneDeep.js'
+import isPlainObject from 'lodash-es/isPlainObject.js'
+import isestr from 'wsemi/src/isestr.mjs'
+import { digestRow } from 'w-serv-orm/src/baseline.mjs'
+
+
+//基準 [[id, 列摘要]] 之單列摘要; 格式不符回 null
+function baselineDigest(baseline, id) {
+    if (!Array.isArray(baseline) || baseline.length !== 1 || !Array.isArray(baseline[0]) || baseline[0][0] !== id || !isestr(baseline[0][1])) {
+        return null
+    }
+    return baseline[0][1]
+}
+
+
+//列之 timeUpdate 毫秒值; 缺值、非字串或無法解析回 NaN(不可比較)
+function timeOf(row) {
+    return row && typeof row.timeUpdate === 'string' ? Date.parse(row.timeUpdate) : NaN
+}
+
+
+//a 之 timeUpdate 嚴格早於 b(任一不可比較則否)
+function isOlder(a, b) {
+    let ta = timeOf(a)
+    let tb = timeOf(b)
+    return Number.isFinite(ta) && Number.isFinite(tb) && ta < tb
+}
+
+
+/**
+ * 存檔成功後以伺服端回傳之寫入後之列更新列陣列
+ *
+ * @param {Array|null} rows store 現有列陣列(尚未同步為 null)
+ * @param {Object} row 存檔 API 回傳之寫入後之列(未給或非物件則不動)
+ * @param {Array} [baseline] 開啟編輯時之基準 [[id, 列摘要]]; 新增列不給
+ * @param {Object} contract 寫入契約(pk、fields)
+ * @returns {Array|null} 有變動回傳新陣列(列為複本), 無變動回傳原 rows
+ */
+function applySavedRow(rows, row, baseline, contract) {
+    if (!Array.isArray(rows) || !isPlainObject(row)) {
+        return rows
+    }
+    let id = row[contract.pk]
+    if (!isestr(id)) {
+        return rows
+    }
+    try {
+        let i = rows.findIndex((v) => v && v[contract.pk] === id)
+        let isNew = baseline === undefined
+        if (i < 0) {
+            //新增列: store 尚無(推播未到) → 加入; 修改既有列而 store 已無該列(其後被他人刪除之推播先到) → 不復活
+            return isNew ? [...rows, cloneDeep(row)] : rows
+        }
+        if (isNew) {
+            return rows //新增列: store 已有同 id(推播先到, 內容必為同次寫入或他人其後之更新): 不動
+        }
+        //修改既有列: 只在 store 列仍等於開啟編輯時之基準(尚無推播超前)才取代;
+        //其餘皆不動——store 列已等於回傳列(推播先到)、或已是別的內容(他人在我之後又改, 其推播先到: 不回退, 以推播為準)
+        if (digestRow(rows[i], contract) !== baselineDigest(baseline, id)) {
+            return rows
+        }
+        //摘要等於基準仍可能是較新之列(只差伺服器專有欄位, 如外部匯入補上 srcKey; 或他人改了又改回基準內容): store 列比回傳列新則不回退
+        if (isOlder(row, rows[i])) {
+            return rows
+        }
+        return rows.map((v, k) => (k === i ? cloneDeep(row) : v))
+    }
+    catch (err) {
+        console.log('applySavedRow', err)
+        return rows //列含不可摘要之值等: 不更新, 退回等推播
+    }
+}
+
+
+/**
+ * 刪除成功後自列陣列移除該列
+ *
+ * @param {Array|null} rows store 現有列陣列
+ * @param {String} id 被刪列之主鍵
+ * @param {Array} baseline 開啟編輯時之基準 [[id, 列摘要]]; 未給或格式不符則不動(無法確認 store 列仍是被刪的那一版, 以推播為準)
+ * @param {Object} contract 寫入契約(pk、fields)
+ * @returns {Array|null} 有變動回傳新陣列, 無變動回傳原 rows
+ */
+function applyDeletedRow(rows, id, baseline, contract) {
+    if (!Array.isArray(rows) || !isestr(id)) {
+        return rows
+    }
+    let d = baselineDigest(baseline, id)
+    if (d === null) {
+        return rows
+    }
+    try {
+        let i = rows.findIndex((v) => v && v[contract.pk] === id)
+        if (i < 0) {
+            return rows //推播已先到
+        }
+        //刪除成功代表表鎖內該列等於基準; 其後 store 列若已是別的內容(被重新匯入或他人重建), 其推播為準, 不移除
+        if (digestRow(rows[i], contract) !== d) {
+            return rows
+        }
+        return rows.filter((v, k) => k !== i)
+    }
+    catch (err) {
+        console.log('applyDeletedRow', err)
+        return rows
+    }
+}
+
+
+/**
+ * 記住「我剛以回傳列寫入 store 之列」, 保護其不被晚到之較舊整表快照退回(快照在我寫入之前由伺服端讀取, 卻在我的回應之後才抵達)
+ * 判斷以 timeUpdate(毫秒)為準: 快照中該列比我寫入的舊 → 保留我寫入之列; 一樣新或更新(追上或他人其後之更新)→ 採用快照並忘掉該筆;
+ * 快照缺該列 → 不復活(可能被他人刪除; 也可能是更早讀取之快照尚無新增列——此窄情形暫時看不到新列, 下一次推播即補回)並忘掉該筆;
+ * 超過 ttlMs 未被快照追上亦忘掉(有界)。
+ *
+ * @param {Object} contract 寫入契約(pk)
+ * @param {Object} [opt] 設定
+ * @param {Number} [opt.ttlMs=30000] 記住多久
+ * @param {Function} [opt.now=Date.now] 時鐘(測試用)
+ * @returns {Object} { mark(row), guard(snapshot) }
+ */
+function createRecentRows(contract, opt = {}) {
+    let ttlMs = opt.ttlMs === undefined ? 30000 : opt.ttlMs
+    let now = typeof opt.now === 'function' ? opt.now : Date.now
+    let kp = new Map()
+
+    let mark = (row) => {
+        if (isPlainObject(row) && isestr(row[contract.pk])) {
+            kp.set(row[contract.pk], { row: cloneDeep(row), t: now() })
+        }
+    }
+
+    let guard = (snapshot) => {
+        if (!Array.isArray(snapshot) || kp.size === 0) {
+            return snapshot
+        }
+        let out = snapshot
+        for (let [id, v] of [...kp.entries()]) {
+            if (now() - v.t > ttlMs) {
+                kp.delete(id)
+                continue
+            }
+            let i = snapshot.findIndex((r) => r && r[contract.pk] === id)
+            if (i >= 0 && isOlder(snapshot[i], v.row)) {
+                if (out === snapshot) {
+                    out = [...snapshot]
+                }
+                out[i] = cloneDeep(v.row) //較舊之快照: 保留我寫入之列, 等追上我寫入之快照
+            }
+            else {
+                kp.delete(id) //追上、超前或快照缺該列: 不再保護
+            }
+        }
+        return out
+    }
+
+    return { mark, guard }
+}
+
+
+export { applySavedRow, applyDeletedRow, createRecentRows }

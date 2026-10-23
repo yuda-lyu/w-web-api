@@ -505,6 +505,77 @@ let kpLang = {
         eng: 'Invalid API id',
         cht: 'API id 無效',
     },
+    //多人同時編輯（原則 10; w-serv-orm baseline 拒收鍵 → 本套件語系鍵, 一律提示重新載入）
+    //saveStale ← baselineMismatch（先動先贏: 載入後已有人新增、修改或刪除）; errApiRowNotFound ← rowNotFound（修改或刪除時該 API 已不存在）; errBaselineFormat ← baselineFormat（存檔基準格式或版本不識）
+    saveStale: { //key 無 err 前綴為四專案共用名（同 saveInProgress; perm 亦用 saveStale）
+        eng: 'The data has been updated by someone else, so your changes were not saved. Please reload the data and try again.',
+        cht: '資料已被他人更新，您的變更未儲存，請重新載入資料後再操作',
+    },
+    errApiRowNotFound: {
+        eng: 'This API no longer exists (it may have been deleted by someone else). Please reload the data.',
+        cht: '此 API 已不存在（可能已被他人刪除），請重新載入資料',
+    },
+    errBaselineFormat: {
+        eng: 'The save baseline is invalid or unsupported. Please reload the page and try again.',
+        cht: '存檔基準格式不符或版本不支援，請重新載入頁面後再操作',
+    },
+    errBaselineBroken: { //前端：既有列無法自算載入基準（如舊資料含過深巢狀值）→ 不得改用不帶基準存檔（會靜默覆寫他人更新）
+        eng: 'The loaded data of this API cannot be used as a save baseline, so it cannot be saved or deleted here. Please contact the administrator.',
+        cht: '此 API 之載入資料無法建立存檔基準，故無法於此儲存或刪除，請洽管理者',
+    },
+    //草稿保護（編輯中收到他人更新之推播: 不覆寫表單、凍結載入時之基準, 提示）
+    staleChanged: {
+        eng: 'This API has been updated by someone else. Your edits are kept, but saving will be rejected until you reload.',
+        cht: '此 API 已被他人更新。您的編輯內容已保留，但重新載入前儲存會被拒絕',
+    },
+    staleDeleted: {
+        eng: 'This API has been deleted by someone else. Your edits are kept here, but it can no longer be saved or deleted.',
+        cht: '此 API 已被他人刪除。您的編輯內容保留於此，但已無法儲存或刪除',
+    },
+    reloadData: {
+        eng: 'Reload',
+        cht: '重新載入',
+    },
+    //外部列受保護（原則 5「開了外部同步就以外部為主」; opt.lockExternalRows; ADR-044, R-EXT-LOCK-01）
+    //後端拒收鍵: saveExternalRowChanged（改了外部列之 group／srcKey／外部擁有欄位）、deleteExternalRowDenied（刪除外部列）、saveExternalGroupDenied（在外部管理之 group 新增列或把列改入）; 皆整次拒收、零寫入
+    //前端提示: externalRowLocked（鎖頭 tooltip）、externalRowNotice（外部列編輯頁上方）、externalRowDeleteTip（刪除鈕停用之說明）、externalGroupNoAdd（群組欄即時提示）、
+    //  externalGroupMixedTip／externalGroupMixedNotice（外部管理 group 內無來源鍵之混雜列: 樹狀清單標記與編輯頁上方，說明下次匯入之行為）; {group} 為來源 group
+    saveExternalRowChanged: {
+        eng: 'Not saved: this API is imported from an external source, so its group and the fields provided by the source cannot be changed here. Only the tokens and the test settings can be changed. Nothing was changed. Please change it at the external source.',
+        cht: '未儲存：此 API 由外部來源匯入，其群組與外部來源提供之欄位不可在此修改，僅可修改權杖與測試設定。資料未變更，請至外部來源端處理。',
+    },
+    deleteExternalRowDenied: {
+        eng: 'Not deleted: this API is imported from an external source and cannot be deleted here. Nothing was changed. Please remove it at the external source.',
+        cht: '未刪除：此 API 由外部來源匯入，不可在此刪除。資料未變更，請至外部來源端處理。',
+    },
+    saveExternalGroupDenied: {
+        eng: 'Not saved: this group is managed by an external source, so APIs cannot be added to it or moved into it here (the next import would remove them). Nothing was changed. Please choose another group.',
+        cht: '未儲存：此群組由外部來源管理，不可在此新增 API 或把 API 改入該群組（下次匯入時會被移除）。資料未變更，請改用其他群組。',
+    },
+    externalRowLocked: {
+        eng: 'Imported from external source "{group}". Read-only here.',
+        cht: '由外部來源「{group}」匯入，於此為唯讀。',
+    },
+    externalRowNotice: {
+        eng: 'This API is imported from external source "{group}". Its group and the fields provided by the source are read-only and it cannot be deleted here; you can still change the tokens and the test settings.',
+        cht: '此 API 由外部來源「{group}」匯入。其群組與外部來源提供之欄位於此為唯讀且不可刪除，仍可修改權杖與測試設定。',
+    },
+    externalRowDeleteTip: {
+        eng: 'Imported from an external source, so it cannot be deleted here.',
+        cht: '由外部來源匯入，不可在此刪除。',
+    },
+    externalGroupNoAdd: {
+        eng: 'Group "{group}" is managed by an external source. APIs cannot be added to it or moved into it here.',
+        cht: '群組「{group}」由外部來源管理，不可在此新增 API 或把 API 改入。',
+    },
+    externalGroupMixedTip: {
+        eng: 'Group "{group}" is managed by an external source and this API has no source key, so the next import removes it unless the import lists it by its id.',
+        cht: '群組「{group}」由外部來源管理，而此 API 無來源鍵，下次匯入若未以其 id 列入，它會被移除。',
+    },
+    externalGroupMixedNotice: {
+        eng: 'Group "{group}" is managed by an external source and this API has no source key. The next import removes it unless the import lists it by its id. Move it to another group to keep it.',
+        cht: '群組「{group}」由外部來源管理，而此 API 無來源鍵。下次匯入若未以其 id 列入，此 API 會被移除；可將它改到其他群組以保留。',
+    },
     //雙擊防護（後端依使用者占位，server/lockSave.mjs，ADR-034）：同一使用者之同一操作處理中再送出。
     //key 無 err 前綴為四專案（sso／perm／api／task）共用名；saveApi 回 saveInProgress、deleteApi 回 deleteInProgress、proxyRequest 回 requestInProgress
     saveInProgress: {
@@ -555,9 +626,9 @@ let kpLang = {
         eng: 'Invalid rows',
         cht: '資料列無效',
     },
-    errRowInvalid: { //syncAndReplaceTabs 逐列檢核：某列非物件、缺必填欄位或主鍵不合規則（列索引、欄位名與原因入 srLog；主鍵規則 R-SYNC-1，ADR-038）
-        eng: 'Invalid row data (each row must be an object with name and url; a given id must contain no HTML markup, be at most 1978 bytes, be unique in the batch and not belong to another group)',
-        cht: '列資料無效（每列須為物件且 name 與 url 必填；有給之 id 不得含 HTML 標記、不得超過 1978 位元組、同批不得重複且不得屬於其他群組）',
+    errRowInvalid: { //syncAndReplaceTabs 逐列檢核：某列非物件、缺必填欄位或來源鍵／主鍵不合規則（列索引、欄位名與原因入 srLog；主鍵規則 R-SYNC-1，ADR-038；來源鍵 srcKey 規則 R-IMPORT-01，ADR-043）
+        eng: 'Invalid row data (each row must be an object with name and url; a given srcKey (or id, when srcKey is not given) must be a non-empty string with no HTML markup, be at most 1978 bytes, be unique in the batch and not belong to another group)',
+        cht: '列資料無效（每列須為物件且 name 與 url 必填；有給之 srcKey（未給 srcKey 時為 id）須為非空字串、不得含 HTML 標記、不得超過 1978 位元組、同批不得重複且不得屬於其他群組）',
     },
     saveWriteFail: { //ORM 寫入失敗（save／insert／del），部分變更可能已生效；procOrm 之原文只入 srLog（R-ERR-1，ADR-038；用語同 w-web-sso）
         eng: 'Not all changes were written, and some may have taken effect. Please reload the page and check before making changes.',

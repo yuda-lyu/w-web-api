@@ -1,5 +1,3 @@
-import map from 'lodash-es/map.js'
-import ds from './src/schema/index.mjs'
 import provideTabs from './server/provideTabs.mjs'
 
 
@@ -13,7 +11,7 @@ async function provide() {
 
     let rs = [
         {
-            id: 'id-for-test',
+            srcKey: 'pets-guineapigs-1', //外部自訂之來源鍵: 於 group 內唯一且穩定(原則11); 內部 id 由本系統產生, 外部不指定
             // order: 0,
             name: '取得天竺鼠清單資訊',
             description: '取得天竺鼠清單資訊',
@@ -32,15 +30,11 @@ async function provide() {
             outputExample: '輸出範例數據, json格式',
         },
     ]
-    rs = map(rs, (v, k) => {
-        let vv = ds.apis.funNew(v)
-        vv.id = v.id
-        return vv
-    })
     console.log('rs', rs)
 
+    //provideTabs 只送出白名單內之描述欄位; 本系統擁有之欄位(tokens、authType、authConfigJson 等)由本站編輯表單管理, 不送、伺服器亦不寫
     let r = await provideTabs(url, keyTable, group, rs)
-    console.log('r', r)
+    console.log('r', r) //{ nAdd, nUpdate, nDel, nSame }; 同一批重送時 nSame 為全數、零寫入
 
 }
 

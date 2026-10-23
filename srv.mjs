@@ -37,6 +37,9 @@ let opt = {
     logInterval: get(stApp, 'logInterval', 'hr'),
     logNumKeep: get(stApp, 'logNumKeep', null), //null=未給, srLog 採 w-syslog 預設; 給非正整數則 srLog 啟動即 throw (fail-fast)
 
+    //外部列受保護(原則 5, ADR-044): 後台是否不得動外部列(srcKey 非空)與外部管理之 group, 預設 'y'; 給 'n' 回到升版前行為。e2e 可用 restartBackend(genTempSettings({lockExternalRows:'n'}))
+    lockExternalRows: get(stApp, 'lockExternalRows', 'y'),
+
     webName: {
         'eng': 'API Service',
         'cht': 'API管理系統',

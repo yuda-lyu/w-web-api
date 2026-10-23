@@ -29,7 +29,7 @@
 <nav >
     
     
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul><h3>Global</h3><ul><li><a href="global.html#checkRowIds">checkRowIds</a></li><li><a href="global.html#createLockSave">createLockSave</a></li><li><a href="global.html#getOptDataChannel">getOptDataChannel</a></li><li><a href="global.html#ormFail">ormFail</a></li><li><a href="global.html#pickRowIds">pickRowIds</a></li><li><a href="global.html#resolveShellWorker">resolveShellWorker</a></li><li><a href="global.html#submitGuard">submitGuard</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul><h3>Global</h3><ul><li><a href="global.html#applyDeletedRow">applyDeletedRow</a></li><li><a href="global.html#applySavedRow">applySavedRow</a></li><li><a href="global.html#checkRowIds">checkRowIds</a></li><li><a href="global.html#createLockSave">createLockSave</a></li><li><a href="global.html#createRecentRows">createRecentRows</a></li><li><a href="global.html#fmtVars">fmtVars</a></li><li><a href="global.html#getExternalChanged">getExternalChanged</a></li><li><a href="global.html#getExternalGroups">getExternalGroups</a></li><li><a href="global.html#getLockExternalRows">getLockExternalRows</a></li><li><a href="global.html#getOptDataChannel">getOptDataChannel</a></li><li><a href="global.html#isBlockedByExternalGroup">isBlockedByExternalGroup</a></li><li><a href="global.html#isExternalRow">isExternalRow</a></li><li><a href="global.html#isMixedRow">isMixedRow</a></li><li><a href="global.html#isValidGroupValue">isValidGroupValue</a></li><li><a href="global.html#normGroup">normGroup</a></li><li><a href="global.html#ormFail">ormFail</a></li><li><a href="global.html#pickLocalFields">pickLocalFields</a></li><li><a href="global.html#pickRowIds">pickRowIds</a></li><li><a href="global.html#resolveShellWorker">resolveShellWorker</a></li><li><a href="global.html#submitGuard">submitGuard</a></li><li><a href="global.html#summarizeExternal">summarizeExternal</a></li></ul>
     
 </nav>
 
@@ -48,8 +48,6 @@
             <pre class="prettyprint source linenums"><code>import path from 'path'
 import fs from 'fs'
 import get from 'lodash-es/get.js'
-import each from 'lodash-es/each.js'
-import map from 'lodash-es/map.js'
 import j2o from 'wsemi/src/j2o.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
@@ -63,8 +61,6 @@ import strdelleft from 'wsemi/src/strdelleft.mjs'
 import strright from 'wsemi/src/strright.mjs'
 import strdelright from 'wsemi/src/strdelright.mjs'
 import pm2resolve from 'wsemi/src/pm2resolve.mjs'
-import b642str from 'wsemi/src/b642str.mjs'
-import ltdtmapping from 'wsemi/src/ltdtmapping.mjs'
 import fsIsFolder from 'wsemi/src/fsIsFolder.mjs'
 import fsIsFile from 'wsemi/src/fsIsFile.mjs'
 import replace from 'wsemi/src/replace.mjs'
@@ -76,14 +72,14 @@ import checkOptRemoved from 'w-serv-orm/src/checkOptRemoved.mjs'
 import procLang from './procLang.mjs'
 import procProxy from './procProxy.mjs'
 import procApis from './procApis.mjs'
+import createSyncApis from './syncApis.mjs'
 import createLockSave from './lockSave.mjs'
+import getLockExternalRows from './getLockExternalRows.mjs'
 import staEvent from './staLogs/staEvent.mjs'
 import srLogInit from './srLog.mjs'
 import { maskTok, maskQuery } from './maskLog.mjs'
 import { wrapInjected } from './wrapInjected.mjs'
 import getOptDataChannel from './getOptDataChannel.mjs'
-import { checkRowIds, pickRowIds } from './checkSyncRows.mjs'
-import { ormFail } from './ormErrKey.mjs'
 import ds from '../src/schema/index.mjs'
 
 
@@ -108,6 +104,7 @@ import ds from '../src/schema/index.mjs'
  * @param {String} [opt.logInterval='hr'] 輸入log紀錄檔案拆檔時長字串，可選'hr'或'day'，預設'hr'
  * @param {Integer} [opt.logNumKeep=null] 輸入log檔保留數上限正整數，超出者自最舊刪除，未給採w-syslog預設(hr模式365*24、day模式365)，預設null
  * @param {Function} [opt.isAllowTarget=null] 輸入測試分頁proxy之目標位址檢核函數，函數會傳入目標網址字串（首跳與轉址後每一跳皆會呼叫），回傳false即拒絕該請求（回err-key 'errReqTargetNotAllowed'），預設null（不限制）
+ * @param {String} [opt.lockExternalRows='y'] 輸入後台是否不得動外部列（srcKey為非空字串，即經syncAndReplaceTabs由外部來源匯入之API）與外部管理之群組（group內存在外部列者），可選'y'或'n'，預設'y'。'y'時伺服端強制：外部列不可刪除（deleteExternalRowDenied）、不可改group與srcKey及外部擁有欄位（order、name、description、url、method、version、group、levels、keywords、state、creator、dataSource、mdInputParams、inputExample、mdOutputParams、outputExample；saveExternalRowChanged），本系統擁有欄位（tokens、testBaseUrl、authType、authConfigJson、defaultHeadersJson、defaultQueryJson、defaultBodyJson、contentType）仍可改；外部管理之群組不可由後台新增列，也不可把列改入該群組（saveExternalGroupDenied）；違規整次拒收、零寫入，前端同步顯示鎖頭、欄位唯讀、刪除鈕停用與說明。給'n'回到升版前行為（後台可改可刪外部列、可在外部管理之群組新增列，下次匯入以外部為主覆蓋或刪除）。外部匯入（syncAndReplaceTabs）不受此選項影響。升版後既有庫中srcKey為非空之列即視為外部列而唯讀，請先依README Upgrade Notes盤點（g_auditExternalRows.mjs）
  * @returns {Object} 回傳w-serv-hapi之伺服器事件物件，可監聽error事件，並提供ready函數（回傳promise，啟動成功時resolve為hapi伺服器實體）、getServer與getInstWConverServer函數，以及stop函數：依序停止伺服器（w-serv-hapi之stop）、清除本套件之快取計時器、關閉各資料表ORM之連線、關閉後端log，可重複呼叫並回傳同一promise，之後不可再使用本實例。建構於資源建立後失敗時，已建立之資源於拋錯前釋放。資料通道只開放表操作select（同步用），寫入一律經kpFunExt之saveApi與deleteApi。本函數與參考部署皆不註冊process之unhandledRejection與uncaughtException監聽，未處理之rejection會依Node預設終止行程，宜由行程管理器重啟
  * @example
  *
@@ -282,6 +279,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let logFd = get(opt, 'logFd', './logs') //srLog 寫入 + staEvent 統計共用之 log 資料夾
     let isAllowTarget = get(opt, 'isAllowTarget', null) //測試分頁 proxy 之目標檢核（含轉址每一跳），交 procProxy；改造前 procProxy 雖支援此 hook 但建構子未接線
 
+    //lockExternalRows: 後台是否不得動外部列（srcKey 非空者）與外部管理之 group（預設 true; 僅 'n' 或 false 關閉, 回到 run01 行為; 原則 5, ADR-044, R-EXT-LOCK-01）
+    //未知值（'N'、0、null 等）一律維持開啟（預設拒絕, 原則 1）
+    let lockExternalRows = getLockExternalRows(get(opt, 'lockExternalRows', 'y'))
+
 
     //kpLangExt
     let kpLangExt = get(opt, 'kpLangExt', {})
@@ -327,7 +328,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         srLog.clear().catch(() => {})
         throw err
     }
-    let { woItems, procOrm, closeAll } = wp
+    let { woItems, procOrm, closeAll, withTabLocks, guardWrite } = wp
 
 
     //kpFunExt 邊界統一處理：成功記 info（供 staEvent 統計呼叫頻率）；catch 後端錯誤 → srLog 該 err-key →
@@ -375,7 +376,12 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
 
     //procApis（srLog：procOrm 失敗時記原文、對外回語系鍵，R-ERR-1）
-    let { getApisList, saveApi, deleteApi } = procApis({ woItems, procOrm, ds, lockSave, srLog })
+    //withTabLocks／guardWrite 取自 WServOrm 同一實例: saveApi、deleteApi 與外部匯入(syncApis)共用同一把 apis 表鎖（多人同時編輯規格第7節）
+    let { getApisList, saveApi, deleteApi } = procApis({ woItems, procOrm, ds, lockSave, srLog, withTabLocks, guardWrite, lockExternalRows })
+
+
+    //syncApis（外部匯入，原則 11）
+    let syncApis = createSyncApis({ woItems, procOrm, withTabLocks, srLog })
 
 
     //getWebInfor
@@ -389,6 +395,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             showLanguage,
             language,
             kpLang,
+
+            lockExternalRows: lockExternalRows ? 'y' : 'n', //後台是否不得動外部列與外部管理之 group（opt.lockExternalRows）, 供前端鎖頭、唯讀欄位、刪除鈕停用與伺服端一致
 
         }
     }
@@ -596,13 +604,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     // }
 
 
-    //各資料表同步時之必填欄位（與前端編輯表單同步檢測對稱：apis 之 name／url 必填）
-    let kpRequiredFields = {
-        apis: ['name', 'url'],
-    }
-
-
-    //syncAndReplaceTabs
+    //syncAndReplaceTabs: 外部匯入（原則 11，R-IMPORT-01）——依外部自訂之來源鍵 srcKey 於 apis 表鎖內差異同步（新增／刪除／修改／不變），回 { nAdd, nUpdate, nDel, nSame }；
+    //必填欄位（apis 之 name／url，與前端編輯表單同步檢測對稱）、來源鍵規則、欄位歸屬、相容與失敗補償見 syncApis.mjs；此處只做陣列層檢核（group、rows）
     let syncAndReplaceTabs = async (userId, inp, keyTable) => {
 
         //group
@@ -621,101 +624,15 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         let rows = get(inp, 'rows', [])
         // console.log('rows', rows)
 
-        //check（陣列層：須為非空陣列；逐列檢核見下）
+        //check（陣列層：須為非空陣列——空批次拒收，清空某來源須另以明確操作，防誤清；逐列檢核見 syncApis）
         if (!isarr(rows) || rows.length === 0) {
             console.log('inp', payloadShape(inp))
             console.log('keyTable', keyTable)
             return Promise.reject('errRowsInvalid')
         }
 
-        //逐列檢核：任一列無效即整批拒絕（回 err-key errRowInvalid），且一律在 delAll 之前，既有群組資料不動；
-        //列索引與欄位名入 srLog 供整合端查因（回呼叫端只給 key，同其他錯誤契約）。
-        //why：改造前只有陣列層 isearr（wsemi：僅長度 1 時檢查元素），[null,null]／[1,2] 可通過，下方 v.group= 即 TypeError，
-        //原始例外訊息經 pm2resolve 外洩給呼叫端；缺必填欄位之物件列則經 ltdtmapping 補空值後以空名稱進樹。
-        let rejectRow = (index, field, reason = '') => {
-            srLog.error({ event: 'syncAndReplaceTabs', err: 'errRowInvalid', keyTable, group, index, field, ...(reason ? { reason } : {}) })
-            console.log(`[API]syncAndReplaceTabs/check rows[${index}]: invalid row (field: ${field}${reason ? `, reason: ${reason}` : ''})`)
-            return Promise.reject('errRowInvalid')
-        }
-
-        //逐列檢核 ①：每列須為物件（非物件列連 group 都無法寫入）
-        for (let k = 0; k &lt; rows.length; k++) {
-            if (!iseobj(rows[k])) {
-                return rejectRow(k, '(row)')
-            }
-        }
-
-        //save from
-        rows = map(rows, (v, k) => {
-            // v.order = k + 1 //order大部分由外部給予, 不能複寫
-            v.group = group
-            return v
-        })
-
-        //偵測b64自動恢復
-        //列物件由外部應用送入, 欄位名可為任意字串(含 length): 一律依自有可列舉鍵走訪(Object.keys), 不用 lodash each——
-        //後者對具非負整數 length 之物件改走索引 0..length-1(真實欄位被略過致還原靜默失效, length 極大時空轉阻塞事件迴圈), R-OBJ-ITER-01
-        if (keyTable === 'apis') {
-            each(rows, (row, krow) => {
-                // console.log(kapi, row.name)
-                for (let k of Object.keys(row)) {
-                    let v = row[k]
-                    // console.log(k, v)
-                    if (isestr(v)) {
-                        if (strleft(v, 7) === 'base64:') {
-                            // console.log(k, 'get base64')
-                            v = strdelleft(v, 7)
-                            v = b642str(v)
-                            // console.log(v)
-                            rows[krow][k] = v
-                        }
-                    }
-                }
-            })
-        }
-
-        //逐列檢核 ②（b64 還原後）：必填欄位須為非空字串（funNew／ltdtmapping 只補預設值、不驗證）
-        let ksRequired = get(kpRequiredFields, keyTable, [])
-        for (let k = 0; k &lt; rows.length; k++) {
-            let field = ksRequired.find((f) => !isestr(rows[k][f]))
-            if (isestr(field)) {
-                return rejectRow(k, field)
-            }
-        }
-
-        //ltdtmapping
-        rows = ltdtmapping(rows, ds[keyTable].keys)
-        // console.log('ltdtmapping rows', rows)
-
-        //逐列檢核 ③（R-SYNC-1，ADR-038）：有給之主鍵不得含 HTML 標記、不得超過 1978 位元組、同批不得重複、不得屬於他群組；未給主鍵者照常由 w-serv-orm 補。
-        //why：w-serv-orm 1.1.8 起含 HTML 標記之主鍵於 insert 時整批拒絕、LMDB 超長主鍵於 insert 時失敗且已排入之列先行提交、insert 對已存在之主鍵略過——
-        //三者皆在 delAll 之後才發生，分別使群組被清空、部分寫入、回應列出之主鍵與實存不符；且皆為確定性失敗，外部重送必再失敗（ADR-016 之重送前提不成立）
-        let ids = pickRowIds(rows) //一律為 String(id): 下方直呼 woItems, 不經 procOrm 之主鍵轉型, 而數字主鍵於庫內存為其字串形式(w-serv-orm 1.1.11 起)
-        let groupById = new Map()
-        if (ids.length > 0) {
-            let rsExist = await woItems[keyTable].select({ id: { $in: ids } })
-                .catch(ormFail({ srLog, event: 'syncAndReplaceTabs-orm', key: 'getDataError', info: { keyTable, group, step: 'select' } }))
-            each(rsExist, (v) => {
-                groupById.set(String(v.id), v.group)
-            })
-        }
-        let bad = checkRowIds(rows, { group, groupById })
-        if (bad !== null) {
-            return rejectRow(bad.index, bad.field, bad.reason)
-        }
-
-        //delAll group（逐列檢核皆已通過，此後才動既有資料；delAll→insert 非原子屬已知限制 ADR-016）
-        //ORM 之失敗改回語系鍵 saveWriteFail，原文入 srLog（R-ERR-1）
-        await woItems[keyTable].delAll({ group })
-            .catch(ormFail({ srLog, event: 'syncAndReplaceTabs-orm', key: 'saveWriteFail', info: { keyTable, group, step: 'delAll' } }))
-
-        //insert
-        // let r = await woItems[keyTable].insert(rows)
-        let r = await procOrm(userId, keyTable, 'insert', rows) //須使用procOrm才有辦法自動給予相關欄位
-            .catch(ormFail({ srLog, event: 'syncAndReplaceTabs-orm', key: 'saveWriteFail', info: { keyTable, group, step: 'insert' } }))
-        // console.log('r', r)
-
-        return r
+        //逐列檢核（整批驗證、全有或全無）、差異同步、失敗補償皆在 syncApis；keyTable 已由路由限為 apis
+        return await syncApis(userId, { group, rows }, keyTable)
     }
 
 
@@ -1054,11 +971,11 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             getApisList: wrapErrLog('getApisList', (userId) => {
                 return getApisList(userId)
             }),
-            saveApi: wrapErrLog('saveApi', (userId, row) => {
-                return saveApi(userId, row)
+            saveApi: wrapErrLog('saveApi', (userId, row, opt) => {
+                return saveApi(userId, row, opt) //opt: 前端選填 { baseline }(開啟編輯時以 buildBaseline 對畫面所見之列自算); 只讀 baseline, 不轉給 procOrm
             }),
-            deleteApi: wrapErrLog('deleteApi', (userId, id) => {
-                return deleteApi(userId, id)
+            deleteApi: wrapErrLog('deleteApi', (userId, id, opt) => {
+                return deleteApi(userId, id, opt)
             }),
 
             //統計資訊頁：回傳各 event 之時段發生頻率（讀 logFd 之 log）。連線之 token 認證由 verifyConn 把關；
@@ -1135,7 +1052,7 @@ export default WWebApi
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Tue Oct 20 2026 18:57:54 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Fri Oct 23 2026 09:57:38 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>

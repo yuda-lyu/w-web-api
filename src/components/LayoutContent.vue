@@ -102,6 +102,13 @@
                                             {{$ui.gv(getItemByKey(props.data.text),'name')}}
                                         </div>
 
+                                        <!-- 外部列(鎖頭)／外部管理 group 內無來源鍵之混雜列(警告): 原則 5, ADR-044; 平時不渲染 -->
+                                        <ExtMark
+                                            v-if="rowMark(props.data.text) !== ''"
+                                            :kind="rowMark(props.data.text)"
+                                            :tip="rowMarkTip(props.data.text)"
+                                        ></ExtMark>
+
                                     </div>
 
                                 </template>
@@ -207,6 +214,7 @@
                                 :item="editItem"
                                 :height="props.height-heightModeBar"
                                 :isNew="newMode"
+                                :gone="selectGone"
                                 @saved="onEditSaved"
                                 @deleted="onEditDeleted"
                                 @cancel="onEditCancel"
@@ -284,6 +292,7 @@ import find from 'lodash-es/find.js'
 import filter from 'lodash-es/filter.js'
 import cloneDeep from 'lodash-es/cloneDeep.js'
 import iseobj from 'wsemi/src/iseobj.mjs'
+import isestr from 'wsemi/src/isestr.mjs'
 import dtmapping from 'wsemi/src/dtmapping.mjs'
 import convertToTree from 'wsemi/src/convertToTree.mjs'
 import ds from '../schema/index.mjs'
@@ -295,11 +304,16 @@ import MdPanel from './MdPanel.vue'
 import LayoutContentEdit from './LayoutContentEdit.vue'
 import LayoutContentTest from './LayoutContentTest.vue'
 import LayoutContentStats from './LayoutContentStats.vue'
+import ExtMark from './ExtMark.vue'
+import { isExternalRow, isMixedRow, getExternalGroups, fmtVars } from '../schema/contracts/externalRows.mjs'
 
 
 //樹根節點之哨符 key（非顯示文字）：顯示文字於 template 以 $t('treeRootAll') 依當前語系取得。
 //用哨符而非中文字面值，一來使語系可即時切換，二來避免與真實 group 名稱（種子資料即有名為「全部」者）相撞。
 let KEY_TREE_ROOT = '__treeRootAll__'
+
+//編輯中之原列被他人刪除時 apiActive 之哨符 id(非任何樹節點 id): 使樹不高亮任何節點(funActive 見 apiActive 為物件即不初始化第一個葉節點)
+let KEY_ACTIVE_GONE = '__gone__'
 
 
 export default {
@@ -311,6 +325,7 @@ export default {
         LayoutContentEdit,
         LayoutContentTest,
         LayoutContentStats,
+        ExtMark,
     },
     props: {
     },
@@ -341,6 +356,7 @@ export default {
             mdiArrowLeft,
             mdiArrowRight,
             apiSelect: null,
+            selectGone: false, //編輯既有列時，原列已被他人刪除(不在最新清單): 停留原畫面(apiSelect 仍為原列)並由編輯器提示，不換成另一筆(草稿保護)
 
             //API 管理：模式切換 / 新增 / 搜尋
             mode: 'docs', //'docs' | 'edit' | 'test'
@@ -360,6 +376,16 @@ export default {
 
         apis: function() {
             return get(this, '$store.state.apis')
+        },
+
+        //外部列受保護(原則 5, ADR-044): lockOn 同伺服端 opt.lockExternalRows(webInfor.lockExternalRows 非 'n'); extGroups 為 store 全表(非搜尋過濾後)中外部管理之 group
+        lockOn: function() {
+            return get(this, '$store.state.webInfor.lockExternalRows', 'y') !== 'n'
+        },
+
+        extGroups: function() {
+            let vo = this
+            return vo.lockOn ? getExternalGroups(vo.apis) : new Set()
         },
 
         changeApis: function() {
@@ -408,6 +434,10 @@ export default {
             //保留目前選取的API id, 重建後盡量維持選取(避免儲存/同步後選取跳回第一筆)
             let prevId = get(vo.apiSelect, 'id', '')
 
+            //editingExisting: 正在編輯既有列(編輯分頁、非新增模式)——此時選取須與搜尋、他人之刪除脫鉤，否則草稿被換筆而丟失(多人同時編輯規格第8節 草稿保護; E7、A6)
+            //文件／測試分頁維持原行為(選取隨搜尋結果轉移)，不改變既有畫面
+            let editingExisting = vo.mode === 'edit' && !vo.newMode && prevId !== ''
+
             //default
             vo.apiActive = null
             vo.apisTree = []
@@ -415,7 +445,13 @@ export default {
 
             //check
             if (size(vo.apis) === 0) {
+                if (editingExisting && iseobj(vo.apiSelect)) { //清單全空(如全被刪除): 停留原畫面
+                    vo.apiActive = { id: KEY_ACTIVE_GONE }
+                    vo.selectGone = true
+                    return
+                }
                 vo.apiSelect = null
+                vo.selectGone = false
                 return
             }
 
@@ -460,18 +496,36 @@ export default {
 
             //apiSelect: 優先保留原選取(仍存在時), 否則取第一筆
             let apiSelect = null
-            if (prevId !== '') {
-                apiSelect = find(apis, { id: prevId }) || null
+            let gone = false
+            if (editingExisting) {
+                //編輯既有列: 以「未過濾」之清單找原列(搜尋只影響左樹，不影響選取，P4)；找不到(被他人刪除)則停留原畫面、不取第一筆(P3)
+                let hit = find(vo.apis, { id: prevId })
+                if (iseobj(hit)) {
+                    apiSelect = cloneDeep(hit)
+                }
+                else {
+                    apiSelect = vo.apiSelect
+                    gone = true
+                }
             }
-            if (!iseobj(apiSelect)) {
-                apiSelect = get(apis, 0, null)
+            else {
+                if (prevId !== '') {
+                    apiSelect = find(apis, { id: prevId }) || null
+                }
+                if (!iseobj(apiSelect)) {
+                    apiSelect = get(apis, 0, null)
+                }
             }
             // console.log('apiSelect', cloneDeep(apiSelect))
 
             //save
             vo.apiSelect = apiSelect
+            vo.selectGone = gone
             vo.apisTree = tree
             vo.kpApisTree = kpTree
+            if (editingExisting && iseobj(apiSelect) && !find(apis, { id: apiSelect.id })) {
+                vo.apiActive = { id: KEY_ACTIVE_GONE } //編輯中之列不在樹中(被他人刪除，或被搜尋濾掉): 不讓 funActive 把第一個葉節點標成選取
+            }
 
         },
 
@@ -482,6 +536,25 @@ export default {
             let r = vo.kpApisTree[key]
             // console.log('getItemByKey r', r, vo.kpApisTree)
             return r
+        },
+
+        //rowMark: 樹狀清單列之外部標記——'lock' 外部列、'warn' 外部管理 group 內無來源鍵之混雜列、'' 無(含關閉 lockExternalRows)
+        rowMark: function(key) {
+            let vo = this
+            if (!vo.lockOn) {
+                return ''
+            }
+            let row = vo.getItemByKey(key)
+            if (isExternalRow(row)) {
+                return 'lock'
+            }
+            return isMixedRow(row, vo.extGroups) ? 'warn' : ''
+        },
+
+        rowMarkTip: function(key) {
+            let vo = this
+            let group = get(vo.getItemByKey(key), 'group', '')
+            return fmtVars(vo.$t(vo.rowMark(key) === 'warn' ? 'externalGroupMixedTip' : 'externalRowLocked'), { group })
         },
 
         getMethod: function(item) {
@@ -581,14 +654,23 @@ export default {
             vo.mode = 'edit'
         },
 
-        onEditSaved: function() {
+        //onEditSaved: 存檔成功。後端回傳寫入後之列(表鎖內新鮮讀回) → 立即更新 store 列(左樹、右側文件與下次開啟編輯之基準皆取自 store), 不等推播／輪詢;
+        //其後抵達之同內容推播, 該列摘要與基準相同, 編輯器不視為他人更新(多人同時編輯規格第8節; 先動先贏不被削弱: 他人於其後改了同一列, 其推播先到時不回退, 見 store/applyRows.mjs)
+        onEditSaved: function(msg) {
             let vo = this
+            if (iseobj(get(msg, 'row'))) {
+                vo.$store.commit(vo.$store.types.ApplySavedRow, { tableName: 'apis', row: msg.row, baseline: msg.baseline })
+            }
             vo.newMode = false
             vo.mode = 'docs'
         },
 
-        onEditDeleted: function() {
+        //onEditDeleted: 刪除成功 → 立即自 store 移除該列(不等推播), 其後之推播不致使重開編輯之頁面誤報「已被他人刪除」
+        onEditDeleted: function(msg) {
             let vo = this
+            if (isestr(get(msg, 'id'))) {
+                vo.$store.commit(vo.$store.types.ApplyDeletedRow, { tableName: 'apis', id: msg.id, baseline: msg.baseline })
+            }
             vo.newMode = false
             vo.apiSelect = null
             vo.mode = 'docs'

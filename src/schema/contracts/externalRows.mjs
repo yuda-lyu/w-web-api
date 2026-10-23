@@ -1,0 +1,241 @@
+import clearXSS from 'wsemi/src/clearXSS.mjs'
+import { fieldsExternal, fieldsLocal } from './apis.mjs'
+
+
+//外部列受保護(原則 5「開了外部同步就以外部為主」、原則 3「收嚴＋提示」; 規格 外部匯入之定義與機制.md 第 4、7 節; ADR-044, R-EXT-LOCK-01):
+//後台(saveApi／deleteApi)對「外部列」與「外部管理之 group」之守門判定, 純函數(不依賴 Vue／DOM／ORM)。
+//伺服端(server/procApis.mjs)為強制者, 前端(LayoutContent／LayoutContentEdit: 鎖頭、唯讀欄位、刪除鈕停用、群組提示)共用同一份判定, 不各自重寫。
+//置於 src/schema/contracts/(同 apis.mjs, 前後端 import 同一檔), 不掃入 gi.mjs 之 genIndex。
+//
+//判別(定案 D1): srcKey 為非空字串者為「外部列」——匯入(syncApis)寫入之列必有 srcKey(以 id 代替來源鍵者亦補 srcKey=id), 後台不可寫 srcKey(伺服器專有欄位, 不採客戶端值);
+//  srcKey 為空字串、缺欄或非字串者為「後台列」。相容期(來源鍵與 id 皆無之批次列, 見 syncApis ②)與升版前已存在而尚未被匯入命中之列 srcKey 為空, 無從與後台自建者區分, 一律視為後台列。
+//外部管理之 group(D2): 該 group(非空字串)內存在至少一列外部列。匯入之批次＝該 group 之完整清單(syncApis D6), 後台自建於其中之列會於下次匯入被刪, 故後台不得在其中新增列、也不得把列改到該 group。
+//  group 內 srcKey 為空之列稱「混雜列」(升版前即已存在於外部管理 group 之後台列): 不鎖、不自動刪除, 由前端提示(下次匯入若批次未含其 id 即被刪, 見 README Upgrade Notes)。
+//鎖定欄位(D3): 外部列之 group、srcKey(身分欄)與 fieldsExternal(外部擁有欄位＝provideTabs 之 ks_apis 白名單去 srcKey／id)後台不可改; 本系統擁有欄位(fieldsLocal)與 tokens 可改。
+
+
+let hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k)
+let isStr = (v) => typeof v === 'string'
+let isObj = (v) => v !== null && typeof v === 'object'
+
+
+//normV: 比對用正規化——缺欄、null、空字串視為同一; 有限數字轉字串(order 為 INTEGER, 畫面 v-model.number 與庫內值可能一為數字一為字串); 其餘原樣
+let normV = (v) => {
+    if (v === undefined || v === null) {
+        return ''
+    }
+    if (typeof v === 'number') {
+        return Number.isFinite(v) ? String(v) : v
+    }
+    return v
+}
+
+
+/**
+ * 判斷是否為外部列(srcKey 為非空字串)
+ *
+ * @param {Object} row 輸入列物件
+ * @returns {Boolean} 回傳是否為外部列
+ * @example
+ *
+ * isExternalRow({ id: '1', srcKey: 'k1', group: 'ext' })
+ * // => true
+ * isExternalRow({ id: '1', srcKey: '', group: 'ext' })
+ * // => false
+ * isExternalRow({ id: '1' })
+ * // => false
+ *
+ */
+function isExternalRow(row) {
+    return isObj(row) && hasOwn(row, 'srcKey') && isStr(row.srcKey) && row.srcKey !== ''
+}
+
+
+/**
+ * 正規化 group 值為「寫入庫內後之樣子」: 字串套與 ORM 相同之字元清理(clearXSS)與合法 Unicode 正規化(toWellFormed), 非字串(缺欄、null 等)為空字串
+ * (比對外部管理 group 時須用寫入後之值, 否則含標記之 group 字串可繞過比對)
+ *
+ * @param {*} g 輸入 group 值
+ * @returns {String} 回傳正規化後之 group
+ */
+function normGroup(g) {
+    if (!isStr(g)) {
+        return ''
+    }
+    return clearXSS(g).toWellFormed()
+}
+
+
+/**
+ * 判斷後台送來之 group 值是否為合法形狀(缺欄、null、或合法 Unicode 之字串): 陣列、物件、數字、布林等非字串，與含孤立代理字元之字串皆不合法——
+ * 前者會被資料庫之查詢語意(陣列元素命中、數字與字串不等)與外部管理 group 之判定錯開，後者經儲存編碼往返會變成另一個字串，使「檢查之值」不等於「寫入之值」
+ *
+ * @param {*} g 輸入 group 值
+ * @returns {Boolean} 回傳是否合法
+ */
+function isValidGroupValue(g) {
+    return g === undefined || g === null || (isStr(g) && g.isWellFormed())
+}
+
+
+/**
+ * 只取一列中「id 與本系統擁有欄位」(外部列通過守門後之實際寫入內容: 外部擁有欄位已驗證與庫內相同，不再寫入，免得等價回聲——數字與其字串形式、
+ * 庫內未經清理之舊值——經 ORM 改寫外部來源提供之欄位)
+ *
+ * @param {Object} o 輸入寫入列(pickWriteRow 之結果)
+ * @returns {Object} 回傳新物件，只含 id(若有)與 fieldsLocal 中有帶之欄位
+ */
+function pickLocalFields(o) {
+    let rs = {}
+    if (hasOwn(o, 'id')) {
+        rs.id = o.id
+    }
+    for (let f of fieldsLocal) {
+        if (hasOwn(o, f)) {
+            rs[f] = o[f]
+        }
+    }
+    return rs
+}
+
+
+/**
+ * 取出外部管理之 group 集合(該 group 內存在外部列者)
+ *
+ * @param {Array} rows 輸入列陣列(非陣列視為空)
+ * @returns {Set<String>} 回傳 group 集合
+ */
+function getExternalGroups(rows) {
+    let st = new Set()
+    if (!Array.isArray(rows)) {
+        return st
+    }
+    for (let r of rows) {
+        if (isExternalRow(r) && isStr(r.group) && r.group !== '') {
+            st.add(r.group)
+        }
+    }
+    return st
+}
+
+
+/**
+ * 判斷是否為混雜列: 後台列(srcKey 非外部列)而 group 為外部管理之 group
+ *
+ * @param {Object} row 輸入列物件
+ * @param {Set<String>} groups 輸入 getExternalGroups 之結果
+ * @returns {Boolean} 回傳是否為混雜列
+ */
+function isMixedRow(row, groups) {
+    return isObj(row) && !isExternalRow(row) && isStr(row.group) && row.group !== '' && groups instanceof Set && groups.has(row.group)
+}
+
+
+/**
+ * 判斷某列是否因「目標 group 為外部管理」而不得新增或改入: 新增列(old 為 null)之 group 已是外部管理 group, 或後台列之 group 改成另一個外部管理 group
+ * (group 未改者不攔: 混雜列原就在該 group 內, 其他欄位仍可改)
+ *
+ * @param {Object|null} old 輸入庫內原列(新增時為 null)
+ * @param {*} group 輸入寫入列之 group 值(原值, 內部正規化)
+ * @param {Set<String>} groups 輸入外部管理 group 集合
+ * @returns {Boolean} 回傳是否被攔(true＝不得)
+ */
+function isBlockedByExternalGroup(old, group, groups) {
+    let g = normGroup(group)
+    if (g === '' || !(groups instanceof Set) || !groups.has(g)) {
+        return false
+    }
+    if (old === null || old === undefined) {
+        return true
+    }
+    return normGroup(old.group) !== g
+}
+
+
+/**
+ * 外部列被改之欄位清單: 比對寫入列(白名單欄位, 缺欄不比)與庫內原列之 fieldsExternal(含 group), 另含客戶端明確帶來「非空且與庫內不同」之 srcKey(身分欄; 空值不算, 見函數內說明)
+ *
+ * @param {Object} old 輸入庫內原列(須為外部列)
+ * @param {Object} o 輸入寫入列(pickWriteRow 之結果, 只含客戶端有帶之契約欄位)
+ * @param {Object} [rowRaw=null] 輸入客戶端送來之原始列(取其 srcKey 比對; 未給則不比)
+ * @returns {Array<String>} 回傳被改之欄位名陣列(空陣列＝未改)
+ */
+function getExternalChanged(old, o, rowRaw = null) {
+    let rs = []
+    for (let f of fieldsExternal) {
+        if (hasOwn(o, f) && normV(o[f]) !== normV(old[f])) {
+            rs.push(f)
+        }
+    }
+    //身分欄 srcKey: 伺服器專有欄位，客戶端值一律不採用（不可能被改）；客戶端明確帶來「非空且與庫內不同」之值視為企圖改身分欄而拒收。
+    //空值（缺欄、null、空字串）不算：持舊畫面之整列回聲會帶載入當時之 srcKey——該列於載入後才被匯入補上 srcKey（空 → id）時，回聲為空字串，
+    //若算改則使「只改了 tokens」之存檔被誤拒（api-concurrency V5；基準不含 srcKey，故基準亦不會攔下它）
+    if (isObj(rowRaw) && hasOwn(rowRaw, 'srcKey')) {
+        let sk = rowRaw.srcKey
+        if (sk !== undefined && sk !== null && sk !== '' && sk !== old.srcKey) {
+            rs.push('srcKey')
+        }
+    }
+    return rs
+}
+
+
+/**
+ * 盤點外部列與外部管理 group（升版前稽核用，g_auditExternalRows.mjs 呼叫）: 回傳外部列總數、各外部管理 group 之外部列數與混雜列數（依 group 名排序）、混雜列清單（id、name、group）
+ *
+ * @param {Array} rows 輸入列陣列（非陣列視為空）
+ * @returns {Object} 回傳 { nExternal, groups: [{ group, nExternal, nMixed }], mixed: [{ id, name, group }], badGroup: [{ id, name, type }] }; badGroup 為 group 非字串（陣列、數字、物件等）之歷史列
+ *   （後台舊版可寫入；資料庫之查詢可能把陣列元素當命中，使該列被匯入之 select({ group }) 納入而被刪，且不在外部 group 之判定內）
+ */
+function summarizeExternal(rows) {
+    let list = Array.isArray(rows) ? rows : []
+    let badGroup = list
+        .filter((r) => isObj(r) && hasOwn(r, 'group') && r.group !== undefined && r.group !== null && !isStr(r.group))
+        .map((r) => ({ id: r.id, name: r.name, type: Array.isArray(r.group) ? 'array' : typeof r.group }))
+    let st = getExternalGroups(list)
+    let kp = new Map()
+    for (let g of st) {
+        kp.set(g, { group: g, nExternal: 0, nMixed: 0 })
+    }
+    let nExternal = 0
+    let mixed = []
+    for (let r of list) {
+        if (isExternalRow(r)) {
+            nExternal++
+            if (kp.has(r.group)) {
+                kp.get(r.group).nExternal++
+            }
+        }
+        else if (isMixedRow(r, st)) {
+            kp.get(r.group).nMixed++
+            mixed.push({ id: r.id, name: r.name, group: r.group })
+        }
+    }
+    let groups = [...kp.values()].sort((a, b) => (a.group < b.group ? -1 : a.group > b.group ? 1 : 0))
+    return { nExternal, groups, mixed, badGroup }
+}
+
+
+/**
+ * 把語系範本之 {key} 代入(單趟掃描: 代入之值不再解析, group 名稱含 {group} 字樣原樣顯示; 未給之佔位符原樣保留; 值一律轉字串)
+ *
+ * @param {String} tpl 輸入範本
+ * @param {Object} [vars={}] 輸入 { 佔位符名: 值 }
+ * @returns {String} 回傳代入後之文字
+ * @example
+ *
+ * fmtVars('Group "{group}"', { group: 'pets' })
+ * // => 'Group "pets"'
+ *
+ */
+function fmtVars(tpl, vars = {}) {
+    let kp = Object.create(null)
+    for (let k of Object.keys(isObj(vars) ? vars : {})) {
+        kp[k] = String(vars[k])
+    }
+    return String(tpl).replace(/\{(\w+)\}/g, (hit, k) => (k in kp ? kp[k] : hit))
+}
+
+
+export { isExternalRow, normGroup, isValidGroupValue, pickLocalFields, getExternalGroups, isMixedRow, isBlockedByExternalGroup, getExternalChanged, summarizeExternal, fmtVars }
+export default isExternalRow

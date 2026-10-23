@@ -122,8 +122,16 @@ let settings = {
         name: '更新時間',
         type: 'STRING',
     },
+    'userIdUpdate': { //最後修改者之使用者id, 由 procOrm 於 save／insert 時寫入操作者(含外部匯入: 操作者為 app 權杖之使用者), 多人同時編輯規格第11節
+        name: '最後修改者',
+        type: 'STRING',
+    },
     'isActive': {
         name: '是否有效',
+        type: 'STRING',
+    },
+    'srcKey': { //外部匯入之來源鍵(原則11): 外部於 group 範圍內自訂之唯一且穩定識別, 由匯入寫入, 後台不可改; 後台自建之列為空字串
+        name: '來源鍵',
         type: 'STRING',
     },
 }

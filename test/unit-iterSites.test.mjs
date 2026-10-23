@@ -16,10 +16,16 @@ let listMjs = (rel) => fs.readdirSync(path.join(root, rel), { recursive: true })
 
 describe('unit-iterSites (R-OBJ-ITER-01 / R-KEY-01 站點守門)', function() {
 
-    it('SITE-API-001 syncAndReplaceTabs 之 base64 還原不以 lodash each 走訪列物件', function() {
-        let src = read('server/WWebApi.mjs')
-        assert.ok(!/\beach\(\s*row\s*,/.test(src), '不得 each(row, …)')
-        assert.ok(/for \(let k of Object\.keys\(row\)\)/.test(src), '應以 Object.keys(row) 走訪')
+    //2026-10-23（ADR-043）: 外部匯入移至 server/syncApis.mjs 並改為差異同步；base64 還原不再走訪列物件之全部鍵，
+    //而是只以自有屬性（hasOwnProperty）逐一讀取契約列舉之欄位（fieldsExternal）與 srcKey／id——列物件之任意欄位名（含數字 length）不被走訪，也不被複製進庫
+    it('SITE-API-001 syncAndReplaceTabs 之 base64 還原不以 lodash each 或 for-in 走訪列物件，只以自有屬性讀取列舉之欄位', function() {
+        let src = read('server/syncApis.mjs')
+        assert.ok(!/\beach\(\s*(row|raw)\s*,/.test(src), '不得 each(row, …)')
+        assert.ok(!/for \(let \w+ in /.test(src), '不得 for-in 走訪')
+        assert.ok(/Object\.prototype\.hasOwnProperty\.call\(o, k\)/.test(src), '應以自有屬性讀取（own）')
+        assert.ok(/for \(let f of fieldsExternal\)/.test(src), '只讀契約列舉之外部擁有欄位')
+        let wwa = read('server/WWebApi.mjs')
+        assert.ok(!/\beach\(\s*row\s*,/.test(wwa) && !/base64:/.test(wwa), 'WWebApi 不再有列物件走訪與 base64 還原（已移至 syncApis）')
     })
 
     it('SITE-API-002 測試分頁預設 JSON 預填不以 lodash each 走訪（改經 mShare.jsonToKvPairs）', function() {

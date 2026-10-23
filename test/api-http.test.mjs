@@ -190,9 +190,11 @@ describe('api-http (HTTP API 整合 / 認證鏈)', function() {
             let GROUP_B = 'api-http-sync-num-b'
             let r1 = await postRows(GROUP_NEW, [mkRow(123, 'num')])
             assert.strictEqual(r1.state, 'success', `應 success（實得 ${JSON.stringify(r1)}）`)
-            assert.deepStrictEqual(r1.msg, [{ id: '123' }], '回應之 id 為字串')
+            //2026-10-23（ADR-043）: 外部匯入改差異同步，回應為 { nAdd, nUpdate, nDel, nSame }（原回 insert 結果 [{ id: '123' }]）；內部 id 仍為字串，由下方庫內查詢驗
+            assert.deepStrictEqual(r1.msg, { nAdd: 1, nUpdate: 0, nDel: 0, nSame: 0 }, '回應為四類計數')
             let rs = await woItems.apis.select({ id: '123' })
-            assert.strictEqual(rs.length, 1, '庫內以字串 123 存放')
+            assert.strictEqual(rs.length, 1, '庫內以字串 123 存放（以 id 代替 srcKey 之相容: 沿用為內部 id）')
+            assert.strictEqual(rs[0].srcKey, '123')
             assert.strictEqual(rs[0].group, GROUP_NEW)
             for (let id of [123, '123']) {
                 let r = await postRows(GROUP_B, [mkRow(id, 'moved')])
