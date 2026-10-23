@@ -44,7 +44,7 @@ import ds from '../src/schema/index.mjs'
  * @param {String} url 輸入資料庫連線字串，例如w-orm-lmdb為'./db'，或w-orm-mongodb為'mongodb://username:password@$127.0.0.1:27017'
  * @param {String} db 輸入資料庫名稱字串
  * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'，且輸入'y'時會複寫權限系統該使用者之'isAdmin'欄位值
- * @param {Function} verifyClientUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
+ * @param {Function} verifyClientUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件與入口名from字串，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。瀏覽端以token進入之入口皆會呼叫（外部應用入口POST /syncAndReplaceTabs改走verifyAppUser，前端靜態檔為公開）：登入檢查GET /api/getUserByToken（from為'getUserByToken'），以及資料通道（kpFunExt、表select、系統函數與上傳下載，連線閘verifyConn，from為w-converhp之入口名：'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'；1.1.14之後版本起，見README Upgrade Notes）。拋錯、reject或回傳falsy值皆視同拒絕。政策若只允許部分入口，請依from區分
  * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
  * @param {Object} [opt={}] 輸入設定物件，預設{}。w-serv-orm 1.1.9 起移除之 useCheckUser、getUserById、useExcludeWhenNotAdmin 不再支援：未給、null 或 false 照常，給予其他值時建構即拋錯（訊息取自 w-serv-orm 之 checkOptRemoved）
  * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，須為1至65535之整數（可為數字字串），未給(undefined或null)時取預設11005，有給但無效時建構即拋錯'invalid opt.serverPort'，預設11005
@@ -113,9 +113,9 @@ import ds from '../src/schema/index.mjs'
  * }
  *
  * let verifyClientUser = (user, from) => {
- *     console.log('verifyClientUser/user', user)
+ *     //from: 入口名，'getUserByToken'(登入檢查)、'main'(資料通道，每個請求都會呼叫)等，政策若只允許部分入口請依from區分
  *     // return false //測試無法登入
- *     console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
+ *     //於生產環境時得加入限制瀏覽器使用者身份機制
  *     return user.isAdmin === 'y' //測試僅系統管理者使用
  * }
  *
@@ -424,9 +424,26 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
     //p
     let p = {
-        checkToken: async(token) => {
+        //checkToken：資料通道（w-converhp 六條路由，含 /api/main 之 kpFunExt、表 select、系統函數）之連線閘（R-CONNGATE-01，ADR-048；
+        //規格 C:\opensrcOper\dspec\w-web呼叫者身分驗證.md 規則 3）＝token 認證（getTokenUser）＋部署方注入之授權鉤子 verifyClientUser(user, from)。
+        //from 為 w-converhp 之 apiType（'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'），
+        //供部署方區分入口；與 /api/getUserByToken 之登入檢查（getAndVerifyClientUser）為同一鉤子、同一否定語意（拋錯或 reject 視同 false，wrapInjected）。
+        //不通過 reject 'errUserNoPermission'（verifyConn 記 srLog 後再拋；w-converhp 回 permission denied，不回顯 token 與使用者資料）。
+        //認證在前、授權在後：未通過認證者不呼叫鉤子。
+        checkToken: async(token, from = '') => {
+
             //與 getTokenUser 同一規則（S8，ADR-033；改造前另手寫一份且未檢查查無）
-            await getTokenUser(token)
+            let user = await getTokenUser(token)
+
+            //verifyClientUser（已包裝：拋錯或 reject 視同 false）
+            let b = await verifyClientUser(user, from)
+
+            //check
+            if (!b) {
+                console.log(`user does not have permission, apiType[${from}]`) //不印 user（連線閘每請求一次，僅記入口名）
+                return Promise.reject('errUserNoPermission')
+            }
+
             return true
         },
     }
@@ -878,14 +895,14 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                 return false
             }
 
-            //checkToken：套件層連線閘僅做「token 認證」（解析 user + 驗欄位齊備）。**授權**（如限管理員）屬
-            //套件使用者之責——由其提供之 getUserByToken（可對非授權者回 {}）/ verifyClientUser / verifyAppUser 決定；
-            //資料通道之表操作另由 authorizeExec（getOptDataChannel.mjs）只放行 select（寫入只經 kpFunExt），procOrm 不做授權（w-serv-orm 1.1.9 起）。
-            //套件不對連線層強加特定授權政策（避免越界、保留使用者彈性）。詳見 spec/設計要點與取捨.md「套件授權責任」（ADR-022、ADR-038）。
+            //checkToken：套件層連線閘＝「token 認證」（解析 user + 驗欄位齊備）＋部署方注入之授權鉤子 verifyClientUser(user, apiType)（R-CONNGATE-01，ADR-048）。
+            //套件不自訂「誰可用」之政策（政策屬部署方，由其提供之 getUserByToken / verifyClientUser / verifyAppUser 決定），但所有非公開入口一律套用部署方之鉤子、不略過
+            //（跨套件規格 C:\opensrcOper\dspec\w-web呼叫者身分驗證.md 規則 1、3；修正 ADR-022、ADR-038 原「連線層只認證、不套 verifyClientUser」之設計）。
+            //資料通道之表操作另由 authorizeExec（getOptDataChannel.mjs）只放行 select（寫入只經 kpFunExt），procOrm 不做授權（w-serv-orm 1.1.9 起）。詳見 spec/設計要點與取捨.md（ADR-022、ADR-038、ADR-048）。
             //checkToken 失敗會 throw（err-key），原本直接向上拋致認證失敗不入 log；此處攔截記錄後原樣再拋，行為不變。
             let b
             try {
-                b = await p.checkToken(token)
+                b = await p.checkToken(token, apiType)
             }
             catch (err) {
                 srLog.error({ event: 'verifyConn', err, apiType })

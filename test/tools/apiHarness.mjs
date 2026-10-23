@@ -100,6 +100,11 @@ async function startApiServer({ name, port, opt = null }) {
         let r = await ipc('ops', { clear })
         return r.value
     }
+    //getVerifyCalls: 部署方 verifyClientUser 之呼叫記錄 [{ userId, from }]（clear=true 取後清空）
+    let getVerifyCalls = async (clear = false) => {
+        let r = await ipc('verifyCalls', { clear })
+        return r.value
+    }
     let now = async () => {
         let r = await ipc('now')
         return r.value
@@ -125,7 +130,7 @@ async function startApiServer({ name, port, opt = null }) {
         fs.rmSync(cwd, { recursive: true, force: true })
     }
 
-    return { base, cwd, fun, sync, list, wipe, seed, setDelays, setFails, setFailItems, getOps, now, stop }
+    return { base, cwd, fun, sync, list, wipe, seed, setDelays, setFails, setFailItems, getOps, getVerifyCalls, now, stop }
 }
 
 

@@ -13,6 +13,24 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Upgrade Notes
 
+### Behavior change since 1.1.14：部署方之 `verifyClientUser` 自此對資料通道生效（須依 `from`（入口）區分）
+
+**行為變更**——資料通道（`/api/main`：前端畫面載入、同步與操作所走之連線，含 `getWebInfor`、`getApisList`、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`、表 `select` 與系統函數 `[sys:*]`；以及 w-converhp 之上傳／下載路由）之連線閘，原本只做 token 認證（`getUserByToken` 查得使用者，且 `id`／`email`／`name`／`isAdmin` 齊備），**不呼叫**您傳入的 `verifyClientUser`；本版起連線閘＝**token 認證＋`verifyClientUser(user, from)`**。未通過者整次連線被拒（w-converhp 回 `permission denied`；函數不執行、ORM 零操作、零寫入），並記 srLog（event `verifyConn`、含 `apiType`；授權未通過記 `err: 'errUserNoPermission'`，認證失敗依原因記 `errTokenNoPermission`／`errUserNotFound`／`errUser…Missing`；不含 token 與使用者資料）。認證在前、授權在後：未通過認證者不呼叫您的函數。
+- **`from` 是入口名**（w-converhp 之 `apiType`）：資料通道之函數呼叫一律 `'main'`；w-converhp 另有 `'upload-controller'`、`'upload-slice'`、`'download-get-filename'`、`'download-get-file'`、`'download'` 五條（本套件未註冊上傳／下載監聽，請求即使通過連線閘亦不受理，但連線閘仍先經 `verifyClientUser`）。登入檢查 `GET /api/getUserByToken` 之 `from` 仍為 `'getUserByToken'`；外部應用 `POST /syncAndReplaceTabs` 仍走 `verifyAppUser`（`from` 為 `'syncAndReplaceTabs'`）；前端靜態檔仍為公開。以上皆不變。
+- **影響**：使用者原本只要通過登入檢查（`from` 為 `'getUserByToken'`）即可連資料通道；現在**每個**資料通道請求還要通過 `verifyClientUser(user, 'main')`。若您的 `verifyClientUser` 不看 `from`（如參考部署之 `return user.isAdmin === 'y'`），**持續被它放行之使用者的正常操作不變**（它本來就拒絕、但過去因資料通道不呼叫它而仍能直打資料通道者，例如 `isAdmin` 為 `'n'` 卻持有效 token，自此被拒——這正是本變更的目的）；若它只接受 `'getUserByToken'`、或對某些使用者在非登入入口回 `false`，這些使用者**登入成功後畫面載入與同步會被拒**，請把 `'main'` 納入。建議採預設拒絕：只放行您列舉之入口名。
+- 拋錯、reject 或回傳 falsy 值皆視同拒絕（與登入檢查相同，且不外洩拋出之內容；回傳 `1` 等 truthy 非 `true` 之值兩處皆視為通過，建議回傳布林）。通過 token 認證之每個資料通道請求（含前端輪詢與同步）都會呼叫一次；未通過認證者（無 token、未知 token、使用者欄位不齊）不會呼叫。請保持輕量，勿每次呼叫外部服務（可自行快取）。
+- 套件仍不自訂「誰可使用」之政策，政策仍由您的 `getUserByToken`／`verifyClientUser`／`verifyAppUser` 決定；只是不再有「token 認證通過即可使用資料通道、`verifyClientUser` 對資料通道無效」之入口。
+- 範例（依 `from` 分流，其餘入口預設拒絕）：
+```alias
+let verifyClientUser = (user, from) => {
+    if (from === 'getUserByToken' || from === 'main') { //登入檢查與資料通道
+        return user.isAdmin === 'y' //僅系統管理者使用
+    }
+    return false //上傳／下載等其他入口預設拒絕
+}
+```
+- 其他：同一請求以 `Authorization` 標頭（連線閘）與本體 `__sysToken__`（函數執行時取 userId）各帶不同 token 之情形，本版未處理（兩者來源不同，後者決定寫入記到誰名下）；預定於後續版本讓函數執行時取 userId 之驗證與連線閘一致。
+
 ### Breaking change since 1.1.14：外部匯入須送 `srcKey`、不得送 `id`（不提供呼叫端相容）
 
 **破壞性變更**——外部端（`POST /syncAndReplaceTabs` 之呼叫端與 `provideTabs`）須改：
@@ -122,6 +140,7 @@ let getUserByToken = async (token) => {
     return {}
 }
 
+//from: 'getUserByToken'(登入檢查)、'main'(資料通道)、'upload-controller'|'upload-slice'|'download-get-filename'|'download-get-file'|'download'(w-converhp 其餘路由)
 let verifyBrowserUser = (user, from) => {
     console.log('verifyBrowserUser/user', user)
     // return false //測試無法登入
@@ -149,7 +168,7 @@ instWWebApi.on('error', (err) => {
 
 #### Behavior notes (w-serv-orm 1.1.11 / w-serv-hapi 1.1.6 / w-syslog 1.0.33)
 - `opt.useCheckUser`, `opt.getUserById` and `opt.useExcludeWhenNotAdmin` have been removed: `procOrm` of w-serv-orm no longer authorizes users. Passing any of them with a value other than `undefined`, `null` or `false` throws at construction.
-- The data channel exposes table reads only: `apis.select` (used by the front-end sync) is allowed for authenticated users, and every write goes through `saveApi` / `deleteApi`. Calling `apis.insert`, `apis.save` or `apis.del` directly through `/api/main` now returns `invalid func[apis.<method>]`. The sync still delivers the whole table, including `tokens` and `authConfigJson`, to any authenticated user, so decide who may log in with `getUserByToken` and the verify functions.
+- The data channel exposes table reads only: `apis.select` (used by the front-end sync) is allowed for authenticated users, and every write goes through `saveApi` / `deleteApi`. Calling `apis.insert`, `apis.save` or `apis.del` directly through `/api/main` now returns `invalid func[apis.<method>]`. The sync still delivers the whole table, including `tokens` and `authConfigJson`, to any user who passes `getUserByToken` and `verifyClientUser`, so decide who may use the service with those functions. Since 1.1.14 (see "Behavior change since 1.1.14") the connection gate of the data channel (`verifyConn`) is token authentication plus your `verifyClientUser(user, from)`, where `from` is the w-converhp `apiType` (`'main'` for every data-channel call): a rejected user (or a `verifyClientUser` that throws, rejects or returns a falsy value) gets `permission denied` and nothing is executed.
 - `/syncAndReplaceTabs` checks every row before it writes anything: a missing, empty or non-string `srcKey`, or a `srcKey` with HTML markup, longer than 1978 bytes in UTF-8, or repeated in the same batch rejects the whole batch with `errRowInvalid`; a row that carries an `id` (any value, even together with a valid `srcKey`) rejects the whole batch with `idNotAllowed`; existing data stays untouched. The endpoint is a `srcKey`-based differential sync (see "Breaking change since 1.1.14" and "Upgrading from 1.1.13 and earlier"); there is no compatibility for callers that still send `id` instead of `srcKey`, and no `delAll`, so locally owned fields of keyed rows are never cleared. A `srcKey` is a plain string key: values that start with `base64:` are decoded before use (as for every field), so a key that literally starts with `base64:` (for example an old `id` of that form being migrated) must itself be sent base64-encoded with the `base64:` prefix.
 - `id` values are generated by the system. Since w-serv-orm 1.1.11 a numeric id is stored as its string form; this no longer matters for the import, because an `id` sent by the caller is rejected (`idNotAllowed`) and a numeric `srcKey` is rejected (`errRowInvalid`, a `srcKey` must be a string).
 - Database failures are returned as language keys (`saveWriteFail` for writes, `getDataError` for reads) instead of the ORM's English text, which is written to the log.

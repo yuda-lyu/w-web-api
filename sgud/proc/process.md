@@ -47,6 +47,7 @@
 - **關聯**: `srv.mjs` 之 `getUserByToken` 開發捷徑 `token === 'sys'`(`NODE_ENV === 'production'` 時停用); settings `ssoAppToken` / `ssoBaseUrl`; 授權責任 ADR-022.
 - **判斷**: 開發與測試以 `?token=sys` 登入; `ssoAppToken` 為空時不打 SSO、直接回 `{}`; 瀏覽端與應用端皆只放行 `isAdmin` 為 `y`; token 時效與撤銷全交 SSO, 本套件不自管 session.
 - **處理**: 要接 SSO 才填 app token 並確認 `ssoBaseUrl`; 正式部署設 `NODE_ENV=production` 即停用 `sys` 捷徑並改提供真實 `getUserByToken`; 認證資料不經任何同步流程進出, 各服務獨立靠自身 token 或 SSO 與 perm.
+- **呼叫者身分驗證(2026-10-23 起, ADR-048、R-CONNGATE-01)**: 資料通道連線閘＝token 認證＋部署方 `verifyClientUser(user, apiType)`(`from` 為 w-converhp 入口名, 資料通道呼叫為 `'main'`), 未通過整次連線被拒; 套件不自訂誰可用之政策, 但**不得讓任何非公開入口略過部署方之鉤子**(無關閉選項). 新增任何由外部可觸及之入口(hapi 路由、kpFunExt、資料通道函數)時: 先對照 `sgud/rule/rulebook_backend.md` R-CONNGATE-01 之站點全集與盤點指令, 補測試(`api-connGate`)與該表; 公開入口只限本質上拿不到 token 者, 須經主控複審. 部署方之 `verifyClientUser` 每個資料通道請求(含輪詢)都會被呼叫, 範例與 README 不得再逐次印使用者物件.
 
 ## 語系注入
 

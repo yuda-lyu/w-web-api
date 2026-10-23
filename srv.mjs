@@ -103,8 +103,8 @@ let verifyClientUser = (user, from) => {
     if (get(user, 'id') === 'id-for-verify-throw' && process.env.NODE_ENV !== 'production') {
         throw new Error('SYNTH-VERIFY-SECRET-FOR-TEST')
     }
-    console.log('verifyClientUser/user', user)
-    console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
+    //from: 入口名——'getUserByToken'(登入檢查)、'main'(資料通道，每個請求都會呼叫，故此處不逐次印使用者)、'upload-controller'|'upload-slice'|'download-get-filename'|'download-get-file'|'download'(其餘路由，本套件未啟用上傳下載)
+    //於生產環境時得加入限制瀏覽器使用者身份機制（政策屬部署方；瀏覽端之登入檢查與資料通道連線閘皆呼叫本函數，ADR-048；外部應用入口 POST /syncAndReplaceTabs 走 verifyAppUser）
     // return false //測試無法登入
     return user.isAdmin === 'y' //測試僅系統管理者使用
 }

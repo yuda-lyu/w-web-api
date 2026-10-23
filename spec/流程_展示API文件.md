@@ -204,7 +204,7 @@
 - **契約**：
   - token='sys' 僅開發模式捷徑；正式須真實 token 且 isAdmin==='y'。
   - 前端不主動輪詢，資料由後端 syncData 推送驅動重渲染。
-  - 資料通道只開放表讀取：前端同步所用之 `apis.select` 只放行已認證者（userId 非空），表寫入（`apis.insert`／`save`／`del`）不綁定、直打回 `invalid func[apis.<方法>]`；寫入一律經 kpFunExt 之 `saveApi`／`deleteApi`（R-DC-1，ADR-038）。同步把整表（含 `tokens`／`authConfigJson`）給已認證者，誰可登入由部署方之 `getUserByToken`／`verifyClientUser` 決定（ADR-022／033）。
+  - 資料通道只開放表讀取：前端同步所用之 `apis.select` 只放行已認證者（userId 非空），表寫入（`apis.insert`／`save`／`del`）不綁定、直打回 `invalid func[apis.<方法>]`；寫入一律經 kpFunExt 之 `saveApi`／`deleteApi`（R-DC-1，ADR-038）。同步把整表（含 `tokens`／`authConfigJson`）給已認證者，誰可使用由部署方之 `getUserByToken`／`verifyClientUser` 決定（ADR-022／033）。**資料通道之連線閘（`verifyConn`）＝token 認證＋部署方 `verifyClientUser(user, apiType)`（apiType 為 w-converhp 之入口名，資料通道之函數呼叫為 `'main'`；2026-10-23，ADR-048、R-CONNGATE-01，跨套件規格 `C:\opensrcOper\dspec\w-web呼叫者身分驗證.md` 規則 3）**：被部署方拒絕者（鉤子回 falsy、拋錯或 reject）不論呼叫 kpFunExt、`apis.select` 或系統函數皆在傳輸層回 `permission denied`，函數不執行、零寫入；拒絕記 srLog（`verifyConn`，`err: 'errUserNoPermission'`，含 `apiType`，不含 token 與使用者資料）。
   - 語系切換經 setLang 廣播 forceUpdate，全頁即時重渲染。
   - docs 請求區之 cURL `-X` 動詞經 `src/plugins/mShare.mjs` 之 `methodToHttpVerb` 轉換：資料層 `del` 顯示為 `DELETE`（`DEL` 非 HTTP 動詞，複製貼上即可執行；與測試分頁送出路徑共用同一函式，ADR-030）。樹之 method badge 仍顯示 `DEL`（視覺慣例）。
   - 左樹根節點標籤由語系鍵 `treeRootAll`（eng「All」／cht「全部」）於 template 取值，非烤進樹資料，語系就地切換即時更新；樹資料之根 key 為哨符 `__treeRootAll__`，不與任何 group 名稱相撞（ADR-030）。

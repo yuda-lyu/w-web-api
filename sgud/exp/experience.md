@@ -180,3 +180,15 @@
 - **變異與「上游修法模擬」都用記憶體內載入掛鉤, 不改 node_modules 也不改 repo**: `tmp/api-run05/hook/{register,loader}.mjs` 以 `NODE_OPTIONS=--import` 掛上 `module.register`, 在 `load` 階段改寫 `w-serv-orm/src/getMapOrm.mjs` 或 `server/syncApis.mjs` 的原始碼(每個 patch 先斷言 needle 命中次數, 並寫標記檔證明確實套用; 子行程 stdio 被忽略, 看不到 stdout)。同一手法可驗「建議書的修法落地後本套件測試是否轉綠」。環境變數經 `fork` 繼承, 不必動 harness。
 - **對上游缺口的 pending 寫法**: 不是把整案 `skip`, 而是只在「回應與庫內正好符合已知簽章」時 `this.skip()`, 其他形狀照判紅; 上游修好後自動轉為一般斷言。
 - **harness 副作用再次提醒**: `api-http`／`api-syncIter` 跑完後 `dist/*`／`tableTags-web-api.json` 可能被 `npm run build` 改寫; 本輪開跑前先快照(`tmp/api-run05/snap/`), 跑完比對雜湊, 異動則以快照還原(不用 checkout/reset)。
+
+## api-run01(2026-10-23, 跨套件規格 w-web呼叫者身分驗證 C1): 資料通道連線閘補上部署方之 `verifyClientUser`(ADR-048)
+
+- **「授權屬部署方」不等於「部署方的授權函數可以對某入口無效」**: ADR-022/038 把授權責任推給部署方，但部署方唯一的落點(`verifyClientUser`)只接在登入檢查，資料通道另有一條只認證的閘。修前紅實測：被鉤子拒絕的使用者(isAdmin 'y'，使拒絕只能出自鉤子)經 `/api/main` 可 `saveApi` 寫入、`deleteApi` 刪除、`proxyRequest` 命中目標。盤點「政策鉤子」時要列「每一條進入內部函數的路徑各接了哪個鉤子」，不是只看登入那條。
+- **測試的「被拒者」要與管理員欄位脫鉤**: 部署方情境(`apiServerChild`：`tokDenied`／`tokVThrow`／`tokVReject`／`tokVFalsy`／`tokOnlyMain`)全部 `isAdmin:'y'`，這樣即使連線閘仍殘留 `isAdmin` 判斷也不會讓測試假綠；並由鉤子記錄 `{ userId, from }`(`S.getVerifyCalls()`)證明「鉤子確實被呼叫、`from` 是入口名」，不只看回應被拒——否則「被拒」可能來自別的原因。
+- **斷言「未執行」要用側面證據，不能只看回應**: ORM 操作記錄為空(零讀零寫)、代發目標(本機 echo 伺服器)零命中、庫內列未變；`[sys:*]` 無法以資料驗證，改看傳輸層回 `{ error:'permission denied' }`(沒有 `success.output`)與 ORM 零操作。
+- **w-converhp 六路由的 `apiType` 是 `from` 的來源**: `main`／`upload-controller`／`upload-slice`／`download-get-filename`／`download-get-file`／`download`；`download-get-file` 的 token 走 query(合成 Authorization)、拒絕時狀態碼 403，其餘 200＋`Return-Msg: permission denied`。本套件未註冊上傳／下載監聽，通過連線閘的請求仍回參數錯誤——「不是 permission denied」就是放行的觀察值。
+- **srLog 計數案要用獨立子行程**: 同一子行程先前的案已累積拒絕記錄，之後的計數案會算不準；另起一個子行程(埠 8558)讓 log 只含該案請求。pino 經 worker 非同步落檔，需輪詢至筆數到位。
+- **連線閘不重用登入檢查函數**: `getAndVerifyClientUser` 成功時多記一筆 `verifyClientUser` info(統計頁會看到)、失敗時 `console.log` 整個 user；資料通道每請求(含 `[sys:polling]`)都會經過，不宜。兩處呼叫同一個已包裝鉤子即可保持語意一致(拋錯／reject 視同 false)。
+- **參考部署 `srv.mjs` 的鉤子曾逐次 `console.log(user)`**: 連線閘使它變成每個資料通道請求都印一次，已移除；README 範例同註明 `from` 的取值。
+- **記錄不修的上游問題要有實測**: 雙來源 token(Authorization 放行者＋`__sysToken__` 被拒者 → `saveApi` 成功、`userIdUpdate` 記為被拒者)與 `proxyRequest` 無目標白名單，皆以探測腳本／對照案實測後寫入 ADR-048，不憑讀碼斷言。
+- **harness 副作用**: 本輪 api／e2e 跑完 `dist/*`、`tableTags-web-api.json` 被 `npm run build`／後端改寫，結束前以 `git archive HEAD dist tableTags-web-api.json` 還原並刪除建置產生之未追蹤雜湊檔(不用 checkout/reset)。

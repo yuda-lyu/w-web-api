@@ -273,6 +273,7 @@ export default {
 |---|---|
 | `server/procApis.mjs`、`syncIdentity.mjs`、契約、`lockSave` | unit-procApis、unit-lockSave、unit-syncRows、新 unit-syncIdentity/unit-contract、api-http、api-doubleclick、api-syncIter、api-dataChannel、api-lifecycle、新 api-concurrency |
 | `server/WWebApi.mjs`(含 kpFunExt/同步/建構) | 上列 + api-tokenLeak、unit-wwebapi-lifecycle、unit-wwebapi-opt、unit-dataChannel |
+| `server/WWebApi.mjs` 之資料通道連線閘(`verifyConn`／`p.checkToken`, R-CONNGATE-01, api-run01) | 全部 api(含 `api-connGate`)＋全部 unit; 連線閘為瀏覽器全部流量之共同入口(參考部署下 `sys` 使用者照常通過, 預期零差異), e2e 擴大為全部 7 檔(display、edit、apitest、stainfor、init、concurrent、external)以涵蓋每個 kpFunExt／同步／輪詢經閘之路徑 |
 | `src/schema/tables/apis.mjs` | 上列 api/unit + e2e-edit(存檔欄位) |
 | `LayoutContent.vue`(genTree/選取/搜尋) | e2e-display、e2e-edit、e2e-apitest(選取) + 新 e2e 併發案 |
 | `LayoutContentEdit.vue`(基準/草稿/橫幅) | e2e-edit + 新 e2e 併發案 |

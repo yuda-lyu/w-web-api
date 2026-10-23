@@ -90,16 +90,55 @@ function SlowOrm(opt) {
 }
 
 //使用者: sys 為開發捷徑; tokA／tokB 為兩位後台管理員; tokApp 為外部應用(app 權杖)之使用者
+//api-connGate 用之部署方授權情境(除標明者外皆 isAdmin 'y', 使「拒絕」只能出自 verifyClientUser 而非 isAdmin 欄位):
+//tokDenied(verifyClientUser 回 false)、tokVThrow(拋錯)、tokVReject(reject)、tokVFalsy(回 undefined)、tokVTruthy(回 1, 非 true 之 truthy)、
+//tokOnlyMain(只在入口 'main' 放行, 驗 from 為入口名)、tokNonAdmin(isAdmin 'n' 但鉤子放行: 套件不強加管理員政策)、tokNoEmail(使用者欄位不齊: 認證即失敗, 不呼叫鉤子)
 let users = {
     sys: { id: 'id-for-admin', name: 'admin', email: 'admin@example.com', isAdmin: 'y' },
     tokA: { id: 'id-for-adminA', name: 'adminA', email: 'a@example.com', isAdmin: 'y' },
     tokB: { id: 'id-for-adminB', name: 'adminB', email: 'b@example.com', isAdmin: 'y' },
     tokApp: { id: 'id-for-app', name: 'app', email: 'app@example.com', isAdmin: 'y' },
+    tokDenied: { id: 'id-denied', name: 'denied', email: 'denied@example.com', isAdmin: 'y' },
+    tokVThrow: { id: 'id-vthrow', name: 'vthrow', email: 'vthrow@example.com', isAdmin: 'y' },
+    tokVReject: { id: 'id-vreject', name: 'vreject', email: 'vreject@example.com', isAdmin: 'y' },
+    tokVFalsy: { id: 'id-vfalsy', name: 'vfalsy', email: 'vfalsy@example.com', isAdmin: 'y' },
+    tokOnlyMain: { id: 'id-onlymain', name: 'onlymain', email: 'onlymain@example.com', isAdmin: 'y' },
+    tokVTruthy: { id: 'id-vtruthy', name: 'vtruthy', email: 'vtruthy@example.com', isAdmin: 'y' },
+    tokNonAdmin: { id: 'id-nonadmin', name: 'nonadmin', email: 'nonadmin@example.com', isAdmin: 'n' },
+    tokNoEmail: { id: 'id-noemail', name: 'noemail', isAdmin: 'y' },
 }
 let getUserByToken = async (token) => (users[token] ? { ...users[token] } : {})
 let verify = (user) => user.isAdmin === 'y'
 
-let inst = WWebApi(SlowOrm, path.resolve('./db'), dbName, getUserByToken, verify, verify, { serverPort: port, logFd: path.resolve('./logs'), ...optExtra })
+//verifyCalls: verifyClientUser 之呼叫記錄({ userId, from }), 供測試證明「連線閘確實呼叫部署方之授權鉤子、且 from 為入口名」; IPC 'verifyCalls' 取出
+let verifyCalls = []
+let verifyClient = (user, from) => {
+    verifyCalls.push({ userId: user.id, from })
+    if (user.id === 'id-denied') {
+        return false
+    }
+    if (user.id === 'id-vthrow') {
+        throw new Error('SYNTH-VERIFY-SECRET-FOR-TEST')
+    }
+    if (user.id === 'id-vreject') {
+        return Promise.reject('SYNTH-VERIFY-SECRET-FOR-TEST')
+    }
+    if (user.id === 'id-vfalsy') {
+        return undefined
+    }
+    if (user.id === 'id-onlymain') {
+        return from === 'main'
+    }
+    if (user.id === 'id-vtruthy') {
+        return 1
+    }
+    if (user.id === 'id-nonadmin') {
+        return true
+    }
+    return user.isAdmin === 'y'
+}
+
+let inst = WWebApi(SlowOrm, path.resolve('./db'), dbName, getUserByToken, verifyClient, verify, { serverPort: port, logFd: path.resolve('./logs'), ...optExtra })
 inst.on('error', (err) => {
     console.log('[child] error', String(err && err.message ? err.message : err).slice(0, 200))
 })
@@ -142,6 +181,13 @@ process.on('message', async (msg) => {
         let r = ops.slice()
         if (msg.clear) {
             ops = []
+        }
+        process.send({ id: msg.id, ok: true, value: r })
+    }
+    else if (msg.cmd === 'verifyCalls') {
+        let r = verifyCalls.slice()
+        if (msg.clear) {
+            verifyCalls = []
         }
         process.send({ id: msg.id, ok: true, value: r })
     }

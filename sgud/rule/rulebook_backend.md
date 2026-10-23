@@ -163,6 +163,37 @@
 | 選項 `'n'` 回舊行為 | `api-externalRows`「選項 n」、`unit-procApis-external`(lockExternalRows=false)、`e2e-external` E2E-016 |
 | 前端唯讀與提示 | `e2e-external` E2E-013、E2E-014 |
 
+## 呼叫者身分驗證:資料通道連線閘(R-CONNGATE-01; 跨套件規格 `C:\opensrcOper\dspec\w-web呼叫者身分驗證.md` 規則 1~6; 使用者 2026-10-23 裁示〈凡能使用內部函數者一律以 token 驗證呼叫者, 無例外〉; ADR-048, api-run01)
+
+### R-CONNGATE-01 凡可由外部觸及之入口, 除公開入口外一律驗 token; 資料通道之連線閘＝token 認證＋部署方注入之 `verifyClientUser(user, apiType)`
+
+- **規則**:
+  - 資料通道(w-converhp 六條路由: `main`、`upload-controller`、`upload-slice`、`download-get-filename`、`download-get-file`、`download`; kpFunExt、表 `select`、系統函數 `[sys:*]` 皆在 `main` 之後)的連線閘 `verifyConn` → `p.checkToken(token, apiType)`＝①`getTokenUser`(認證) ②部署方之 `verifyClientUser(user, apiType)`(授權; 經 `wrapInjected`, 拋錯／reject 視同 false) ③falsy → reject `'errUserNoPermission'`. 認證在前、授權在後(未通過認證者不呼叫鉤子).
+  - 套件不自訂「誰可用」之政策, 但**不得略過部署方之鉤子**; 不提供關閉鉤子之選項.
+  - 拒絕: w-converhp 回 `permission denied`, 函數不執行、ORM 零操作; 記 `srLog.error({ event:'verifyConn', err, apiType })`(`verifyConn` 之 catch; 授權不通過 `err` 為 `errUserNoPermission`, 認證失敗依原因為 `errTokenNoPermission`／`errUserNotFound`／`errUser…Missing`); 回應與 srLog 不含 token、使用者資料與鉤子拋出之內容; 連線閘之授權步驟不印使用者物件、成功不另記 `verifyClientUser` info(認證步驟 `checkUser` 對欄位不齊之使用者仍 `console.log` 該物件, 屬 ADR-033 既有行為, 未改).
+  - 公開入口只限本質上拿不到 token 者: **前端靜態檔**(`GET /{file*}`, w-serv-hapi inert, 內容為建置檔; `index.html` 只注入語系、轉址、子目錄). 本套件無登入、註冊、驗證碼、驗證信等公開端點. 新增公開入口須經主控複審.
+  - `GET /api/getUserByToken` 為登入檢查(需 token), `from='getUserByToken'`; `POST /syncAndReplaceTabs` 為外部應用入口(需 token, `verifyAppUser`, `keyTable` 白名單); 兩者不經 `verifyConn`.
+- **站點全集**(2026-10-23 盤點; 對應 ADR-048 入口盤點表):
+
+| 站點 | 認證(token) | 授權鉤子 | 判準 |
+|---|---|---|---|
+| `GET /{file*}` 靜態檔 | 無(公開) | 無 | 刻意不套(公開入口) |
+| `GET /api/getUserByToken` | `getAndVerifyClientUser` → `getTokenUser` | `verifyClientUser(user,'getUserByToken')` | 已套(`api-tokenLeak` E1、`api-connGate`「其他入口之行為不變」) |
+| `POST /syncAndReplaceTabs` | `getAndVerifyAppUser` → `findTokenUser` | `verifyAppUser(user,'syncAndReplaceTabs')` | 已套(`api-tokenLeak` E4、`api-http`) |
+| `POST /api/main` × kpFunExt 6 + `apis.select` + `[sys:*]` 3 | `verifyConn` → `p.checkToken` → `getTokenUser` | `verifyClientUser(user,'main')` | 已套(`api-connGate` 逐函數 13 案＋連呼＋對照組) |
+| 其餘五條 w-converhp 路由(`ulctr`、`slc`、`dwgfn`、`dwgf`、`dw`) | 同上 | `verifyClientUser(user, <apiType>)` | 已套(`api-connGate` 六路由 × 3 案); 本套件未註冊上傳／下載監聽, 通過閘亦不受理 |
+| `apis.insert`／`save`／`del` | — | — | 未開放(`methodsExec:['select']`, R-DC-1, `api-dataChannel`) |
+
+- **本輪不修、已定案待下一輪**(跨套件規格 C3、P1; 使用者 2026-10-23 已裁示, 併 api-run02): ①雙來源 token(Authorization 與本體 `__sysToken__` 可為不同 token, 實測被拒者可借放行者之連線以自己名義寫入): 定案為本套件 `getUserIdByToken` 做完整驗證(同連線閘), 不在框架比對兩 token(任務 20261023213314) ②`proxyRequest` 未給 `isAllowTarget` 時不限目標(實測可打 `127.0.0.1`): 定案為預設拒絕內網與本機位址並提供可開關、可調整之設定(任務 20261023211116 之 api-run02) ③認證階段 `checkUser` 與 `getAndVerifyClientUser` 失敗時 `console.log` 使用者物件(ADR-033 決定不處理, 本輪維持).
+- **盤點指令**:
+  - 鉤子呼叫站點: `git grep -nE "verifyClientUser\(" -- server/WWebApi.mjs`(應為 `getAndVerifyClientUser` 與 `p.checkToken` 各 1 行＋註解行; `verifyClientUser = wrapInjectedLog(` 1 行為包裝).
+  - `verifyConn` 傳遞入口名: `git grep -n "p.checkToken(token, apiType)" -- server/WWebApi.mjs`(應 1 行).
+  - hapi 路由全集: `git grep -n "path: '/" -- server/WWebApi.mjs`(未註解者應只有 `/api/getUserByToken`、`/syncAndReplaceTabs`).
+  - kpFunExt 全集: `git grep -nE "^ +(getWebInfor|proxyRequest|getApisList|saveApi|deleteApi|getStaEvent): " -- server/WWebApi.mjs`(6 行; 新增 kpFunExt 不需另加驗證——均在連線閘之後, 但須補 `api-connGate` 之 `mkFuncs` 與本表).
+  - w-converhp 入口名: Grep `apiType:` 於 `node_modules/w-converhp/src/routeSpec.mjs`(6 個; 升版後若增減須同步 `api-connGate` 之 `ROUTES` 與 README).
+  - 執行期函數全集: `[sys:getFuncList]`(`api-dataChannel`).
+- **驗證**: `test/api-connGate.test.mjs`(埠 8554／8557／8558; 隔離子行程, 部署方鉤子情境與呼叫記錄由 `test/tools/apiServerChild.mjs` 提供): 被拒者 13 個函數(kpFunExt 6、`apis.select`、未開放之表寫入 3、`[sys:*]` 3)皆傳輸層 `permission denied`＋ORM 零操作＋鉤子恰呼叫一次且 `from='main'`; 連呼後庫內不變、代發目標零命中; Authorization 被拒而 `__sysToken__` 放行者仍被拒; 放行者對照組; 拋錯／reject／回 undefined 視同拒絕且不含鉤子內容; 六路由 × (只在 main 放行者／放行者／被拒者) 之 `from` 為入口名與狀態碼; 認證先於授權(未知 token／無 Authorization 不呼叫鉤子); `/api/getUserByToken` 之 `from` 不變; srLog 拒絕記錄 9 筆(含 apiType)且不含 token、使用者欄位、鉤子內容. 認證先於授權含使用者欄位不齊(`tokNoEmail`)、套件不強加政策(`tokNonAdmin`)、truthy 非 true(`tokVTruthy`)、srLog 拒絕記錄白名單欄位. 修前紅: HEAD 版 `server/WWebApi.mjs` 對 43 案 40 紅. 變異(`tmp` 腳本, 報告 api-run01)12 個皆被抓: 連線閘不呼叫鉤子、`from` 傳空字串、忽略結果、拋錯視同通過(`failValue true`)、`verifyConn` 未傳 `apiType`、只對 `main` 套鉤子、拒絕時回 false 不 reject、認證失敗仍放行、強加管理員政策、改嚴格 `=== true`、拒絕記錄含使用者欄位、授權不通過仍呼叫鉤子兩次.
+
 ## 迭代使用端傳入之物件與使用端字串鍵(R-OBJ-ITER-01 / R-KEY-01; 2026-10-20, 主控第 90 項; 對應 wsemi 同名規則、w-web-perm 與 w-web-sso 同日修正)
 
 軸: 輸入來源(外部同步本體之列物件 / API 定義內之 JSON 字串 / API 名稱與 levels / log 之事件名) × 走訪或取值方式(lodash `each / map / size / …`、`get / set` 路徑、自有鍵) × 物件內容(含數字 `length` 鍵: 0、1、2、2^32-1; 名稱含 `.` 或 `[`) × 後果(真實鍵被略過 / 迭代 `length` 次〔CPU 空轉〕/ 節點被換掉).
@@ -197,3 +228,4 @@
 ## 〔跨套件規格〕(主控 2026-10-16 依使用者交辦寫入)
 
 - 資料通道只開 select 屬 w-web-perm、w-web-api、w-web-task 共用之裁決(主控 2026-10-14),規格與審查判準見 `C:\opensrcOper\dspec\w-web資料通道最小權限.md`;本帳本之 R-DC-1 為其落地.要在資料通道重開寫入者,不得自行調整,須經主控或使用者裁示.
+- 呼叫者身分驗證(token 管控, 資料通道連線閘須含部署方之 `verifyClientUser`)屬 w-web-sso、perm、api、task 共用之裁決(使用者 2026-10-23),規格見 `C:\opensrcOper\dspec\w-web呼叫者身分驗證.md`;本帳本之 R-CONNGATE-01 為其落地. 不得為方便而重新讓連線閘只做認證.
