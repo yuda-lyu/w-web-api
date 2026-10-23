@@ -29,7 +29,7 @@
 <nav >
     
     
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul><h3>Global</h3><ul><li><a href="global.html#applyDeletedRow">applyDeletedRow</a></li><li><a href="global.html#applySavedRow">applySavedRow</a></li><li><a href="global.html#checkRowIds">checkRowIds</a></li><li><a href="global.html#createLockSave">createLockSave</a></li><li><a href="global.html#createRecentRows">createRecentRows</a></li><li><a href="global.html#fmtVars">fmtVars</a></li><li><a href="global.html#getExternalChanged">getExternalChanged</a></li><li><a href="global.html#getExternalGroups">getExternalGroups</a></li><li><a href="global.html#getLockExternalRows">getLockExternalRows</a></li><li><a href="global.html#getOptDataChannel">getOptDataChannel</a></li><li><a href="global.html#isBlockedByExternalGroup">isBlockedByExternalGroup</a></li><li><a href="global.html#isExternalRow">isExternalRow</a></li><li><a href="global.html#isMixedRow">isMixedRow</a></li><li><a href="global.html#isValidGroupValue">isValidGroupValue</a></li><li><a href="global.html#normGroup">normGroup</a></li><li><a href="global.html#ormFail">ormFail</a></li><li><a href="global.html#pickLocalFields">pickLocalFields</a></li><li><a href="global.html#resolveShellWorker">resolveShellWorker</a></li><li><a href="global.html#submitGuard">submitGuard</a></li><li><a href="global.html#summarizeExternal">summarizeExternal</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul><h3>Global</h3><ul><li><a href="global.html#applyDeletedRow">applyDeletedRow</a></li><li><a href="global.html#applySavedRow">applySavedRow</a></li><li><a href="global.html#checkRowIds">checkRowIds</a></li><li><a href="global.html#createGuardedLookup">createGuardedLookup</a></li><li><a href="global.html#createLockSave">createLockSave</a></li><li><a href="global.html#createRecentRows">createRecentRows</a></li><li><a href="global.html#createTargetPolicy">createTargetPolicy</a></li><li><a href="global.html#fmtVars">fmtVars</a></li><li><a href="global.html#getExternalChanged">getExternalChanged</a></li><li><a href="global.html#getExternalGroups">getExternalGroups</a></li><li><a href="global.html#getLockExternalRows">getLockExternalRows</a></li><li><a href="global.html#getOptDataChannel">getOptDataChannel</a></li><li><a href="global.html#isBlockedByExternalGroup">isBlockedByExternalGroup</a></li><li><a href="global.html#isBlockedTargetError">isBlockedTargetError</a></li><li><a href="global.html#isExternalRow">isExternalRow</a></li><li><a href="global.html#isInternalAddress">isInternalAddress</a></li><li><a href="global.html#isMixedRow">isMixedRow</a></li><li><a href="global.html#isValidGroupValue">isValidGroupValue</a></li><li><a href="global.html#normGroup">normGroup</a></li><li><a href="global.html#ormFail">ormFail</a></li><li><a href="global.html#parseAllowInternal">parseAllowInternal</a></li><li><a href="global.html#pickLocalFields">pickLocalFields</a></li><li><a href="global.html#resolveShellWorker">resolveShellWorker</a></li><li><a href="global.html#submitGuard">submitGuard</a></li><li><a href="global.html#summarizeExternal">summarizeExternal</a></li></ul>
     
 </nav>
 
@@ -1010,6 +1010,221 @@
 
     
 
+    <h4 class="name" id="createGuardedLookup"><span class="type-signature"></span>createGuardedLookup<span class="signature">(policy, resolver<span class="signature-attributes">opt</span>)</span><span class="type-signature"> &rarr; {function}</span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li><p>建立連線用之主機名解析函數（供 undici connect.lookup）：連線當下解析、檢查全部結果、通過者原組交回連線，
+使「檢查過之位址」即「連線所用之位址」。任一位址不被允許即回帶被拒標記之錯誤（isBlockedTargetError 可辨識）</p></li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="server_proxyTargetPolicy.mjs.html">server/proxyTargetPolicy.mjs</a>, <a href="server_proxyTargetPolicy.mjs.html#line385">line 385</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+        <th>Attributes</th>
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>policy</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入 createTargetPolicy 回傳之政策物件</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>resolver</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">function</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>dns.lookup</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入解析函數（簽章同 dns.lookup；測試注入用）</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    <p>回傳 lookup(hostname, options, cb)</p>
+</div>
+
+
+
+<dl class="param-type">
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">function</span>
+
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+        
+            
+
+    
+
     <h4 class="name" id="createLockSave"><span class="type-signature"></span>createLockSave<span class="signature">(cst)</span><span class="type-signature"> &rarr; {function}</span></h4>
 
     
@@ -1463,6 +1678,305 @@ operatorId 可為操作者 id 或「操作者 id + 列識別」(只擋同一列�
         
 <div class="param-desc">
     <p>{ mark(row), guard(snapshot) }</p>
+</div>
+
+
+
+<dl class="param-type">
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Object</span>
+
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="createTargetPolicy"><span class="type-signature"></span>createTargetPolicy<span class="signature">(opt<span class="signature-attributes">opt</span>)</span><span class="type-signature"> &rarr; {Object}</span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li><p>建立代發請求之目標位址政策</p></li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="server_proxyTargetPolicy.mjs.html">server/proxyTargetPolicy.mjs</a>, <a href="server_proxyTargetPolicy.mjs.html#line265">line 265</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-examples">Example</h5>
+    
+    <pre class="prettyprint"><code>let policy = createTargetPolicy({ allowList: ['127.0.0.1', '10.0.0.0/8'] })
+policy.isAddressAllowed('10.2.3.4')
+// => true
+policy.isAddressAllowed('192.168.0.1')
+// => false
+policy.isAddressAllowed('8.8.8.8') //公開位址不受 allowList 影響
+// => true</code></pre>
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+        <th>Attributes</th>
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>opt</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>{}</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入設定物件</p>
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+        <th>Attributes</th>
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>allowInternal</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Boolean</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>false</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入是否關閉內建拒絕（true 即允許任何位址），預設false（拒絕內網與本機）</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>allowList</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>[]</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入放寬清單，項為字串：IP（'127.0.0.1'、'::1'）、CIDR（'10.0.0.0/8'、'fd00::/8'）或主機名（'api.internal'，不分大小寫，不含 port 與萬用字元）。IP／CIDR 涵蓋之位址不受拒絕（IPv4 映射之 IPv6 亦以其 IPv4 比對）；主機名所列之主機，其解析結果不受拒絕（含解析到內網）。項不合法即拋錯 'invalid opt.proxyAllowList'，預設[]</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    <p>回傳政策物件：{ allowInternal, isAddressAllowed(addr), isHostExempt(host), checkUrl(url) }。checkUrl 回傳 null（通過，主機名者須待連線當下由 guarded lookup 檢查解析結果）或拒絕原因字串（'internalAddress' IP 字面值、'internalName' localhost 名稱）</p>
 </div>
 
 
@@ -2782,6 +3296,164 @@ getUserIdByToken 已 fail-closed(查無即 reject), userId 空字串之分支為
 
     
 
+    <h4 class="name" id="isBlockedTargetError"><span class="type-signature"></span>isBlockedTargetError<span class="signature">(err)</span><span class="type-signature"> &rarr; {Boolean}</span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li><p>判斷錯誤（含其 cause 鏈）是否為 guarded lookup 之位址拒絕</p></li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="server_proxyTargetPolicy.mjs.html">server/proxyTargetPolicy.mjs</a>, <a href="server_proxyTargetPolicy.mjs.html#line353">line 353</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>err</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">*</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>輸入錯誤</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    <p>回傳是否為位址拒絕</p>
+</div>
+
+
+
+<dl class="param-type">
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Boolean</span>
+
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+        
+            
+
+    
+
     <h4 class="name" id="isExternalRow"><span class="type-signature"></span>isExternalRow<span class="signature">(row)</span><span class="type-signature"> &rarr; {Boolean}</span></h4>
 
     
@@ -2924,6 +3596,174 @@ isExternalRow({ id: '1' })
         
 <div class="param-desc">
     <p>回傳是否為外部列</p>
+</div>
+
+
+
+<dl class="param-type">
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Boolean</span>
+
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="isInternalAddress"><span class="type-signature"></span>isInternalAddress<span class="signature">(addr)</span><span class="type-signature"> &rarr; {Boolean}</span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li><p>判斷位址是否為內網或本機等非公開位址（內建拒絕之範圍，不含 allowList）</p></li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="server_proxyTargetPolicy.mjs.html">server/proxyTargetPolicy.mjs</a>, <a href="server_proxyTargetPolicy.mjs.html#line170">line 170</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-examples">Example</h5>
+    
+    <pre class="prettyprint"><code>isInternalAddress('10.0.0.1')
+// => true
+isInternalAddress('::ffff:127.0.0.1')
+// => true
+isInternalAddress('8.8.8.8')
+// => false</code></pre>
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>addr</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>輸入 IPv4 或 IPv6 位址字串（IPv6 可含方括號或 zone id）</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    <p>回傳是否為非公開位址；無法解析為 IP 者回傳 true（預設拒絕）</p>
 </div>
 
 
@@ -3777,6 +4617,172 @@ isExternalRow({ id: '1' })
     <dd>
         
 <span class="param-type">function</span>
+
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+        
+            
+
+    
+
+    <h4 class="name" id="parseAllowInternal"><span class="type-signature"></span>parseAllowInternal<span class="signature">(v)</span><span class="type-signature"> &rarr; {Boolean}</span></h4>
+
+    
+
+
+
+
+<dl class="details">
+    
+    <dt class="tag-description">Description:</dt>
+    <dd class="tag-description"><ul class="dummy"><li><p>解析 WWebApi 之 opt.proxyAllowInternal（代發請求是否關閉內建之內網與本機位址拒絕）</p></li></ul></dd>
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="server_proxyTargetPolicy.mjs.html">server/proxyTargetPolicy.mjs</a>, <a href="server_proxyTargetPolicy.mjs.html#line236">line 236</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+    <h5 class="h5-examples">Example</h5>
+    
+    <pre class="prettyprint"><code>parseAllowInternal('y')
+// => true
+parseAllowInternal(undefined)
+// => false</code></pre>
+
+
+
+
+    <h5 class="h5-parameters">Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>v</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">*</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>輸入 opt.proxyAllowInternal 之值：未給(undefined、null)、'n'、false 為預設拒絕；'y'、true 為允許</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5 class="h5-returns">Returns:</h5>
+
+        
+<div class="param-desc">
+    <p>回傳是否允許內網與本機位址；其餘值拋錯 'invalid opt.proxyAllowInternal'</p>
+</div>
+
+
+
+<dl class="param-type">
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Boolean</span>
 
 
 
@@ -4710,7 +5716,7 @@ opt.hold 為函數, 輸入流程結果, 回傳 true 時保持占位與按鈕鎖(
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Fri Oct 23 2026 15:04:04 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sat Oct 24 2026 00:52:25 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
