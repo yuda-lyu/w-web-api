@@ -7,8 +7,13 @@ import assert from 'assert'
 import http from 'http'
 import cacheSt from 'wsemi/src/cacheSt.mjs'
 import procProxy from '../server/procProxy.mjs'
+import createTargetPolicy from '../server/proxyTargetPolicy.mjs'
 import createLockSave from '../server/lockSave.mjs'
 
+
+//本檔之目標皆為本機 127.0.0.1 之測試 server；內建位址政策預設拒絕本機位址（P1, ADR-049），故以放行清單只放行 127.0.0.1。
+//政策本身之拒絕與放行由 unit-procProxyTarget 驗，本檔驗代發之契約（標頭、請求內容、轉址、log、占位）
+let targetPolicy = createTargetPolicy({ allowList: ['127.0.0.1'] })
 
 let PORT = 11082
 let PORT2 = 11084 //跨來源（origin 含 port）轉址目標
@@ -159,13 +164,14 @@ describe('unit-procProxy', function() {
 
     let logs = []
     let srLog = { error: (o) => logs.push(o), warn: (o) => logs.push(o), info: (o) => logs.push(o) }
-    let { proxyRequest } = procProxy({ srLog })
+    let { proxyRequest, close: closeMain } = procProxy({ srLog, targetPolicy })
 
     before(async function() {
         await startServers()
     })
 
     after(async function() {
+        await closeMain()
         await stopServers()
     })
 
@@ -279,7 +285,7 @@ describe('unit-procProxy', function() {
         for (let url of ['', 'notaurl', 'ftp://x/', 'http://']) {
             await assert.rejects(proxyRequest({ url }), (e) => e === 'errReqUrlInvalid', `url=${JSON.stringify(url)}`)
         }
-        let { proxyRequest: pr2 } = procProxy({ srLog, isAllowTarget: (u) => !u.includes('deny') })
+        let { proxyRequest: pr2 } = procProxy({ srLog, targetPolicy, isAllowTarget: (u) => !u.includes('deny') })
         await assert.rejects(pr2({ url: `${BASE}/deny` }), (e) => e === 'errReqTargetNotAllowed')
         assert.strictEqual(received.length, 0, '檢核失敗不得打到目標')
         let r = await pr2({ url: `${BASE}/ok` })
@@ -386,7 +392,7 @@ describe('unit-procProxy', function() {
 
     //ADR-031「每一跳重新檢核 isAllowTarget」：合法首跳 302 到不允許之位址 → reject errReqTargetNotAllowed、不允許之位址不得被打到、log 帶 err-key
     it('PROXY-014 轉址逐跳檢核 isAllowTarget：合法首跳轉到不允許位址即拒絕', async function() {
-        let { proxyRequest: pr2 } = procProxy({ srLog, isAllowTarget: (u) => !u.includes('deny') })
+        let { proxyRequest: pr2 } = procProxy({ srLog, targetPolicy, isAllowTarget: (u) => !u.includes('deny') })
         await assert.rejects(pr2({ url: `${BASE}/rblock` }), (e) => e === 'errReqTargetNotAllowed')
         assert.deepStrictEqual(urlsReceived(), ['/rblock'], '不允許之轉址目標不得被打到')
         let log = logs.find((o) => o.event === 'proxyRequest-redirect')
@@ -465,7 +471,7 @@ describe('unit-procProxy', function() {
 
     //轉址錯誤之網址一律經 maskUrl（捨棄 query、userinfo；無法解析 → (invalid-url)）：不允許之目標／超限／非 http(s)／Location 無法解析
     it('PROXY-020 轉址目標不允許（Location 帶 query 權杖）：srLog 之網址經 maskUrl', async function() {
-        let { proxyRequest: pr2 } = procProxy({ srLog, isAllowTarget: (u) => !u.includes('deny') })
+        let { proxyRequest: pr2 } = procProxy({ srLog, targetPolicy, isAllowTarget: (u) => !u.includes('deny') })
         await assert.rejects(pr2({ url: `${BASE}/xsblock` }), (e) => e === 'errReqTargetNotAllowed')
         assert.deepStrictEqual(logs, [{ event: 'proxyRequest-redirect', err: 'errReqTargetNotAllowed', msg: `redirect target not allowed: ${BASE}/deny` }])
         assertLogsNoSecret(['SYNTH-REDIR-SECRET'])
@@ -500,7 +506,7 @@ describe('unit-procProxy', function() {
 
         before(function() {
             cst = cacheSt()
-            proxyRequestByUser = procProxy({ srLog, lockSave: createLockSave(cst) }).proxyRequestByUser
+            proxyRequestByUser = procProxy({ srLog, targetPolicy, lockSave: createLockSave(cst) }).proxyRequestByUser
         })
 
         after(function() {
@@ -537,7 +543,7 @@ describe('unit-procProxy', function() {
         })
 
         it('PROXY-026 未注入 lockSave → proxyRequestByUser reject 且不送出（fail-closed，不以無占位模式執行）', async function() {
-            let { proxyRequestByUser: pru } = procProxy({ srLog })
+            let { proxyRequestByUser: pru } = procProxy({ srLog, targetPolicy })
             await assert.rejects(pru('u1', { url: `${BASE}/json` }))
             assert.strictEqual(received.length, 0, '不得送出')
         })

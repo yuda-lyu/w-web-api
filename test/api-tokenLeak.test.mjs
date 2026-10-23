@@ -202,7 +202,9 @@ describe('api-tokenLeak (注入函數上游失敗之權杖外洩：C1 回應／C
         assert.deepStrictEqual(brief(pick('api/getUserByToken')), [e('errUserNotFound'), e('errUserNoPermission'), e('errTokenNoPermission')])
         assert.deepStrictEqual(brief(pick('api/syncAndReplaceTabs')), [e('errUserNotFound'), e('errUserNoPermission'), e('errTokenNoPermission')])
         assert.deepStrictEqual(brief(pick('verifyConn').filter((o) => o.level === 50)), [e('errUserNotFound')])
-        assert.deepStrictEqual(brief(pick('getUserIdByToken')), [e('errUserIdMissing'), e('errUserIdMissing')], 'E6 兩筆（TOK_REJECT、查無）')
+        //getUserIdByToken 自 api-run02（C3, ADR-050）起與連線閘同等完整驗證，srLog 記認證／授權之既有 key（同 verifyConn：查無 → errUserNotFound；上游 reject 經 W 契約視同查無）；
+        //對外回應仍為固定 key errUserIdMissing（api-execIdentity 驗）。原為兩筆 errUserIdMissing（只取 id 之舊實作）
+        assert.deepStrictEqual(brief(pick('getUserIdByToken')), [e('errUserNotFound'), e('errUserNotFound')], 'E6 兩筆（TOK_REJECT、查無）')
     })
 
 })

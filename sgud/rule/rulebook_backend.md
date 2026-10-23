@@ -8,7 +8,7 @@
 |---|---|---|---|
 | proc 層可預期錯誤一律 `reject('errXxx')`, key 須存在於 `server/procLang.mjs`(eng + cht) | `procProxy` / `procApis` / `WWebApi`(route + kpFunExt)/ `staLogsCore`(`errTimeLengthInvalid`) | 已套(含 `syncAndReplaceTabs` 逐列檢核 `errRowInvalid`, ADR-031); **例外**(2026-09-29, ADR-034): 雙擊防護之占位衝突 key `saveInProgress` / `deleteInProgress` / `requestInProgress` 無 err 前綴(四專案共用名), 經 `server/lockSave.mjs` 之 errKey 變數 reject, 不在左列盤點指令範圍 | `git grep -ho "reject('err[A-Za-z]*')" -- server \| sort -u` 逐一對照 `procLang.mjs`; 例外另以 `git grep -n "InProgress" -- server` 對照 |
 | `syncAndReplaceTabs` 之 rows: 陣列層 `isarr && length>0`(`errRowsInvalid`), 逐列(物件 + `kpRequiredFields` + `srcKey`, 來源鍵規則見 R-SYNC-1／R-IMPORT-01; 列帶 `id` → `idNotAllowed`)檢核在寫入之前(`errRowInvalid`, srLog 記 index/field[/reason]) | `WWebApi.parsePayload` / `syncAndReplaceTabs`(陣列層); 列級檢核自 2026-10-23(ADR-043)移至 `server/syncApis.mjs`; `server/checkSyncRows.mjs` | 已套(ADR-031; 主鍵 ADR-038; 來源鍵規則 R-IMPORT-01); 守 `test/api-http.test.mjs`「逐列檢核」(原 4 case + 主鍵 5 case)、`test/unit-syncRows.test.mjs`、`test/unit-syncApis.test.mjs`、`test/api-import.test.mjs` | `git grep -n "rejectRow\|checkRowIds" -- server/syncApis.mjs` |
-| proxy: headers/query 接受物件或有序鍵值對, 重複鍵不收斂(query 逐對 append; 標頭由 `Headers` 依 Fetch 合併); 轉址 `redirect:'manual'` 手動跟隨、每跳重驗 `isAllowTarget`(建構子 `opt.isAllowTarget` 接線)、上限 20 | `procProxy.toPairs` / `proxyRequest`; 前端 `mShare.kvRowsToPairs` | 已套(ADR-031); 守 `unit-procProxy` PROXY-011~016、e2e-apitest E2E-013/014 | `git grep -n "redirect: 'manual'\|isTargetAllowed\|kvRowsToPairs" -- server src` |
+| proxy: headers/query 接受物件或有序鍵值對, 重複鍵不收斂(query 逐對 append; 標頭由 `Headers` 依 Fetch 合併); 轉址 `redirect:'manual'` 手動跟隨、每跳重驗 `isAllowTarget`(建構子 `opt.isAllowTarget` 接線)與內建目標位址政策(預設拒絕內網與本機, R-PROXYTARGET-01, api-run02)、上限 20 | `procProxy.toPairs` / `proxyRequest`; 前端 `mShare.kvRowsToPairs` | 已套(ADR-031); 守 `unit-procProxy` PROXY-011~016、e2e-apitest E2E-013/014 | `git grep -n "redirect: 'manual'\|isTargetAllowed\|kvRowsToPairs" -- server src` |
 | 錯誤路徑須 `srLog.error({ event, err })` 記 err-key | kpFunExt 經 `wrapErrLog`; HTTP route 經 `wrapRouteErrLog`; `verifyConn` 兩處 | 已套 | `git grep -n "wrapErrLog\|wrapRouteErrLog\|srLog.error" -- server/WWebApi.mjs` |
 | 憑證不落 stdout / srLog | `server/maskLog.mjs`(M 契約) 與 `server/wrapInjected.mjs`(W 契約) | 已套(2026-09-24 ADR-033); 規則、站點全集與盤點指令見下節「權杖外洩防護」(原盤點指令 `console.log.*token \| grep -v maskTok` 會命中只含字串常值之固定訊息, 不再使用) | 見下節 |
 | 請求內容原文送出, proxy 不解析不代換; DEL → DELETE 於送出與 cURL | `LayoutContentTest.submitSend`、`LayoutContent.curlOf`、`mShare.methodToHttpVerb`、`procProxy`(TextEncoder 位元組) | 已套 | `git grep -n "methodToHttpVerb\|j2o(rawBody)" -- src`(後者應為空) |
@@ -168,7 +168,7 @@
 ### R-CONNGATE-01 凡可由外部觸及之入口, 除公開入口外一律驗 token; 資料通道之連線閘＝token 認證＋部署方注入之 `verifyClientUser(user, apiType)`
 
 - **規則**:
-  - 資料通道(w-converhp 六條路由: `main`、`upload-controller`、`upload-slice`、`download-get-filename`、`download-get-file`、`download`; kpFunExt、表 `select`、系統函數 `[sys:*]` 皆在 `main` 之後)的連線閘 `verifyConn` → `p.checkToken(token, apiType)`＝①`getTokenUser`(認證) ②部署方之 `verifyClientUser(user, apiType)`(授權; 經 `wrapInjected`, 拋錯／reject 視同 false) ③falsy → reject `'errUserNoPermission'`. 認證在前、授權在後(未通過認證者不呼叫鉤子).
+  - 資料通道(w-converhp 六條路由: `main`、`upload-controller`、`upload-slice`、`download-get-filename`、`download-get-file`、`download`; kpFunExt、表 `select`、系統函數 `[sys:*]` 皆在 `main` 之後)的連線閘 `verifyConn` → `p.checkToken(token, apiType)` → `authToken(token, apiType)`＝①`getTokenUser`(認證) ②部署方之 `verifyClientUser(user, apiType)`(授權; 經 `wrapInjected`, 拋錯／reject 視同 false) ③falsy → reject `'errUserNoPermission'`. 認證在前、授權在後(未通過認證者不呼叫鉤子). `authToken` 為連線閘與執行身分(R-EXECID-01)共用之單一擁有者(api-run02 起).
   - 套件不自訂「誰可用」之政策, 但**不得略過部署方之鉤子**; 不提供關閉鉤子之選項.
   - 拒絕: w-converhp 回 `permission denied`, 函數不執行、ORM 零操作; 記 `srLog.error({ event:'verifyConn', err, apiType })`(`verifyConn` 之 catch; 授權不通過 `err` 為 `errUserNoPermission`, 認證失敗依原因為 `errTokenNoPermission`／`errUserNotFound`／`errUser…Missing`); 回應與 srLog 不含 token、使用者資料與鉤子拋出之內容; 連線閘之授權步驟不印使用者物件、成功不另記 `verifyClientUser` info(認證步驟 `checkUser` 對欄位不齊之使用者仍 `console.log` 該物件, 屬 ADR-033 既有行為, 未改).
   - 公開入口只限本質上拿不到 token 者: **前端靜態檔**(`GET /{file*}`, w-serv-hapi inert, 內容為建置檔; `index.html` 只注入語系、轉址、子目錄). 本套件無登入、註冊、驗證碼、驗證信等公開端點. 新增公開入口須經主控複審.
@@ -184,7 +184,8 @@
 | 其餘五條 w-converhp 路由(`ulctr`、`slc`、`dwgfn`、`dwgf`、`dw`) | 同上 | `verifyClientUser(user, <apiType>)` | 已套(`api-connGate` 六路由 × 3 案); 本套件未註冊上傳／下載監聽, 通過閘亦不受理 |
 | `apis.insert`／`save`／`del` | — | — | 未開放(`methodsExec:['select']`, R-DC-1, `api-dataChannel`) |
 
-- **本輪不修、已定案待下一輪**(跨套件規格 C3、P1; 使用者 2026-10-23 已裁示, 併 api-run02): ①雙來源 token(Authorization 與本體 `__sysToken__` 可為不同 token, 實測被拒者可借放行者之連線以自己名義寫入): 定案為本套件 `getUserIdByToken` 做完整驗證(同連線閘), 不在框架比對兩 token(任務 20261023213314) ②`proxyRequest` 未給 `isAllowTarget` 時不限目標(實測可打 `127.0.0.1`): 定案為預設拒絕內網與本機位址並提供可開關、可調整之設定(任務 20261023211116 之 api-run02) ③認證階段 `checkUser` 與 `getAndVerifyClientUser` 失敗時 `console.log` 使用者物件(ADR-033 決定不處理, 本輪維持).
+- **api-run01 當時「本輪不修」之項, 已於 api-run02(2026-10-23)處理**: ①雙來源 token(跨套件規格 C3) → 見下 **R-EXECID-01**(ADR-050) ②`proxyRequest` 未給 `isAllowTarget` 時不限目標(P1) → 見下 **R-PROXYTARGET-01**(ADR-049) ③`Authorization` 方案前綴不驗(F4) → 見下 **R-AUTHSCHEME-01**(ADR-050). 仍維持: 認證階段 `checkUser` 與 `getAndVerifyClientUser` 失敗時 `console.log` 使用者物件(ADR-033 決定不處理).
+- **鉤子呼叫次數(api-run02 起)**: 連線閘呼叫一次(標頭 token)＋執行身分(`getUserIdByToken`, R-EXECID-01)呼叫一次(本體 `__sysToken__`), 故資料通道之每個函數呼叫共兩次; 下方〈驗證〉所述「鉤子恰呼叫一次」為 api-run01 當時之現況.
 - **盤點指令**:
   - 鉤子呼叫站點: `git grep -nE "verifyClientUser\(" -- server/WWebApi.mjs`(應為 `getAndVerifyClientUser` 與 `p.checkToken` 各 1 行＋註解行; `verifyClientUser = wrapInjectedLog(` 1 行為包裝).
   - `verifyConn` 傳遞入口名: `git grep -n "p.checkToken(token, apiType)" -- server/WWebApi.mjs`(應 1 行).
@@ -193,6 +194,62 @@
   - w-converhp 入口名: Grep `apiType:` 於 `node_modules/w-converhp/src/routeSpec.mjs`(6 個; 升版後若增減須同步 `api-connGate` 之 `ROUTES` 與 README).
   - 執行期函數全集: `[sys:getFuncList]`(`api-dataChannel`).
 - **驗證**: `test/api-connGate.test.mjs`(埠 8554／8557／8558; 隔離子行程, 部署方鉤子情境與呼叫記錄由 `test/tools/apiServerChild.mjs` 提供): 被拒者 13 個函數(kpFunExt 6、`apis.select`、未開放之表寫入 3、`[sys:*]` 3)皆傳輸層 `permission denied`＋ORM 零操作＋鉤子恰呼叫一次且 `from='main'`; 連呼後庫內不變、代發目標零命中; Authorization 被拒而 `__sysToken__` 放行者仍被拒; 放行者對照組; 拋錯／reject／回 undefined 視同拒絕且不含鉤子內容; 六路由 × (只在 main 放行者／放行者／被拒者) 之 `from` 為入口名與狀態碼; 認證先於授權(未知 token／無 Authorization 不呼叫鉤子); `/api/getUserByToken` 之 `from` 不變; srLog 拒絕記錄 9 筆(含 apiType)且不含 token、使用者欄位、鉤子內容. 認證先於授權含使用者欄位不齊(`tokNoEmail`)、套件不強加政策(`tokNonAdmin`)、truthy 非 true(`tokVTruthy`)、srLog 拒絕記錄白名單欄位. 修前紅: HEAD 版 `server/WWebApi.mjs` 對 43 案 40 紅. 變異(`tmp` 腳本, 報告 api-run01)12 個皆被抓: 連線閘不呼叫鉤子、`from` 傳空字串、忽略結果、拋錯視同通過(`failValue true`)、`verifyConn` 未傳 `apiType`、只對 `main` 套鉤子、拒絕時回 false 不 reject、認證失敗仍放行、強加管理員政策、改嚴格 `=== true`、拒絕記錄含使用者欄位、授權不通過仍呼叫鉤子兩次.
+
+### R-EXECID-01 資料通道之執行身分(`getUserIdByToken`, 請求本體 `__sysToken__`)須與連線閘同等完整驗證(跨套件規格 規則 4、C3; 跨套件〈使用者身分驗證原則〉第二節第 2 條; 2026-10-23, api-run02, ADR-050)
+
+- **規則**:
+  - 資料通道一個請求帶兩個 token: 標頭 `Authorization`(連線閘驗)與本體 `__sysToken__`(w-serv-webdata 之 `execFun` 於執行函數前傳給 `getUserIdByToken`). 兩者來源不同、可不同值, 框架不比對; w-serv-orm 1.1.10 起不做使用者檢查 → 「反查使用者」即驗證身分之步驟, 屬本套件.
+  - `getUserIdByToken(token)` ＝ `authToken(token, 'main')` 取 `id`(token 認證＋`verifyClientUser(user,'main')`, 與連線閘同一函數、同一否定語意); `from` 固定 `'main'`(`execFun` 只由 w-converhp `/api/main` 之 `execute` 事件觸發, `routeSpec.main.event === 'execute'`).
+  - 不通過 → reject 固定鍵 `errUserIdMissing`(不分原因、不回顯 token 與使用者資料; 函數不執行、ORM 零操作); srLog `{ event:'getUserIdByToken', err }` 之 `err` 為認證／授權之既有鍵(`errUserNotFound`／`errUser…Missing`／`errUserNoPermission`), 欄位白名單(level、time、pid、hostname、event、err).
+  - 兩 token 皆有效而不同 → 以本體 token 之使用者執行(`userIdUpdate` 為其 id); 套件不強加政策(`isAdmin 'n'`、鉤子回 truthy 非 true 照常).
+  - `authToken` 交給 `verifyClientUser` 者為使用者物件之淺拷貝, 取 id 用驗證前之原物件(部署方鉤子改寫傳入物件不影響執行身分; `tokMutate` 案).
+  - 標準註解(跨套件〈使用者身分驗證原則〉第三節「使用方套件」)寫在 `verifyConn`、`getUserIdByToken` 實作處; README `## Security: identity verification responsibility`.
+- **站點全集**(2026-10-23):
+
+| 站點 | 取 userId 之方式 | 判準 |
+|---|---|---|
+| kpFunExt 6、表 `select`、`[sys:getFuncList]`、`[sys:getTableTags]`、不存在之函數名 | w-serv-webdata `execFun` → `getUserIdByToken(__sysToken__)` | 已套(`api-execIdentity` 函數全集 × 本體 `tokDenied`) |
+| `[sys:polling]` | w-serv-broadcast 之 `onExecute` 於 `execFun` 之前同步 `pm.resolve`／`pm.reject`; `execFun` 其後仍呼叫 `getUserIdByToken`(鉤子兩次)但結果無法改變已定案之回應 | 框架層, 輪詢之身分只由連線閘把關; 不在本套件範圍(`api-execIdentity` 以獨立案記錄其行為與呼叫記錄) |
+| `GET /api/getUserByToken`、`POST /syncAndReplaceTabs` | 單一 token(query), 不經本函數 | 不適用(R-CONNGATE-01) |
+
+- **盤點指令**:
+  - `authToken` 之呼叫站點應恰 2 處(連線閘、執行身分): `git grep -nE "authToken\(" -- server/WWebApi.mjs`(`let authToken =` 定義 1 行＋`await authToken(token, from)`＋`user = await authToken(token, 'main')`).
+  - `getUserIdByToken` 不得再直接呼叫 `getUserByToken`: `git grep -n "getUserByToken(" -- server/WWebApi.mjs`(應只在 `findTokenUser` 與包裝行).
+  - w-serv-webdata 之 `getUserIdByToken` 呼叫處: Grep `getUserIdByToken` 於 `node_modules/w-serv-webdata/src/WServWebdataServerExec.mjs`(升版後確認仍於函數前呼叫、拒絕即不執行).
+- **驗證**: `test/api-execIdentity.test.mjs`(埠 8559／8564／8565; 隔離子行程): 標頭放行者＋本體被拒情境(授權階段: `tokDenied`、`tokVThrow`、`tokVReject`、`tokVFalsy`、`tokVNull`、`tokVZero`、`tokVEmptyStr`、`tokVAsyncFalse`; 認證階段: `tokNoEmail`、`tokNoName`、`tokNoId`、`tokBadRole`、查無、空字串、`Bearer tokA` 字串, 共 15 種)→ 不執行／ORM 零操作／固定鍵／不含鉤子內容與使用者資料; 各情境回應相同; 函數全集(10 項: `[sys:getFuncList]`、`[sys:getTableTags]`、`getWebInfor`、`getApisList`、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`、`apis.select`、不存在之函數名)× 本體 `tokDenied` → 皆不執行、代發目標零命中; 無副作用函數(`getWebInfor`)之「未執行」以 srLog `kpfun-getWebInfor` 筆數(只有放行對照那一次)直接觀察; 兩 token 皆有效而不同 → 以本體使用者執行(`tokA/tokB`、`tokB/tokA`); `tokNonAdmin`／`tokVTruthy`／`tokOnlyMain` 作本體照常; 鉤子改寫傳入物件(`tokMutate`)不影響執行身分; 鉤子呼叫記錄(連線閘＋執行身分兩次、`from` 皆 `main`、認證階段失敗者不呼叫); srLog 白名單與原因鍵. 另 `api-connGate`(計數改兩次)、`api-tokenLeak` E6(srLog 鍵 `errUserNotFound`).
+
+### R-AUTHSCHEME-01 `Authorization` 須為 Bearer 方案(方案名不分大小寫, RFC 9110 §11.1), 不符視同未帶 token(2026-10-23, api-run02, ADR-050; 關閉 api-run01 之 F4)
+
+- **規則**: `verifyConn` 以 `reBearerAuth = /^Bearer +(\S.*)$/i` 取憑證; 方案不符(`Basic`、`Token`、缺方案、方案與憑證間無空白、分隔非空白〔如 Tab〕、缺憑證)→ token 視為未帶 → `errTokenNoPermission` → `permission denied`、不呼叫鉤子、ORM 零操作. 憑證取方案與空白之後整段(不限字元集). `dwgf` 之 query token 由 w-converhp 合成 `Bearer <token>`, 不受影響.
+- **站點**: 只 `verifyConn` 一處(`git grep -n "reBearerAuth" -- server/WWebApi.mjs` 應為定義 1 行＋註解＋`exec` 1 行); 本體 `__sysToken__` 不含方案前綴(`api-execIdentity`「`Bearer tokA` 字串」案驗不剝除).
+- **驗證**: `api-connGate`「Authorization 方案」: 6 種正確寫法通過(大小寫任意、多空白)、17 種不符被拒、五條標頭型路由之 `Basic  tokA`／`Token  tokA` 被拒與 `Bearer`／`bearer` 通過.
+
+### R-PROXYTARGET-01 測試分頁代發請求預設拒絕內網與本機位址; 依解析後之 IP、連線位址即檢查位址、轉址逐跳檢查; 可開關可調整(跨套件規格 P1; 使用者 2026-10-23 裁示; 2026-10-23, api-run02, ADR-049)
+
+- **規則**:
+  - 內建政策(`server/proxyTargetPolicy.mjs`)預設拒絕凡「非全域單播」之位址: IPv4 之 `0/8`、`10/8`、`100.64/10`、`127/8`、`169.254/16`、`172.16/12`、`192.0.0/24`、`192.0.2/24`、`192.168/16`、`198.18/15`、`198.51.100/24`、`203.0.113/24`、`224/4`、`240/4`; IPv6 之 `2000::/3` 以外全部、並排除 `2001::/23`、`2001:db8::/32`、`3fff::/20`; IPv4 映射／NAT64／6to4 改查內嵌之 IPv4, `64:ff9b:1::/48` 拒絕; `localhost`／`*.localhost` 名稱不待解析直接拒絕. 無法解析為 IP 者視為非公開.
+  - IP 字面值於連線前由 `checkUrl` 檢查(每跳); 主機名由 undici `Agent` 之 `connect.lookup`(`createGuardedLookup`)於連線當下解析、檢查**全部**結果(任一不被允許即整次拒絕), 通過者原組交回連線, **不二次解析**; 轉址每一跳先 `isAllowTarget`、後內建檢查.
+  - 設定: `opt.proxyAllowInternal`(`'n'` 預設／`'y'`, 亦布林; 其他值建構拋 `invalid opt.proxyAllowInternal`); `opt.proxyAllowList`(陣列; 項為 IP／CIDR／主機名; 不合法建構拋 `invalid opt.proxyAllowList`); 兩者皆先於 srLog 與任何副作用檢核. IP／CIDR 涵蓋之位址不受拒絕(IPv4 映射之 IPv6 亦以 IPv4 比對); 主機名所列之主機其解析結果不受拒絕; `localhost` 名稱須列 `localhost` 本身; 公開位址不受清單影響.
+  - 與 `isAllowTarget` 並存: 皆須通過(AND), 先 `isAllowTarget`; 放行清單不繞過 `isAllowTarget`, `isAllowTarget` 回 true 不放寬內建拒絕. 鉤子收到之網址即實際送出者(首跳為 query 併入後之 `u.href`, 轉址跳為 `nextUrl.href`); 可同步或非同步(`await`), 解析為 `false` 拒絕, 拋錯或 reject 視同拒絕(fail-closed, 固定鍵、不外洩); 首跳拒絕記 srLog reason `isAllowTarget`.
+  - `proxyAllowList` 項之末段為數字或十六進位(`0x7f000001`、`example.123`)者不合法(URL 把它當 IPv4, 列了永不命中); `hostOf` 去除全部尾端點(`localhost..`、`127.0.0.1..`).
+  - 被拒: 回固定鍵 `errReqTargetNotAllowed`(不回顯位址與憑證); srLog `{ event:'proxyRequest-target', err, reason, hop }`(`reason`: `internalAddress`／`internalName`／`resolvedInternal`／`isAllowTarget`〔部署方鉤子於首跳拒絕; 轉址跳之鉤子拒絕仍記 `proxyRequest-redirect`〕; 不含網址、主機名與位址).
+  - 傳輸為 `undici` 套件之 `fetch`＋`Agent`(`package.json` 相依 `undici ^7.28.0`); 預設補 `user-agent: node` 以維持目標端所見之請求; `stop()` 釋放連線池(`closeProxy`, 以 `destroy` 立即終止進行中請求, 不等逾時).
+  - guarded lookup 之 `options` 形式: 物件(原樣保留 `family`／`hints` 並加 `all:true`)、數字(舊式 family, 正規化為 `{ family }`)、省略; `isBlockedTargetError` 沿 `cause` 與 `AggregateError.errors` 遍歷(有已訪問集合與總量上限, 循環不卡住).
+  - 連線池重用既有連線時不再解析(該連線建立時之位址已檢查); 關閉連線池後重連須重新解析與檢查(`unit-procProxyTarget` 之連線池案).
+  - 參考部署 `settings.json` 預設拒絕(`proxyAllowInternal:'n'`, `proxyAllowList:[]`); 測試以 `restartBackend(genTempSettings({ proxyAllowList: ['127.0.0.1'] }))` 或子行程 `opt` 放行 `127.0.0.1`.
+- **站點全集**(2026-10-23):
+
+| 站點 | 目標位址之檢查 | 判準 |
+|---|---|---|
+| `proxyRequest` 首跳 | `isAllowTarget`(網址層)→ `targetPolicy.checkUrl`(字面值／localhost 名稱)→ guarded lookup(主機名) | 已套(`unit-procProxyTarget`、`api-proxyTarget`) |
+| 轉址每一跳(301/302/303/307/308) | 同上, 先 `isAllowTarget` | 已套(`unit-procProxyTarget`「轉址每一跳皆檢查」、`api-proxyTarget` 放行清單區) |
+| 其他代發出站請求 | 本套件僅 `proxyRequest` 與 `srv.mjs` 之 `getUserByToken` 呼叫 SSO(部署方設定之位址, 非使用者可控) | 不適用(`git grep -nE "fetch\(" -- server srv.mjs`) |
+
+- **盤點指令**:
+  - 出站 `fetch` 之全集: `git grep -nE "\bfetch\(" -- server/*.mjs`(應只有 `procProxy.mjs` 之 undici `fetch`; 新增出站請求須經同一政策).
+  - `procProxy` 之傳輸: `git grep -nE "from 'undici'" -- server/`(應只有 `procProxy.mjs`).
+  - 政策之範圍表: `ksNetV4`／`ksNetV6Special` 與 `unit-proxyTargetPolicy` 之 IPv4／IPv6 表逐項對照(新增或移除網段須兩處同步).
+- **驗證**: `test/unit-proxyTargetPolicy.test.mjs`(IPv4 表 58 筆含各網段首尾與緊鄰外側、IPv6 表 41 筆、allowList 解析與邊界、guarded lookup)、`test/unit-procProxyTarget.test.mjs`(埠 11087; 預設拒絕 25 種目標、allowInternal／allowList、主機名解析與 rebinding〔解析 1 次且連線位址即檢查位址〕、轉址逐跳、與 `isAllowTarget` 並存之先後)、`test/api-proxyTarget.test.mjs`(埠 8560／8561／8562／8563; 真資料通道)、`test/unit-wwebapi-opt.test.mjs`(設定檢核先於 srLog). 既有 `unit-procProxy` 29 案(以注入之政策放行 127.0.0.1)證明傳輸改用 undici 套件後契約不變.
 
 ## 迭代使用端傳入之物件與使用端字串鍵(R-OBJ-ITER-01 / R-KEY-01; 2026-10-20, 主控第 90 項; 對應 wsemi 同名規則、w-web-perm 與 w-web-sso 同日修正)
 

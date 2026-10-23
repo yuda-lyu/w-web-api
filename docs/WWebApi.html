@@ -29,7 +29,7 @@
 <nav >
     
     
-    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul><h3>Global</h3><ul><li><a href="global.html#applyDeletedRow">applyDeletedRow</a></li><li><a href="global.html#applySavedRow">applySavedRow</a></li><li><a href="global.html#checkRowIds">checkRowIds</a></li><li><a href="global.html#createLockSave">createLockSave</a></li><li><a href="global.html#createRecentRows">createRecentRows</a></li><li><a href="global.html#fmtVars">fmtVars</a></li><li><a href="global.html#getExternalChanged">getExternalChanged</a></li><li><a href="global.html#getExternalGroups">getExternalGroups</a></li><li><a href="global.html#getLockExternalRows">getLockExternalRows</a></li><li><a href="global.html#getOptDataChannel">getOptDataChannel</a></li><li><a href="global.html#isBlockedByExternalGroup">isBlockedByExternalGroup</a></li><li><a href="global.html#isExternalRow">isExternalRow</a></li><li><a href="global.html#isMixedRow">isMixedRow</a></li><li><a href="global.html#isValidGroupValue">isValidGroupValue</a></li><li><a href="global.html#normGroup">normGroup</a></li><li><a href="global.html#ormFail">ormFail</a></li><li><a href="global.html#pickLocalFields">pickLocalFields</a></li><li><a href="global.html#resolveShellWorker">resolveShellWorker</a></li><li><a href="global.html#submitGuard">submitGuard</a></li><li><a href="global.html#summarizeExternal">summarizeExternal</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul><h3>Global</h3><ul><li><a href="global.html#applyDeletedRow">applyDeletedRow</a></li><li><a href="global.html#applySavedRow">applySavedRow</a></li><li><a href="global.html#checkRowIds">checkRowIds</a></li><li><a href="global.html#createGuardedLookup">createGuardedLookup</a></li><li><a href="global.html#createLockSave">createLockSave</a></li><li><a href="global.html#createRecentRows">createRecentRows</a></li><li><a href="global.html#createTargetPolicy">createTargetPolicy</a></li><li><a href="global.html#fmtVars">fmtVars</a></li><li><a href="global.html#getExternalChanged">getExternalChanged</a></li><li><a href="global.html#getExternalGroups">getExternalGroups</a></li><li><a href="global.html#getLockExternalRows">getLockExternalRows</a></li><li><a href="global.html#getOptDataChannel">getOptDataChannel</a></li><li><a href="global.html#isBlockedByExternalGroup">isBlockedByExternalGroup</a></li><li><a href="global.html#isBlockedTargetError">isBlockedTargetError</a></li><li><a href="global.html#isExternalRow">isExternalRow</a></li><li><a href="global.html#isInternalAddress">isInternalAddress</a></li><li><a href="global.html#isMixedRow">isMixedRow</a></li><li><a href="global.html#isValidGroupValue">isValidGroupValue</a></li><li><a href="global.html#normGroup">normGroup</a></li><li><a href="global.html#ormFail">ormFail</a></li><li><a href="global.html#parseAllowInternal">parseAllowInternal</a></li><li><a href="global.html#pickLocalFields">pickLocalFields</a></li><li><a href="global.html#resolveShellWorker">resolveShellWorker</a></li><li><a href="global.html#submitGuard">submitGuard</a></li><li><a href="global.html#summarizeExternal">summarizeExternal</a></li></ul>
     
 </nav>
 
@@ -80,7 +80,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="server_WWebApi.mjs.html">server/WWebApi.mjs</a>, <a href="server_WWebApi.mjs.html#line137">line 137</a>
+        <a href="server_WWebApi.mjs.html">server/WWebApi.mjs</a>, <a href="server_WWebApi.mjs.html#line139">line 139</a>
     </li></ul></dd>
     
 
@@ -179,9 +179,9 @@ let getUserByToken = async (token) => {
 }
 
 let verifyClientUser = (user, from) => {
-    console.log('verifyClientUser/user', user)
+    //from: 入口名，'getUserByToken'(登入檢查)、'main'(資料通道，每個請求都會呼叫)等，政策若只允許部分入口請依from區分
     // return false //測試無法登入
-    console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
+    //於生產環境時得加入限制瀏覽器使用者身份機制
     return user.isAdmin === 'y' //測試僅系統管理者使用
 }
 
@@ -404,7 +404,7 @@ instWWebApi.on('error', (err) => {
                 </td>
             
 
-            <td class="description last"><p>輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false</p></td>
+            <td class="description last"><p>輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件與入口名from字串，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。瀏覽端以token進入之入口皆會呼叫（外部應用入口POST /syncAndReplaceTabs改走verifyAppUser，前端靜態檔為公開）：登入檢查GET /api/getUserByToken（from為'getUserByToken'），以及資料通道（kpFunExt、表select、系統函數與上傳下載，連線閘verifyConn，from為w-converhp之入口名：'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'；1.1.16起，見README Upgrade Notes）。拋錯、reject或回傳falsy值皆視同拒絕。政策若只允許部分入口，請依from區分</p></td>
         </tr>
 
     
@@ -903,7 +903,87 @@ instWWebApi.on('error', (err) => {
                 </td>
             
 
-            <td class="description last"><p>輸入測試分頁proxy之目標位址檢核函數，函數會傳入目標網址字串（首跳與轉址後每一跳皆會呼叫），回傳false即拒絕該請求（回err-key 'errReqTargetNotAllowed'），預設null（不限制）</p></td>
+            <td class="description last"><p>輸入測試分頁proxy之目標位址檢核函數（部署方自訂之網址層檢核），函數會傳入實際將送出之目標網址字串（首跳為query列併入後經URL正規化之網址、轉址跳為Location解析後之網址；首跳與轉址後每一跳皆會呼叫），可為同步或非同步函數，回傳（或Promise解析為）false即拒絕該請求（回err-key 'errReqTargetNotAllowed'），拋錯或reject視同拒絕（不外洩拋出之內容），預設null（不另限制）。與內建之內網與本機位址拒絕（opt.proxyAllowInternal、opt.proxyAllowList）並存時兩者皆須通過：每一跳先呼叫本函數，再做內建檢查；本函數回傳true不能放寬內建拒絕，內建之放行清單亦不繞過本函數</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>proxyAllowInternal</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>'n'</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入測試分頁proxy是否關閉內建之內網與本機位址拒絕，可選'y'或'n'（亦接受true、false），預設'n'。預設（'n'）時代發請求之目標若為內網或本機位址一律拒絕（回err-key 'errReqTargetNotAllowed'，不回顯目標位址，並記srLog）：loopback（127.0.0.0/8、::1，含localhost名稱）、私有網段（10/8、172.16/12、192.168/16、fc00::/7）、鏈路本地（169.254/16、fe80::/10）、CGNAT（100.64/10）、未指定位址（0.0.0.0、::）、保留與文件與多播位址、IPv4映射或內嵌之IPv6（::ffff:127.0.0.1等，依其內嵌之IPv4判斷）等凡非全域單播之位址；依實際解析後之IP判斷（主機名於連線當下解析並檢查全部結果，連線所用之位址即檢查過之位址），轉址每一跳皆檢查。給'y'即整體關閉此拒絕（僅限部署於可信任網路、代發目標皆可信時）；給其他值建構即拋錯'invalid opt.proxyAllowInternal'。1.1.15及之前版本不限制目標，見README Upgrade Notes</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>proxyAllowList</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>[]</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入測試分頁proxy之內網與本機位址放行清單（調整內建拒絕之範圍），項為字串：IP（'127.0.0.1'、'::1'）、CIDR（'10.0.0.0/8'、'fd00::/8'）或主機名（'api.internal'，不分大小寫，不含port與萬用字元）。IP與CIDR涵蓋之位址不受內建拒絕（IPv4映射之IPv6亦以其IPv4比對）；主機名所列之主機其解析結果不受內建拒絕（含解析到內網，故只列可信之主機名）。公開位址不受此清單影響；此清單只放寬內建拒絕，不放寬opt.isAllowTarget。項不合法（非字串、格式錯誤）或非陣列時建構即拋錯'invalid opt.proxyAllowList'，預設[]</p></td>
         </tr>
 
     
@@ -1035,7 +1115,7 @@ instWWebApi.on('error', (err) => {
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Fri Oct 23 2026 15:04:04 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sat Oct 24 2026 00:52:25 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>

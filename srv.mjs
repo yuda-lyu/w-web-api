@@ -40,6 +40,11 @@ let opt = {
     //外部列受保護(原則 5, ADR-044): 後台是否不得動外部列(srcKey 非空)與外部管理之 group, 預設 'y'; 給 'n' 回到升版前行為。e2e 可用 restartBackend(genTempSettings({lockExternalRows:'n'}))
     lockExternalRows: get(stApp, 'lockExternalRows', 'y'),
 
+    //測試分頁代發請求之目標位址政策(P1, ADR-049): 預設拒絕內網與本機位址; proxyAllowInternal 'y' 整體關閉此拒絕, proxyAllowList(IP／CIDR／主機名)只放寬所列者。
+    //e2e/api 測試之代發目標為本機 echo server, 以 restartBackend(genTempSettings({ proxyAllowList: ['127.0.0.1'] })) 放行; settings.json 之預設不放行
+    proxyAllowInternal: get(stApp, 'proxyAllowInternal', 'n'),
+    proxyAllowList: get(stApp, 'proxyAllowList', []),
+
     webName: {
         'eng': 'API Service',
         'cht': 'API管理系統',

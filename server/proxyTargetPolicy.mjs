@@ -1,0 +1,425 @@
+import net from 'net'
+import dns from 'dns'
+import isestr from 'wsemi/src/isestr.mjs'
+import isarr from 'wsemi/src/isarr.mjs'
+
+
+//測試分頁代發請求（proxyRequest）之目標位址政策（P1，ADR-049，R-PROXYTARGET-01）。
+//預設拒絕內網與本機位址（伺服端請求偽造 SSRF 防線）：loopback（含 localhost 名稱）、私有網段、鏈路本地、CGNAT、未指定位址、保留／文件／多播、
+//IPv4 映射之 IPv6 等，凡「非全域單播」之位址一律拒絕。判斷依「實際解析後之 IP」，且連線所用之位址即檢查過之位址：
+//- 目標為 IP 字面值（URL 正規化後；127.1、2130706433、0x7f.0.0.1 等皆已正規化為點分十進位）→ 連線前同步檢查（net 對 IP 字面值不呼叫 lookup）；
+//- 目標為主機名 → 由 createGuardedLookup 於「連線當下」解析並檢查全部結果，任一位址不被允許即整次拒絕，通過者交回同一組位址供連線使用（不二次解析，防 DNS rebinding 之檢查後解析）；
+//- 轉址每一跳皆重新檢查（procProxy 於每次連線前呼叫 checkUrl，並因每次連線皆經 guarded lookup）。
+//設定：allowInternal（整體開關，true 即關閉內建拒絕）、allowList（調整：IP、CIDR 與主機名；IP／CIDR 涵蓋之位址不受拒絕；主機名所列之主機其解析結果不受拒絕）。
+//allowList 只放寬「內建拒絕」，不放寬部署方之 isAllowTarget（兩者並存時皆須通過）。
+
+
+//大端整數：IPv4 為 32 位元、IPv6 為 128 位元（皆 BigInt，位移比對前綴）
+function parseV4(s) {
+    let ps = s.split('.')
+    if (ps.length !== 4) {
+        return null
+    }
+    let n = 0n
+    for (let p of ps) {
+        if (!/^\d{1,3}$/.test(p) || Number(p) > 255) {
+            return null
+        }
+        n = (n << 8n) | BigInt(p)
+    }
+    return n
+}
+
+
+function parseV6(s) {
+    s = s.split('%')[0] //去除 zone id
+    if (s.includes('.')) { //尾端內嵌 IPv4（::ffff:1.2.3.4）→ 換成兩組十六進位
+        let i = s.lastIndexOf(':')
+        let v4 = parseV4(s.slice(i + 1))
+        if (v4 === null) {
+            return null
+        }
+        s = s.slice(0, i + 1) + (v4 >> 16n).toString(16) + ':' + (v4 & 0xffffn).toString(16)
+    }
+    let halves = s.split('::')
+    if (halves.length > 2) {
+        return null
+    }
+    let head = halves[0] === '' ? [] : halves[0].split(':')
+    let groups
+    if (halves.length === 1) {
+        groups = head
+    }
+    else {
+        let tail = halves[1] === '' ? [] : halves[1].split(':')
+        let miss = 8 - head.length - tail.length
+        if (miss < 1) {
+            return null
+        }
+        groups = [...head, ...Array(miss).fill('0'), ...tail]
+    }
+    if (groups.length !== 8) {
+        return null
+    }
+    let n = 0n
+    for (let g of groups) {
+        if (!/^[0-9a-fA-F]{1,4}$/.test(g)) {
+            return null
+        }
+        n = (n << 16n) | BigInt(parseInt(g, 16))
+    }
+    return n
+}
+
+
+//parseAddr：位址字串 → { fam, n }（fam 為 4 或 6）；非 IP 回 null
+function parseAddr(s) {
+    if (!isestr(s)) {
+        return null
+    }
+    if (s.startsWith('[') && s.endsWith(']')) {
+        s = s.slice(1, -1)
+    }
+    if (net.isIPv4(s)) {
+        let n = parseV4(s)
+        return n === null ? null : { fam: 4, n }
+    }
+    if (net.isIPv6(s)) {
+        let n = parseV6(s)
+        return n === null ? null : { fam: 6, n }
+    }
+    return null
+}
+
+
+let inNet = (n, base, len, bits) => (n >> BigInt(bits - len)) === (base >> BigInt(bits - len))
+
+
+//IPv4 非公開網段（IANA 特殊用途位址登錄中非全域可路由者）
+let ksNetV4 = [
+    ['0.0.0.0', 8], //本網路（含 0.0.0.0 未指定位址）
+    ['10.0.0.0', 8], //私有
+    ['100.64.0.0', 10], //CGNAT（共享位址空間；部分雲端中繼資料位址落此）
+    ['127.0.0.0', 8], //loopback
+    ['169.254.0.0', 16], //鏈路本地（含雲端中繼資料 169.254.169.254）
+    ['172.16.0.0', 12], //私有
+    ['192.0.0.0', 24], //IETF 協定保留
+    ['192.0.2.0', 24], //文件（TEST-NET-1）
+    ['192.168.0.0', 16], //私有
+    ['198.18.0.0', 15], //效能測試
+    ['198.51.100.0', 24], //文件（TEST-NET-2）
+    ['203.0.113.0', 24], //文件（TEST-NET-3）
+    ['224.0.0.0', 4], //多播
+    ['240.0.0.0', 4], //保留（含 255.255.255.255 廣播）
+].map(([a, len]) => ({ base: parseV4(a), len }))
+
+
+let v6 = (s) => parseV6(s)
+let B_MAPPED = v6('::ffff:0:0') //::ffff:0:0/96 IPv4 映射
+let B_NAT64 = v6('64:ff9b::') //64:ff9b::/96 NAT64（內嵌 IPv4，改查內嵌之位址）
+let B_NAT64_LOCAL = v6('64:ff9b:1::') //64:ff9b:1::/48 本地用 NAT64
+let B_GLOBAL = v6('2000::') //2000::/3 全域單播（其餘一律非公開：::、::1、fc00::/7、fe80::/10、ff00::/8、IPv4 相容 ::/96 等）
+let B_6TO4 = v6('2002::') //2002::/16 6to4（內嵌 IPv4 於第 16–47 位元，改查內嵌之位址）
+let ksNetV6Special = [
+    [v6('2001::'), 23], //IETF 協定保留（含 Teredo 2001::/32、ORCHID 等）
+    [v6('2001:db8::'), 32], //文件
+    [v6('3fff::'), 20], //文件（RFC 9637）
+]
+
+
+function isInternalV4(n) {
+    return ksNetV4.some((r) => inNet(n, r.base, r.len, 32))
+}
+
+
+function isInternalV6(n) {
+    if (inNet(n, B_MAPPED, 96, 128)) {
+        return isInternalV4(n & 0xffffffffn)
+    }
+    if (inNet(n, B_NAT64, 96, 128)) {
+        return isInternalV4(n & 0xffffffffn)
+    }
+    if (inNet(n, B_NAT64_LOCAL, 48, 128)) {
+        return true
+    }
+    if (!inNet(n, B_GLOBAL, 3, 128)) {
+        return true
+    }
+    if (inNet(n, B_6TO4, 16, 128)) {
+        return isInternalV4((n >> 80n) & 0xffffffffn)
+    }
+    return ksNetV6Special.some(([base, len]) => inNet(n, base, len, 128))
+}
+
+
+/**
+ * 判斷位址是否為內網或本機等非公開位址（內建拒絕之範圍，不含 allowList）
+ *
+ * @param {String} addr 輸入 IPv4 或 IPv6 位址字串（IPv6 可含方括號或 zone id）
+ * @returns {Boolean} 回傳是否為非公開位址；無法解析為 IP 者回傳 true（預設拒絕）
+ * @example
+ *
+ * isInternalAddress('10.0.0.1')
+ * // => true
+ * isInternalAddress('::ffff:127.0.0.1')
+ * // => true
+ * isInternalAddress('8.8.8.8')
+ * // => false
+ *
+ */
+function isInternalAddress(addr) {
+    let p = parseAddr(addr)
+    if (p === null) {
+        return true
+    }
+    return p.fam === 4 ? isInternalV4(p.n) : isInternalV6(p.n)
+}
+
+
+//主機名（allowList 項）之合法形狀：標籤以英數字起訖、可含 - 與 _，以 . 分隔；不含 scheme、port、路徑與萬用字元
+let reHostName = /^[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*$/
+
+
+//parseAllowEntry：allowList 單項 → { type:'net', fam, base, len } 或 { type:'host', name }；形狀不符拋錯
+function parseAllowEntry(s) {
+    if (!isestr(s)) {
+        throw new Error('invalid entry')
+    }
+    let t = s.trim()
+    if (t === '' || t.includes('%')) {
+        throw new Error('invalid entry')
+    }
+    let i = t.indexOf('/')
+    let ip = i >= 0 ? t.slice(0, i) : t
+    let p = parseAddr(ip)
+    if (p !== null && !ip.startsWith('[')) {
+        let bits = p.fam === 4 ? 32 : 128
+        let len = bits
+        if (i >= 0) {
+            let sLen = t.slice(i + 1)
+            if (!/^\d{1,3}$/.test(sLen) || Number(sLen) > bits) {
+                throw new Error('invalid entry')
+            }
+            len = Number(sLen)
+        }
+        return { type: 'net', fam: p.fam, base: p.n, len }
+    }
+    if (i < 0) {
+        let name = t.toLowerCase()
+        if (name.endsWith('.')) {
+            name = name.slice(0, -1)
+        }
+        //末段為十進位數字或 0x 十六進位者（如 0x7f000001、1.2.3.0x4、example.123）：WHATWG URL 視為 IPv4 寫法（ends-in-a-number），經 URL 之主機必被正規化為位址（或無效），
+        //列為主機名永不命中，故不合法（不靜默收下）
+        let last = name.split('.').pop()
+        if (reHostName.test(name) && !/^(0x[0-9a-f]*|\d+)$/.test(last)) {
+            return { type: 'host', name }
+        }
+    }
+    throw new Error('invalid entry')
+}
+
+
+/**
+ * 解析 WWebApi 之 opt.proxyAllowInternal（代發請求是否關閉內建之內網與本機位址拒絕）
+ *
+ * @param {*} v 輸入 opt.proxyAllowInternal 之值：未給(undefined、null)、'n'、false 為預設拒絕；'y'、true 為允許
+ * @returns {Boolean} 回傳是否允許內網與本機位址；其餘值拋錯 'invalid opt.proxyAllowInternal'
+ * @example
+ *
+ * parseAllowInternal('y')
+ * // => true
+ * parseAllowInternal(undefined)
+ * // => false
+ *
+ */
+function parseAllowInternal(v) {
+    if (v === undefined || v === null || v === 'n' || v === false) {
+        return false
+    }
+    if (v === 'y' || v === true) {
+        return true
+    }
+    throw new Error('invalid opt.proxyAllowInternal')
+}
+
+
+/**
+ * 建立代發請求之目標位址政策
+ *
+ * @param {Object} [opt={}] 輸入設定物件
+ * @param {Boolean} [opt.allowInternal=false] 輸入是否關閉內建拒絕（true 即允許任何位址），預設false（拒絕內網與本機）
+ * @param {Array} [opt.allowList=[]] 輸入放寬清單，項為字串：IP（'127.0.0.1'、'::1'）、CIDR（'10.0.0.0/8'、'fd00::/8'）或主機名（'api.internal'，不分大小寫，不含 port 與萬用字元）。IP／CIDR 涵蓋之位址不受拒絕（IPv4 映射之 IPv6 亦以其 IPv4 比對）；主機名所列之主機，其解析結果不受拒絕（含解析到內網）。項不合法即拋錯 'invalid opt.proxyAllowList'，預設[]
+ * @returns {Object} 回傳政策物件：{ allowInternal, isAddressAllowed(addr), isHostExempt(host), checkUrl(url) }。checkUrl 回傳 null（通過，主機名者須待連線當下由 guarded lookup 檢查解析結果）或拒絕原因字串（'internalAddress' IP 字面值、'internalName' localhost 名稱）
+ * @example
+ *
+ * let policy = createTargetPolicy({ allowList: ['127.0.0.1', '10.0.0.0/8'] })
+ * policy.isAddressAllowed('10.2.3.4')
+ * // => true
+ * policy.isAddressAllowed('192.168.0.1')
+ * // => false
+ * policy.isAddressAllowed('8.8.8.8') //公開位址不受 allowList 影響
+ * // => true
+ *
+ */
+function createTargetPolicy(opt = {}) {
+    let allowInternal = parseAllowInternal(opt.allowInternal)
+
+    let allowList = opt.allowList
+    if (allowList === undefined || allowList === null) {
+        allowList = []
+    }
+    if (!isarr(allowList)) {
+        throw new Error('invalid opt.proxyAllowList')
+    }
+    let nets = []
+    let hosts = new Set()
+    for (let s of allowList) {
+        let e
+        try {
+            e = parseAllowEntry(s)
+        }
+        catch (err) {
+            throw new Error('invalid opt.proxyAllowList')
+        }
+        if (e.type === 'net') {
+            nets.push(e)
+        }
+        else {
+            hosts.add(e.name)
+        }
+    }
+
+    //hostOf：URL 之 hostname → 比對用主機字串（小寫、去全部尾端 .；WHATWG URL 對 `localhost..`、`127.0.0.1..` 不去尾端點，須自行去除，否則名稱與字面值檢查被略過而只剩 lookup 一道；IPv6 之方括號由 parseAddr 處理）
+    let hostOf = (h) => {
+        return h.toLowerCase().replace(/\.+$/, '')
+    }
+
+    let isHostExempt = (host) => {
+        return isestr(host) && hosts.has(hostOf(host))
+    }
+
+    let isAddressAllowed = (addr) => {
+        if (allowInternal) {
+            return true
+        }
+        let p = parseAddr(addr)
+        if (p === null) {
+            return false
+        }
+        let internal = p.fam === 4 ? isInternalV4(p.n) : isInternalV6(p.n)
+        if (!internal) {
+            return true
+        }
+        let views = [p]
+        if (p.fam === 6 && inNet(p.n, B_MAPPED, 96, 128)) {
+            views.push({ fam: 4, n: p.n & 0xffffffffn })
+        }
+        let bitsOf = (fam) => (fam === 4 ? 32 : 128)
+        return nets.some((e) => views.some((v) => v.fam === e.fam && inNet(v.n, e.base, e.len, bitsOf(e.fam))))
+    }
+
+    let checkUrl = (url) => {
+        if (allowInternal) {
+            return null
+        }
+        let host = hostOf(url.hostname)
+        if (parseAddr(host) !== null) {
+            return isAddressAllowed(host) ? null : 'internalAddress'
+        }
+        if (isHostExempt(host)) {
+            return null
+        }
+        if (host === 'localhost' || host.endsWith('.localhost')) { //RFC 6761：localhost 名稱恆指本機，不待解析
+            return 'internalName'
+        }
+        return null
+    }
+
+    return { allowInternal, isAddressAllowed, isHostExempt, checkUrl }
+}
+
+
+//被拒標記：guarded lookup 拒絕時之錯誤帶此標記，procProxy 沿 cause 鏈辨識（undici 將連線錯誤包在 fetch failed 之 cause）
+let SYM_BLOCKED = Symbol.for('w-web-api.proxyTargetBlocked')
+
+
+/**
+ * 判斷錯誤（含其 cause 鏈）是否為 guarded lookup 之位址拒絕
+ *
+ * @param {*} err 輸入錯誤
+ * @returns {Boolean} 回傳是否為位址拒絕
+ */
+function isBlockedTargetError(err) {
+    //沿 cause 與 AggregateError.errors 遍歷（autoSelectFamily 多位址連線失敗為 AggregateError）；已訪問集合防循環，總量上限防病態結構
+    let seen = new Set()
+    let stack = [err]
+    while (stack.length > 0 && seen.size < 64) {
+        let e = stack.pop()
+        if (e === null || e === undefined || (typeof e !== 'object' && typeof e !== 'function') || seen.has(e)) {
+            continue
+        }
+        seen.add(e)
+        if (e[SYM_BLOCKED] === true) {
+            return true
+        }
+        stack.push(e.cause)
+        if (isarr(e.errors)) {
+            for (let x of e.errors) {
+                stack.push(x)
+            }
+        }
+    }
+    return false
+}
+
+
+/**
+ * 建立連線用之主機名解析函數（供 undici connect.lookup）：連線當下解析、檢查全部結果、通過者原組交回連線，
+ * 使「檢查過之位址」即「連線所用之位址」。任一位址不被允許即回帶被拒標記之錯誤（isBlockedTargetError 可辨識）
+ *
+ * @param {Object} policy 輸入 createTargetPolicy 回傳之政策物件
+ * @param {Function} [resolver=dns.lookup] 輸入解析函數（簽章同 dns.lookup；測試注入用）
+ * @returns {Function} 回傳 lookup(hostname, options, cb)
+ */
+function createGuardedLookup(policy, resolver = dns.lookup) {
+    return (hostname, options, cb) => {
+        if (typeof options === 'function') {
+            cb = options
+            options = {}
+        }
+        if (typeof options === 'number') { //dns.lookup 之舊式簽章 lookup(host, family, cb)：family 數字，正規化為物件（否則展開後遺失族別）
+            options = { family: options }
+        }
+        options = options || {}
+        let wantAll = options.all === true
+        resolver(hostname, { ...options, all: true }, (err, addrs) => {
+            if (err) {
+                cb(err)
+                return
+            }
+            if (!isarr(addrs) || addrs.length === 0) {
+                cb(Object.assign(new Error('no address'), { code: 'ENOTFOUND' }))
+                return
+            }
+            if (!policy.allowInternal && !policy.isHostExempt(hostname)) {
+                for (let a of addrs) {
+                    if (!policy.isAddressAllowed(a.address)) {
+                        cb(Object.assign(new Error('target address is not allowed'), { code: 'ETARGETBLOCKED', [SYM_BLOCKED]: true }))
+                        return
+                    }
+                }
+            }
+            if (wantAll) {
+                cb(null, addrs)
+            }
+            else {
+                cb(null, addrs[0].address, addrs[0].family)
+            }
+        })
+    }
+}
+
+
+export { isInternalAddress, parseAllowInternal, createTargetPolicy, createGuardedLookup, isBlockedTargetError }
+export default createTargetPolicy

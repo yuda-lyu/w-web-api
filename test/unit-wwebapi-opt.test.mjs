@@ -43,7 +43,7 @@ function removedMsg(opt) {
 }
 
 
-describe('unit-wwebapi-opt（WWebApi 建構期之設定檢核：R-ORM-1 三鍵 fail-fast、R-ORM-2 serverPort）', function() {
+describe('unit-wwebapi-opt（WWebApi 建構期之設定檢核：R-ORM-1 三鍵 fail-fast、R-ORM-2 serverPort、R-PROXYTARGET-01 代發位址政策設定）', function() {
 
     before(function() {
         fs.rmSync(FD, { recursive: true, force: true })
@@ -87,6 +87,34 @@ describe('unit-wwebapi-opt（WWebApi 建構期之設定檢核：R-ORM-1 三鍵 f
     it('R-ORM-2 serverPort 未給／null／1／65535／\'11005\' → 通過檢查（其後才由 srLog 拋錯）', function() {
         for (let v of [undefined, null, 1, 65535, '11005']) {
             assert.strictEqual(ctorMsg({ serverPort: v }), MSG_SRLOG, `serverPort=${JSON.stringify(v)} 應通過檢查`)
+        }
+    })
+
+    //R-PROXYTARGET-01（P1，ADR-049）：代發請求之內建目標位址政策設定（opt.proxyAllowInternal、opt.proxyAllowList）。
+    //設定寫錯不得靜默生效（不退回預設）：建構即拋、先於 srLog（第一個副作用）、未建立資料庫
+    it('R-PROXYTARGET-01 proxyAllowInternal 無效（\'Y\'、\'yes\'、1、0、\'\'、[]、{}、\'true\'）→ 建構即拋 invalid opt.proxyAllowInternal（先於 srLog、不當成預設或允許）', function() {
+        for (let v of ['Y', 'yes', 1, 0, '', [], {}, 'true', 'N']) {
+            assert.strictEqual(ctorMsg({ proxyAllowInternal: v }), 'invalid opt.proxyAllowInternal', `proxyAllowInternal=${JSON.stringify(v)} 應拋 invalid opt.proxyAllowInternal`)
+        }
+        assert.ok(!fs.existsSync(URL_DB), '拋錯前不得建立資料庫')
+    })
+
+    it('R-PROXYTARGET-01 proxyAllowInternal 未給／null／\'y\'／\'n\'／true／false → 通過檢查（其後才由 srLog 拋錯）', function() {
+        for (let v of [undefined, null, 'y', 'n', true, false]) {
+            assert.strictEqual(ctorMsg({ proxyAllowInternal: v }), MSG_SRLOG, `proxyAllowInternal=${JSON.stringify(v)} 應通過檢查`)
+        }
+    })
+
+    it('R-PROXYTARGET-01 proxyAllowList 無效（非陣列、非字串項、格式錯誤、CIDR 越界、含 port／scheme／萬用字元）→ 建構即拋 invalid opt.proxyAllowList（先於 srLog、未建立資料庫）', function() {
+        for (let v of ['127.0.0.1', 123, {}, true, [1], [null], [''], ['10.0.0.0/33'], ['::1/129'], ['127.0.0.1:8080'], ['http://localhost'], ['*.corp.local'], ['bad host'], ['127.0.0.1', 'bad host']]) {
+            assert.strictEqual(ctorMsg({ proxyAllowList: v }), 'invalid opt.proxyAllowList', `proxyAllowList=${JSON.stringify(v)} 應拋 invalid opt.proxyAllowList`)
+        }
+        assert.ok(!fs.existsSync(URL_DB), '拋錯前不得建立資料庫')
+    })
+
+    it('R-PROXYTARGET-01 proxyAllowList 未給／null／[]／合法項（IP、CIDR、IPv6、主機名）→ 通過檢查（其後才由 srLog 拋錯）', function() {
+        for (let v of [undefined, null, [], ['127.0.0.1'], ['10.0.0.0/8', 'fd00::/8', '::1', 'api.internal', 'LOCALHOST']]) {
+            assert.strictEqual(ctorMsg({ proxyAllowList: v }), MSG_SRLOG, `proxyAllowList=${JSON.stringify(v)} 應通過檢查`)
         }
     })
 

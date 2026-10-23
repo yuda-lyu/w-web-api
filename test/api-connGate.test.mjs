@@ -9,10 +9,9 @@
 //斷言：被拒者 → 傳輸層 permission denied（{ error }，未進 w-serv-webdata）、ORM 零操作（零寫入）、庫內不變、代發目標零命中；
 //鉤子被呼叫且 from 為 w-converhp 之入口名；拋錯／reject／falsy 視同拒絕且回應與 srLog 不含鉤子拋出之內容；未通過認證者不呼叫鉤子；拒絕記 srLog 且只含白名單欄位、不含 token 與使用者資料。
 import assert from 'assert'
-import fs from 'fs'
-import path from 'path'
 import http from 'http'
-import { startApiServer, sleep } from './tools/apiHarness.mjs'
+import get from 'lodash-es/get.js'
+import { startApiServer, waitLogs } from './tools/apiHarness.mjs'
 import { callFun, postMain } from './tools/apiMain.mjs'
 
 
@@ -60,36 +59,6 @@ async function rawRoute(route, token, base = S.base) {
     return { status: res.status, type: res.headers.get('return-type'), msg: res.headers.get('return-msg'), body }
 }
 
-//readLogs：讀子行程本次 srLog（pino JSON 行；落 <cwd>/logs）
-function readLogs(cwd) {
-    let fd = path.resolve(cwd, 'logs')
-    if (!fs.existsSync(fd)) {
-        return []
-    }
-    let lines = []
-    for (let fn of fs.readdirSync(fd)) {
-        for (let l of fs.readFileSync(path.join(fd, fn), 'utf8').split(/\r?\n/)) {
-            if (l.trim() !== '') {
-                lines.push(l)
-            }
-        }
-    }
-    return lines
-}
-
-//waitLogs：輪詢至 pred(lines) 成立（pino 經 worker 非同步落檔）
-async function waitLogs(cwd, pred, ms = 15000) {
-    let t0 = Date.now()
-    for (;;) {
-        let lines = readLogs(cwd)
-        if (pred(lines) || Date.now() - t0 > ms) {
-            return lines
-        }
-        await sleep(200)
-    }
-}
-
-
 //資料通道之函數全集（kpFunExt、表操作 select、系統函數、非開放之表寫入）：每條在被拒情境下都不得執行
 let mkFuncs = (idDel) => [
     { name: '[sys:getFuncList]（系統函數）', func: '[sys:getFuncList]', args: [] },
@@ -122,7 +91,8 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
             echo.once('error', reject)
             echo.listen(PORT_ECHO, '127.0.0.1', resolve)
         })
-        S = await startApiServer({ name: 'api-connGate', port: PORT })
+        //代發目標為本機 echo（127.0.0.1）：內建位址政策預設拒絕本機位址（P1, ADR-049），放行 127.0.0.1 使「被拒者之 proxyRequest 零命中」與「放行者命中一次」仍由連線閘（而非位址政策）決定
+        S = await startApiServer({ name: 'api-connGate', port: PORT, opt: { proxyAllowList: ['127.0.0.1'] } })
     })
 
     after(async function() {
@@ -218,7 +188,8 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
             nCall++
             assert.strictEqual(rd.state, 'success', 'deleteApi 放行者可刪')
             let calls = await S.getVerifyCalls()
-            assert.strictEqual(calls.length, nCall, '每個請求恰呼叫鉤子一次')
+            //每個放行之請求呼叫鉤子兩次：連線閘（標頭 token）＋執行身分（本體 __sysToken__，C3：getUserIdByToken 與連線閘同等完整驗證；api-execIdentity 另驗兩 token 不同之情形）
+            assert.strictEqual(calls.length, nCall * 2, '每個放行之請求呼叫鉤子兩次（連線閘＋執行身分）')
             assert.ok(calls.every((c) => c.userId === 'id-for-adminA' && c.from === 'main'), `from 皆為 main（實得 ${JSON.stringify(calls.slice(0, 3))}）`)
             assert.strictEqual(nEcho, 1, 'proxyRequest 命中目標一次')
             let rs = await S.list()
@@ -229,9 +200,9 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
     })
 
     //--------------------------------------------------------------------------
-    describe('鉤子拋錯／reject／回 falsy（undefined）→ 視同拒絕（規則 3；ADR-033 W 契約），回應不含鉤子內容', function() {
+    describe('鉤子拋錯／reject／回 falsy（undefined、null、0、空字串、Promise.resolve(false)）→ 視同拒絕（規則 3；ADR-033 W 契約），回應不含鉤子內容', function() {
 
-        for (let tok of ['tokVThrow', 'tokVReject', 'tokVFalsy']) {
+        for (let tok of ['tokVThrow', 'tokVReject', 'tokVFalsy', 'tokVNull', 'tokVZero', 'tokVEmptyStr', 'tokVAsyncFalse']) {
             it(`${tok}：saveApi／getApisList → permission denied、ORM 零操作、回應不含鉤子拋出之內容`, async function() {
                 await S.getOps(true)
                 await S.getVerifyCalls(true)
@@ -258,7 +229,9 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
             assert.strictEqual(r1.state, 'success', `應 success（實得 ${JSON.stringify(r1.data).slice(0, 200)}）`)
             let r2 = await callFun(S.base, 'tokNonAdmin', 'saveApi', [{ name: 'nonadmin-write', url: 'http://t/na', method: 'get', levels: 'T', group: 'gate' }])
             assert.strictEqual(r2.state, 'success')
-            assert.deepStrictEqual(await S.getVerifyCalls(), [
+            assert.deepStrictEqual(await S.getVerifyCalls(), [ //每個放行之請求兩次：連線閘＋執行身分（C3）
+                { userId: 'id-nonadmin', from: 'main' },
+                { userId: 'id-nonadmin', from: 'main' },
                 { userId: 'id-nonadmin', from: 'main' },
                 { userId: 'id-nonadmin', from: 'main' },
             ])
@@ -272,7 +245,8 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
             let r2 = await (await fetch(`${S.base}/api/getUserByToken?token=tokVTruthy`)).json()
             assert.strictEqual(r2.state, 'success', '登入檢查同樣通過（兩處同一判定）')
             assert.deepStrictEqual(await S.getVerifyCalls(), [
-                { userId: 'id-vtruthy', from: 'main' },
+                { userId: 'id-vtruthy', from: 'main' }, //連線閘
+                { userId: 'id-vtruthy', from: 'main' }, //執行身分（C3）
                 { userId: 'id-vtruthy', from: 'getUserByToken' },
             ])
         })
@@ -340,6 +314,63 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
             let r2 = await callFun(S.base, 'unknown-token-api-connGate', 'getApisList', [])
             assert.ok(isDenied(r2))
             assert.deepStrictEqual(await S.getVerifyCalls(), [], '認證未過不得呼叫授權鉤子')
+        })
+
+    })
+
+    //--------------------------------------------------------------------------
+    //Authorization 方案：嚴格要求 Bearer 前綴（RFC 9110 §11.1：方案名不分大小寫，方案名與憑證間為一個以上空白）。
+    //修正前以 strdelleft(authorization, 7) 無條件刪前 7 字元，從不驗方案：'Basic  tokA'、'Token  tokA'（方案名後兩個空白）亦通過連線閘（api-run01 實測 F4）。
+    //方案不符者視為未帶 token：認證即失敗（permission denied），不呼叫部署方之鉤子。
+    describe('Authorization 方案：嚴格要求 Bearer（方案名不分大小寫），不符即拒（api-run02）', function() {
+
+        let mainWith = (auth) => postMain(S.base, 'unused', { func: 'getWebInfor', input: { __sysInputArgs__: [], __sysToken__: 'tokA' } }, { Authorization: auth })
+        let isOk = (r) => get(r.data, 'success.output.state', '') === 'success'
+        let isDeny = (r) => get(r.data, 'error', '') === 'permission denied'
+
+        //方案正確者（方案名大小寫任意、空白一個以上）→ 通過；連線閘與執行身分各呼叫鉤子一次
+        for (let auth of ['Bearer tokA', 'bearer tokA', 'BEARER tokA', 'BeArEr tokA', 'Bearer  tokA', 'Bearer     tokA']) {
+            it(`Authorization: ${JSON.stringify(auth)} → 通過連線閘、函數執行`, async function() {
+                await S.getVerifyCalls(true)
+                let r = await mainWith(auth)
+                assert.ok(isOk(r), `應通過（實得 ${r.raw.slice(0, 200)}）`)
+                assert.deepStrictEqual(await S.getVerifyCalls(), [{ userId: 'id-for-adminA', from: 'main' }, { userId: 'id-for-adminA', from: 'main' }])
+            })
+        }
+
+        //方案不符、缺方案、缺憑證者 → permission denied；token 視為未帶，不呼叫鉤子、ORM 零操作
+        let rejects = [
+            'Basic tokA', 'Basic  tokA', 'Token tokA', 'Token  tokA', 'Digest tokA', 'Negotiate tokA', 'OAuth tokA', //他種方案（含 api-run01 之 F4：方案名後兩個空白）
+            'tokA', 'BearertokA', 'Bearer', 'Bearer ', //缺方案、方案與憑證之間無空白、無憑證
+            'Bearer:tokA', 'Bearer\ttokA', 'XBearer tokA', 'Bearer-x tokA', 'Bearers tokA', //方案名不等於 Bearer、分隔非空白
+            'tokA Bearer', //方案在後
+        ]
+        for (let auth of rejects) {
+            it(`Authorization: ${JSON.stringify(auth)} → permission denied（方案不符視為未帶 token）；鉤子零呼叫、ORM 零操作`, async function() {
+                await S.getVerifyCalls(true)
+                await S.getOps(true)
+                let r = await mainWith(auth)
+                assert.ok(isDeny(r), `應被拒（實得 ${r.raw.slice(0, 200)}）`)
+                assert.deepStrictEqual(await S.getVerifyCalls(), [], '認證未過不得呼叫授權鉤子')
+                assert.deepStrictEqual(await S.getOps(), [])
+            })
+        }
+
+        it('五條標頭型 w-converhp 路由（main、ulctr、slc、dwgfn、dw；GET /api/dwgf 之 token 走 query 由 w-converhp 合成 Bearer，不適用）：非 Bearer 方案（\'Basic  tokA\'、\'Token  tokA\'）→ permission denied；Bearer（任意大小寫）→ 通過連線閘進入路由之參數檢核', async function() {
+            await S.getVerifyCalls(true)
+            for (let rt of ROUTES.filter((x) => x.method === 'POST')) {
+                for (let auth of ['Basic  tokA', 'Token  tokA']) {
+                    let res = await fetch(`${S.base}${rt.path}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'Authorization': auth }, body: Buffer.from('x') })
+                    assert.strictEqual(res.headers.get('return-msg'), 'permission denied', `${rt.path} ${auth}`)
+                }
+                for (let auth of ['Bearer tokA', 'bearer tokA']) {
+                    let res = await fetch(`${S.base}${rt.path}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'Authorization': auth }, body: Buffer.from('x') })
+                    let msg = res.headers.get('return-msg')
+                    assert.notStrictEqual(msg, 'permission denied', `${rt.path} ${auth}`)
+                    assert.ok(/^invalid /.test(String(msg)), `${rt.path} ${auth} 應進入路由之參數檢核（實得 ${msg}）`)
+                }
+            }
+            assert.deepStrictEqual((await S.getVerifyCalls()).map((c) => c.from), ROUTES.filter((x) => x.method === 'POST').flatMap((rt) => [rt.apiType, rt.apiType]), '只有 Bearer 者呼叫鉤子，各一次')
         })
 
     })

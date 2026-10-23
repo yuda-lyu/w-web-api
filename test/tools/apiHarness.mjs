@@ -137,6 +137,36 @@ async function startApiServer({ name, port, opt = null }) {
 let sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 
+//readLogs: 讀子行程本次 srLog（pino JSON 行；落 <cwd>/logs，cwd 為 startApiServer 回傳之 cwd）。各 api 測試共用（原 api-connGate 本地版收斂於此）
+function readLogs(cwd) {
+    let fd = path.resolve(cwd, 'logs')
+    if (!fs.existsSync(fd)) {
+        return []
+    }
+    let lines = []
+    for (let fn of fs.readdirSync(fd)) {
+        for (let l of fs.readFileSync(path.join(fd, fn), 'utf8').split(/\r?\n/)) {
+            if (l.trim() !== '') {
+                lines.push(l)
+            }
+        }
+    }
+    return lines
+}
+
+//waitLogs: 輪詢至 pred(lines) 成立或逾時（pino 經 worker 非同步落檔）；回傳最後讀到之行
+async function waitLogs(cwd, pred, ms = 15000) {
+    let t0 = Date.now()
+    for (;;) {
+        let lines = readLogs(cwd)
+        if (pred(lines) || Date.now() - t0 > ms) {
+            return lines
+        }
+        await sleep(200)
+    }
+}
+
+
 //mkLegacyRow: 升版前既有之列（舊同步寫入或相容期所寫: 無 srcKey 欄; over 可覆寫任一欄, 如 { srcKey: '' } 模擬相容期之無鍵列）, 供 seed 用; 欄位齊全（含本系統擁有欄位之非空值，驗遷移保留）
 let mkLegacyRow = (id, group, over = {}) => ({
     id,
@@ -172,4 +202,4 @@ let mkLegacyRow = (id, group, over = {}) => ({
 })
 
 
-export { startApiServer, sleep, mkLegacyRow }
+export { startApiServer, sleep, mkLegacyRow, readLogs, waitLogs }

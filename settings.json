@@ -16,4 +16,10 @@
     logInterval: 'hr',
     logNumKeep: 8760, //log 檔保留數上限, 超出者自最舊刪除; hr 模式每小時 1 檔, 8760 約 1 年 (= w-syslog 預設, 未給亦同)
 
+    // 測試分頁代發請求之目標位址政策: 預設拒絕內網與本機位址 (loopback、私有網段、鏈路本地、未指定位址等)
+    // proxyAllowInternal: 'y' 整體關閉此拒絕 (僅限可信任網路); 'n' 預設
+    // proxyAllowList: 只放寬所列者, 項為 IP ('127.0.0.1')、CIDR ('10.0.0.0/8') 或主機名 ('api.internal')
+    proxyAllowInternal: 'n',
+    proxyAllowList: [],
+
 }

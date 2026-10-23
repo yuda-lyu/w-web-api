@@ -205,9 +205,10 @@
 016          呼叫後端 proxyRequest(spec)，reject 時落下方 .catch  [src/components/LayoutContentTest.vue:submitSend]
                  kpFunExt proxyRequest(userId, spec) → proxyRequestByUser：以「proxyRequest:<userId>」原子占位，同一使用者之請求處理中再送出即 reject('requestInProgress')、不送出（不排隊）；結束（含失敗）即釋放（ADR-034）  [server/WWebApi.mjs:proxyRequest][server/procProxy.mjs:proxyRequestByUser][server/lockSave.mjs:createLockSave]
                  後端校驗 url（空或非 http(s)/非法 URL: reject('errReqUrlInvalid')）  [server/procProxy.mjs:proxyRequest]
-                 isAllowTarget（建構子 opt.isAllowTarget 接線）為否: reject('errReqTargetNotAllowed')  [server/procProxy.mjs:isTargetAllowed][server/WWebApi.mjs:isAllowTarget]
+                 isAllowTarget（建構子 opt.isAllowTarget 接線；部署方自訂之網址層檢核；每一跳先於內建檢查）為否: srLog 'proxyRequest-target'（首跳，reason 為 isAllowTarget，不含網址；轉址跳記 'proxyRequest-redirect'）後 reject('errReqTargetNotAllowed')  [server/procProxy.mjs:isTargetAllowed][server/WWebApi.mjs:isAllowTarget]
+                 內建目標位址政策（opt.proxyAllowInternal／proxyAllowList；預設拒絕內網與本機位址，ADR-049）：每次連線前 targetPolicy.checkUrl 檢查 IP 字面值與 localhost 名稱，不通過 throw 帶 errKey 'errReqTargetNotAllowed'（srLog 'proxyRequest-target'：reason 為 internalAddress／internalName、hop 為跳數，不含網址）；主機名於連線當下由 undici Agent 之 guarded lookup 解析並檢查全部結果（不通過即整次拒絕，通過者即連線所用之位址，不二次解析；reason 為 resolvedInternal）  [server/procProxy.mjs:proxyRequest,getDispatcher][server/proxyTargetPolicy.mjs:createTargetPolicy,createGuardedLookup]
                  標頭（物件或鍵值對）→ Headers：剝除 host/content-length/hop-by-hop，重複鍵依 Fetch 標準合併（', '；cookie '; '）；query 逐對 append 併入 URL（重複鍵各自送達）；字串 body 轉位元組原封（不補 Content-Type）  [server/procProxy.mjs:toPairs,proxyRequest]
-                 Node fetch 送出（4xx/5xx 不 throw；整條轉址鏈共用一個 AbortSignal.timeout；redirect:'manual' 手動跟隨：每跳重驗 isAllowTarget、301/302 之 POST 與 303 改 GET 並丟 body 與 content-* 標頭、307/308 保留、跨來源剝除 Authorization、上限 20 跳、3xx 無 Location 視為最終回應；轉址鏈之拒絕 srLog 'proxyRequest-redirect' 後 reject 對應 err-key）  [server/procProxy.mjs:proxyRequest]
+                 undici fetch（套件 undici 之 fetch 與 Agent，ADR-049）送出（4xx/5xx 不 throw；整條轉址鏈共用一個 AbortSignal.timeout；redirect:'manual' 手動跟隨：每跳重驗 isAllowTarget 與內建位址政策、301/302 之 POST 與 303 改 GET 並丟 body 與 content-* 標頭、307/308 保留、跨來源剝除 Authorization、上限 20 跳、3xx 無 Location 視為最終回應；轉址鏈之拒絕 srLog 'proxyRequest-redirect' 後 reject 對應 err-key）  [server/procProxy.mjs:proxyRequest]
                  成功: text 可 parse 者回物件否則原文；resolve { status, statusText, headers, data, durationMs }  [server/procProxy.mjs:proxyRequest]
                  fetch 例外（timeout/DNS/連線拒絕/受限標頭）: srLog.error 記錄真實訊息與 cause（不回前端）後 reject('errProxyRequestFailed')  [server/procProxy.mjs:proxyRequest]
 017          .then: res=回應、okSend=true  [src/components/LayoutContentTest.vue:submitSend]
@@ -291,18 +292,22 @@
   - 送出前種子穩定態做 baseline；送出後回應因含非決定性欄位只做語意斷言。
   - 4xx/5xx 由 validateStatus 全通過，視為「有回應」顯示狀態碼，非 proxy 失敗。
 - **邊界**：
-  - URL 空短路不打網路；非 http(s) 或 not-allowed 由後端 reject。
+  - URL 空短路不打網路；非 http(s) 或 not-allowed（含內建目標位址政策之預設拒絕內網與本機位址）由後端 reject。
   - body 僅非 GET/HEAD 顯示與送出。
 - **契約**：
   - 高頻/跨域請求一律經後端 proxy（繞過 CORS）；前端不直接打目標；proxy 以 Node 內建 fetch 實作（ADR-029）。
   - **請求內容原文送出**：字串 body 以位元組原封送達，不解析、不驗證、不代換、不補 Content-Type；空白則不帶 body；GET/HEAD 不帶（對標 Scalar api-client / Postman raw 模式；ADR-029）。
   - **標頭表為唯一真理源**：勾選之列原樣轉送；proxy 僅剝除 host / content-length 與 hop-by-hop（connection / keep-alive / transfer-encoding / te / trailer / upgrade）；不自動補任何標頭。
   - **重複鍵不收斂**：Query／Headers 表以有序鍵值對送出（僅 on 且鍵非空之列，`mShare.kvRowsToPairs`）；重複之 query 鍵各自送達目標（`?id=1&id=2`）、重複之標頭由 proxy 依 Fetch 標準合併（`, `；cookie 為 `; `）；預設標頭已明給 Content-Type 者不再補 contentType 列（明給優先，對標 Postman）。why：改造前以物件收斂，同鍵之後列靜默覆蓋前列（ADR-031）。
-  - **轉址逐跳檢核**：proxy 以 `redirect:'manual'` 手動跟隨轉址（上限 20 跳），每一跳重新檢核 `isAllowTarget`（建構子 `opt.isAllowTarget` 接線）；301/302 之 POST 與 303 改 GET 並丟 body 與 content-* 標頭、307/308 保留、跨來源剝除 Authorization（Fetch 標準 §4.4）；3xx 無 Location 視為最終回應。why：`redirect:'follow'` 無逐跳 hook，合法首跳可 302 到不允許之位址繞過檢核（ADR-031）。
+  - **目標位址政策（P1，ADR-049，2026-10-23 使用者裁示）**：代發請求**預設拒絕內網與本機位址**——凡非全域單播之位址（loopback 含 `localhost`／`*.localhost` 名稱、私有網段、鏈路本地、CGNAT、未指定位址、保留／文件／多播、IPv4 映射或內嵌之 IPv6）一律回固定 err-key `errReqTargetNotAllowed`（不回顯目標位址，srLog `proxyRequest-target` 只記 `reason` 類別與 `hop`）。依**實際解析後之 IP** 判斷：IP 字面值連線前檢查；主機名於連線當下解析並檢查全部結果，連線所用之位址即檢查過之位址（不二次解析，防 DNS rebinding）；轉址每一跳皆檢查。設定：`opt.proxyAllowInternal`（`'n'` 預設／`'y'` 整體關閉）、`opt.proxyAllowList`（IP／CIDR／主機名，只放寬所列者；不合法即建構拋錯）。與 `isAllowTarget` 並存時兩者皆須通過（每一跳先 `isAllowTarget`、後內建）；放行清單不繞過 `isAllowTarget`，`isAllowTarget` 回 true 亦不放寬內建拒絕。細節與已知限制見 ADR-049、README Upgrade Notes。
+  - **轉址逐跳檢核**：proxy 以 `redirect:'manual'` 手動跟隨轉址（上限 20 跳），每一跳重新檢核 `isAllowTarget`（建構子 `opt.isAllowTarget` 接線）與內建位址政策；301/302 之 POST 與 303 改 GET 並丟 body 與 content-* 標頭、307/308 保留、跨來源剝除 Authorization（Fetch 標準 §4.4）；3xx 無 Location 視為最終回應。why：`redirect:'follow'` 無逐跳 hook，合法首跳可 302 到不允許之位址繞過檢核（ADR-031）。
 
 ## 已知落差
 
 每條帶分類標籤（缺陷（待修）／設計事實（記錄備查）／待裁示（業主決定）／已修復（附修復紀錄））；修復後不刪、改標已修復。
+
+- **已修復（附修復紀錄）**（2026-10-23，ADR-049，使用者裁示 P1）：proxy 未傳 `isAllowTarget` 時不限目標，通過連線閘者可令後端連到本機服務、內網主機或雲端中繼資料位址（api-run01 實測 `proxyRequest` 可打 `127.0.0.1`；`server/procProxy.mjs`，原 `isTargetAllowed` 於未接線時恆回 true）。修復：內建目標位址政策預設拒絕內網與本機位址（依解析後之 IP、連線位址即檢查位址、轉址逐跳檢查），`opt.proxyAllowInternal`／`proxyAllowList` 開關與調整。驗證：unit-proxyTargetPolicy（IP 表含各網段邊界）、unit-procProxyTarget（預設拒絕／放行／主機名解析／rebinding／轉址逐跳／與 `isAllowTarget` 並存）、api-proxyTarget（真資料通道）。e2e 之代發目標為本機 echo，`e2e-apitest` 以暫時設定放行 `127.0.0.1`。**受影響案例**：E2E-001～014 之行為不變（放行後），標準圖 0 張改變；UI 於預設設定對本機目標送出會顯示 `errReqTargetNotAllowed` 之在地化文字（路徑同 E2E-003），未另增案例。
+- **設計事實（記錄備查）**（2026-10-23，ADR-049）：測試分頁預設種子網址 `http://localhost:11005/…` 在預設設定下送出即被拒（`localhost` 名稱）；開發機須以 `proxyAllowList: ['localhost']`（名稱）或 `['127.0.0.1']`（字面值）放行。
 
 - **已修復（附修復紀錄）**（2026-09-13，ADR-031 第 3 項）：Query／Headers 同鍵多列送出時以物件收斂，同鍵之後列靜默覆蓋前列（原 `src/components/LayoutContentTest.vue` `submitSend` 之 `query[row.key] = row.value`），使用者看到兩列卻只送出一列。修復：有序鍵值對送出（`mShare.kvRowsToPairs`）、proxy 逐對 append／標頭依 Fetch 標準合併；案例 E2E-013、unit PROXY-011。
 - **已修復（附修復紀錄）**（2026-09-13，ADR-031 第 4 項）：預設標頭已明給 Content-Type 時仍依「內容類型」欄再補一列，Headers 表出現兩列 Content-Type（原 `seedFromItem`）。修復：明給者優先、不補列；案例 E2E-014。

@@ -10,7 +10,6 @@ import isErr from 'wsemi/src/isErr.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
 import cint from 'wsemi/src/cint.mjs'
 import strleft from 'wsemi/src/strleft.mjs'
-import strdelleft from 'wsemi/src/strdelleft.mjs'
 import strright from 'wsemi/src/strright.mjs'
 import strdelright from 'wsemi/src/strdelright.mjs'
 import pm2resolve from 'wsemi/src/pm2resolve.mjs'
@@ -24,6 +23,7 @@ import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
 import checkOptRemoved from 'w-serv-orm/src/checkOptRemoved.mjs'
 import procLang from './procLang.mjs'
 import procProxy from './procProxy.mjs'
+import createTargetPolicy from './proxyTargetPolicy.mjs'
 import procApis from './procApis.mjs'
 import createSyncApis from './syncApis.mjs'
 import createLockSave from './lockSave.mjs'
@@ -44,7 +44,7 @@ import ds from '../src/schema/index.mjs'
  * @param {String} url 輸入資料庫連線字串，例如w-orm-lmdb為'./db'，或w-orm-mongodb為'mongodb://username:password@$127.0.0.1:27017'
  * @param {String} db 輸入資料庫名稱字串
  * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'，且輸入'y'時會複寫權限系統該使用者之'isAdmin'欄位值
- * @param {Function} verifyClientUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件與入口名from字串，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。瀏覽端以token進入之入口皆會呼叫（外部應用入口POST /syncAndReplaceTabs改走verifyAppUser，前端靜態檔為公開）：登入檢查GET /api/getUserByToken（from為'getUserByToken'），以及資料通道（kpFunExt、表select、系統函數與上傳下載，連線閘verifyConn，from為w-converhp之入口名：'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'；1.1.14之後版本起，見README Upgrade Notes）。拋錯、reject或回傳falsy值皆視同拒絕。政策若只允許部分入口，請依from區分
+ * @param {Function} verifyClientUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件與入口名from字串，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。瀏覽端以token進入之入口皆會呼叫（外部應用入口POST /syncAndReplaceTabs改走verifyAppUser，前端靜態檔為公開）：登入檢查GET /api/getUserByToken（from為'getUserByToken'），以及資料通道（kpFunExt、表select、系統函數與上傳下載，連線閘verifyConn，from為w-converhp之入口名：'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'；1.1.16起，見README Upgrade Notes）。拋錯、reject或回傳falsy值皆視同拒絕。政策若只允許部分入口，請依from區分
  * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
  * @param {Object} [opt={}] 輸入設定物件，預設{}。w-serv-orm 1.1.9 起移除之 useCheckUser、getUserById、useExcludeWhenNotAdmin 不再支援：未給、null 或 false 照常，給予其他值時建構即拋錯（訊息取自 w-serv-orm 之 checkOptRemoved）
  * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，須為1至65535之整數（可為數字字串），未給(undefined或null)時取預設11005，有給但無效時建構即拋錯'invalid opt.serverPort'，預設11005
@@ -56,7 +56,9 @@ import ds from '../src/schema/index.mjs'
  * @param {String} [opt.logFd='./logs'] 輸入log紀錄儲存位置字串（srLog 寫入與統計掃描共用），預設'./logs'
  * @param {String} [opt.logInterval='hr'] 輸入log紀錄檔案拆檔時長字串，可選'hr'或'day'，預設'hr'
  * @param {Integer} [opt.logNumKeep=null] 輸入log檔保留數上限正整數，超出者自最舊刪除，未給採w-syslog預設(hr模式365*24、day模式365)，預設null
- * @param {Function} [opt.isAllowTarget=null] 輸入測試分頁proxy之目標位址檢核函數，函數會傳入目標網址字串（首跳與轉址後每一跳皆會呼叫），回傳false即拒絕該請求（回err-key 'errReqTargetNotAllowed'），預設null（不限制）
+ * @param {Function} [opt.isAllowTarget=null] 輸入測試分頁proxy之目標位址檢核函數（部署方自訂之網址層檢核），函數會傳入實際將送出之目標網址字串（首跳為query列併入後經URL正規化之網址、轉址跳為Location解析後之網址；首跳與轉址後每一跳皆會呼叫），可為同步或非同步函數，回傳（或Promise解析為）false即拒絕該請求（回err-key 'errReqTargetNotAllowed'），拋錯或reject視同拒絕（不外洩拋出之內容），預設null（不另限制）。與內建之內網與本機位址拒絕（opt.proxyAllowInternal、opt.proxyAllowList）並存時兩者皆須通過：每一跳先呼叫本函數，再做內建檢查；本函數回傳true不能放寬內建拒絕，內建之放行清單亦不繞過本函數
+ * @param {String} [opt.proxyAllowInternal='n'] 輸入測試分頁proxy是否關閉內建之內網與本機位址拒絕，可選'y'或'n'（亦接受true、false），預設'n'。預設（'n'）時代發請求之目標若為內網或本機位址一律拒絕（回err-key 'errReqTargetNotAllowed'，不回顯目標位址，並記srLog）：loopback（127.0.0.0/8、::1，含localhost名稱）、私有網段（10/8、172.16/12、192.168/16、fc00::/7）、鏈路本地（169.254/16、fe80::/10）、CGNAT（100.64/10）、未指定位址（0.0.0.0、::）、保留與文件與多播位址、IPv4映射或內嵌之IPv6（::ffff:127.0.0.1等，依其內嵌之IPv4判斷）等凡非全域單播之位址；依實際解析後之IP判斷（主機名於連線當下解析並檢查全部結果，連線所用之位址即檢查過之位址），轉址每一跳皆檢查。給'y'即整體關閉此拒絕（僅限部署於可信任網路、代發目標皆可信時）；給其他值建構即拋錯'invalid opt.proxyAllowInternal'。1.1.15及之前版本不限制目標，見README Upgrade Notes
+ * @param {Array} [opt.proxyAllowList=[]] 輸入測試分頁proxy之內網與本機位址放行清單（調整內建拒絕之範圍），項為字串：IP（'127.0.0.1'、'::1'）、CIDR（'10.0.0.0/8'、'fd00::/8'）或主機名（'api.internal'，不分大小寫，不含port與萬用字元）。IP與CIDR涵蓋之位址不受內建拒絕（IPv4映射之IPv6亦以其IPv4比對）；主機名所列之主機其解析結果不受內建拒絕（含解析到內網，故只列可信之主機名）。公開位址不受此清單影響；此清單只放寬內建拒絕，不放寬opt.isAllowTarget。項不合法（非字串、格式錯誤）或非陣列時建構即拋錯'invalid opt.proxyAllowList'，預設[]
  * @param {String} [opt.lockExternalRows='y'] 輸入後台是否不得動外部列（srcKey為非空字串，即經syncAndReplaceTabs由外部來源匯入之API）與外部管理之群組（group內存在外部列者），可選'y'或'n'，預設'y'。'y'時伺服端強制：外部列不可刪除（deleteExternalRowDenied）、不可改group與srcKey及外部擁有欄位（order、name、description、url、method、version、group、levels、keywords、state、creator、dataSource、mdInputParams、inputExample、mdOutputParams、outputExample；saveExternalRowChanged），本系統擁有欄位（tokens、testBaseUrl、authType、authConfigJson、defaultHeadersJson、defaultQueryJson、defaultBodyJson、contentType）仍可改；外部管理之群組不可由後台新增列，也不可把列改入該群組（saveExternalGroupDenied）；違規整次拒收、零寫入，前端同步顯示鎖頭、欄位唯讀、刪除鈕停用與說明。給'n'回到升版前行為（後台可改可刪外部列、可在外部管理之群組新增列，下次匯入以外部為主覆蓋或刪除）。外部匯入（syncAndReplaceTabs）不受此選項影響。升版後既有庫中srcKey為非空之列即視為外部列而唯讀，請先依README Upgrade Notes盤點（g_auditExternalRows.mjs）
  * @returns {Object} 回傳w-serv-hapi之伺服器事件物件，可監聽error事件，並提供ready函數（回傳promise，啟動成功時resolve為hapi伺服器實體）、getServer與getInstWConverServer函數，以及stop函數：依序停止伺服器（w-serv-hapi之stop）、清除本套件之快取計時器、關閉各資料表ORM之連線、關閉後端log，可重複呼叫並回傳同一promise，之後不可再使用本實例。建構於資源建立後失敗時，已建立之資源於拋錯前釋放。資料通道只開放表操作select（同步用），寫入一律經kpFunExt之saveApi與deleteApi。本函數與參考部署皆不註冊process之unhandledRejection與uncaughtException監聽，未處理之rejection會依Node預設終止行程，宜由行程管理器重啟
  * @example
@@ -198,6 +200,18 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     serverPort = cint(serverPort)
 
 
+    //proxyTargetPolicy: 測試分頁代發請求之內建目標位址政策（預設拒絕內網與本機位址；opt.proxyAllowInternal 整體開關、opt.proxyAllowList 調整；P1, ADR-049, R-PROXYTARGET-01）。
+    //須於任何副作用（srLog 初始化起）之前檢核，設定不合法即拋錯、不留資源，且不退回預設（設定寫錯不得靜默生效）
+    let proxyTargetPolicy = null
+    try {
+        proxyTargetPolicy = createTargetPolicy({ allowInternal: get(opt, 'proxyAllowInternal'), allowList: get(opt, 'proxyAllowList') })
+    }
+    catch (err) {
+        console.log(err.message)
+        throw err
+    }
+
+
     //webName
     let webName = get(opt, 'webName', {})
 
@@ -324,8 +338,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let lockSave = createLockSave(cst)
 
 
-    //procProxy
-    let { proxyRequestByUser } = procProxy({ srLog, isAllowTarget, lockSave })
+    //procProxy（isAllowTarget: 部署方之網址層檢核；targetPolicy: 內建之解析後位址層政策，兩者皆須通過，見 procProxy.mjs）
+    let { proxyRequestByUser, close: closeProxy } = procProxy({ srLog, isAllowTarget, targetPolicy: proxyTargetPolicy, lockSave })
 
 
     //procApis（srLog：procOrm 失敗時記原文、對外回語系鍵，R-ERR-1）
@@ -422,31 +436,44 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     }
 
 
+    //authToken：資料通道之 token 完整驗證＝token 認證（getTokenUser：解析呼叫者、欄位齊備）＋部署方注入之授權鉤子 verifyClientUser(user, from)，回傳使用者。
+    //連線閘（p.checkToken，驗標頭 token）與執行身分（getUserIdByToken，驗本體 __sysToken__）共用此一處，使兩個 token 各經同等完整之驗證（R-CONNGATE-01、R-EXECID-01，ADR-048、ADR-050；
+    //規格 C:\opensrcOper\dspec\w-web呼叫者身分驗證.md 規則 3、4）。from 為入口名，供部署方區分入口；與 /api/getUserByToken 之登入檢查（getAndVerifyClientUser）為同一鉤子、
+    //同一否定語意（拋錯或 reject 視同 false，wrapInjected）。不通過 reject 'errUserNoPermission'（呼叫端記 srLog；連線閘回 permission denied，執行身分回固定 key，皆不回顯 token 與使用者資料）。
+    //認證在前、授權在後：未通過認證者不呼叫鉤子。
+    let authToken = async (token, from = '') => {
+
+        //與 getTokenUser 同一規則（S8，ADR-033；改造前另手寫一份且未檢查查無）
+        let user = await getTokenUser(token)
+
+        //verifyClientUser（已包裝：拋錯或 reject 視同 false）。交給鉤子者為淺拷貝：部署方鉤子若改寫傳入之物件（如把 id 設空），後續取 id 仍用驗證前之原物件（外審 sol F07）
+        let b = await verifyClientUser({ ...user }, from)
+
+        //check
+        if (!b) {
+            console.log(`user does not have permission, apiType[${from}]`) //不印 user（資料通道每請求至少兩次，僅記入口名）
+            return Promise.reject('errUserNoPermission')
+        }
+
+        return user
+    }
+
+
     //p
     let p = {
-        //checkToken：資料通道（w-converhp 六條路由，含 /api/main 之 kpFunExt、表 select、系統函數）之連線閘（R-CONNGATE-01，ADR-048；
-        //規格 C:\opensrcOper\dspec\w-web呼叫者身分驗證.md 規則 3）＝token 認證（getTokenUser）＋部署方注入之授權鉤子 verifyClientUser(user, from)。
-        //from 為 w-converhp 之 apiType（'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'），
-        //供部署方區分入口；與 /api/getUserByToken 之登入檢查（getAndVerifyClientUser）為同一鉤子、同一否定語意（拋錯或 reject 視同 false，wrapInjected）。
-        //不通過 reject 'errUserNoPermission'（verifyConn 記 srLog 後再拋；w-converhp 回 permission denied，不回顯 token 與使用者資料）。
-        //認證在前、授權在後：未通過認證者不呼叫鉤子。
+        //checkToken：資料通道（w-converhp 六條路由，含 /api/main 之 kpFunExt、表 select、系統函數）之連線閘（R-CONNGATE-01，ADR-048），from 為 w-converhp 之 apiType
+        //（'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'）；驗證本體見 authToken
         checkToken: async(token, from = '') => {
-
-            //與 getTokenUser 同一規則（S8，ADR-033；改造前另手寫一份且未檢查查無）
-            let user = await getTokenUser(token)
-
-            //verifyClientUser（已包裝：拋錯或 reject 視同 false）
-            let b = await verifyClientUser(user, from)
-
-            //check
-            if (!b) {
-                console.log(`user does not have permission, apiType[${from}]`) //不印 user（連線閘每請求一次，僅記入口名）
-                return Promise.reject('errUserNoPermission')
-            }
-
+            await authToken(token, from)
             return true
         },
     }
+
+
+    //reBearerAuth：Authorization 標頭須為 Bearer 方案（RFC 9110 §11.1：方案名不分大小寫；方案名與憑證間為一個以上空白）。
+    //原以 strdelleft(authorization, 7) 無條件刪前 7 字元而從不驗方案，'Basic <token>'、'Token <token>' 亦能通過連線閘（api-run01 實測 F4）；
+    //不符方案者視為未帶 token。憑證取方案名與空白之後之整段（不另限制字元集，token 之形狀屬部署方）
+    let reBearerAuth = /^Bearer +(\S.*)$/i
 
 
     //getAndVerifyClientUser
@@ -882,8 +909,13 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         verifyConn: async ({ apiType, authorization, query, headers, req }) => {
             // console.log('verifyConn', `apiType[${apiType}]`, `authorization[${authorization}]`)
 
-            //token
-            let token = strdelleft(authorization, 7) //刪除Bearer
+            //身分驗證責任：框架（w-converhp、w-serv-hapi、w-serv-webdata、w-serv-orm）不驗證 token，一律由本套件負責。連線閘（verifyConn）與執行身分（getUserIdByToken）
+            //皆須完整驗證（token 有效、本系統使用者存在且啟用、部署方授權）；hapi apis 路由各自驗證；函數層級另檢查角色或成員；公開入口只限列名者。
+            //（跨套件標準註解，見 C:\opensrcOper\dspec\使用者身分驗證原則.md 第三節；本套件之落實見 README 〈Security: identity verification responsibility〉。）
+
+            //token：Authorization 須為 Bearer 方案（見 reBearerAuth），方案不符視為未帶 token
+            let m = reBearerAuth.exec(isestr(authorization) ? authorization : '')
+            let token = m === null ? '' : m[1]
             // console.log('token', token)
 
             //check
@@ -913,21 +945,29 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             return b
         },
         getUserIdByToken: async (token) => { //可使用async或sync函數
-            //fail-closed（S9，ADR-033；對齊 w-web-perm）：token 非字串或查無 userId（含上游失敗經包裝轉成之 null）→ 記 srLog 並 reject，
-            //w-serv-webdata 之 execFun 即不執行函數。改造前回 '' 仍以空 userId 執行（fail-open）：Authorization 有效者可在本體
-            //__sysToken__ 帶任意值，以空身分執行 kpFunExt 與 ORM 函數
-            let userId = ''
-            if (isestr(token)) {
-                let user = await getUserByToken(token)
-                userId = get(user, 'id', '')
+            //身分驗證責任：框架（w-converhp、w-serv-hapi、w-serv-webdata、w-serv-orm）不驗證 token，一律由本套件負責。連線閘（verifyConn）與執行身分（getUserIdByToken）
+            //皆須完整驗證（token 有效、本系統使用者存在且啟用、部署方授權）；hapi apis 路由各自驗證；函數層級另檢查角色或成員；公開入口只限列名者。
+            //（跨套件標準註解，見 C:\opensrcOper\dspec\使用者身分驗證原則.md 第三節；本套件之落實見 README 〈Security: identity verification responsibility〉。）
+            //
+            //執行身分（R-EXECID-01，ADR-050；規格 C:\opensrcOper\dspec\w-web呼叫者身分驗證.md 規則 4，C3）：w-serv-webdata 於執行每個資料通道函數（kpFunExt、表操作、系統函數）之前
+            //以請求本體之 __sysToken__ 呼叫本函數取得 userId，此 token 與連線閘所驗之 Authorization 標頭 token 來自不同欄位、可為不同值（框架不比對兩者；w-serv-orm 1.1.10 起亦不做使用者檢查）。
+            //故「反查使用者」即驗證身分之步驟，須與連線閘同等完整：token 認證（解析、欄位齊備）＋部署方授權 verifyClientUser(user, 'main')，共用 authToken，兩個 token 各經完整驗證。
+            //修正前只取外部 getUserByToken 之 id：標頭為放行者、本體為被 verifyClientUser 拒絕者（或欄位不齊者）時函數照常執行並以被拒者之身分寫入（api-run01 實測）。
+            //from 固定為 'main'：w-serv-webdata 之 execFun 只由 w-converhp 之 /api/main（apiType 'main'）觸發，其餘五條路由（上傳、下載）不經本函數（本套件亦未註冊其監聽）；
+            //此為資料通道函數之執行身分檢查，與連線閘之 'main' 為同一入口，部署方之 verifyClientUser 依 from 之政策因而一致。
+            //fail-closed（S9，ADR-033；對齊 w-web-perm）：token 非字串、查無、欄位不齊、授權不通過（含上游失敗經包裝轉成之 null／false）一律 reject 固定 key 'errUserIdMissing'，
+            //w-serv-webdata 之 execFun 即不執行函數、不回顯 token 與使用者資料（具體原因不外露，只入 srLog：err 為認證或授權之既有 key）。改造前回 '' 仍以空 userId 執行（fail-open）。
+            let user = null
+            try {
+                user = await authToken(token, 'main')
             }
-            if (!isestr(userId)) {
+            catch (err) {
                 console.log('token', maskTok(token))
-                console.log('can not get the userId from token')
-                srLog.error({ event: 'getUserIdByToken', err: 'errUserIdMissing' })
+                console.log('can not verify the user from token for execution')
+                srLog.error({ event: 'getUserIdByToken', err: isestr(err) ? err : 'errUserIdMissing' }) //err 為 authToken 之 reject key（固定字串）；非字串者（不應出現）只記固定 key
                 return Promise.reject('errUserIdMissing')
             }
-            return userId
+            return get(user, 'id', '') //authToken 通過 getTokenUser／checkUser，id 必為非空字串
         },
         ...optDataChannel,
         kpFunExt: { //接收參數第1個為userId, 之後才是前端給予參數（皆經 wrapErrLog：錯誤 srLog err-key 後 re-reject）
@@ -990,7 +1030,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         }
         pmStop = (async () => {
             await stopServ()
-            for (let release of [() => cst.clear(), () => closeAll(), () => srLog.clear()]) {
+            for (let release of [() => cst.clear(), () => closeProxy(), () => closeAll(), () => srLog.clear()]) {
                 try {
                     await release()
                 }

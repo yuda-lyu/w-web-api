@@ -24,6 +24,8 @@ import http from 'http'
 import path from 'path'
 import {
     startServersOnce,
+    restartBackend,
+    genTempSettings,
     captureStable,
     captureStableWithBox,
     composeBox,
@@ -849,6 +851,9 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
     before(async function() {
         this.timeout(180000)
         await startServersOnce()
+        //代發目標為本機（127.0.0.1 之 echo 與後端自身）：內建目標位址政策預設拒絕本機位址（P1, ADR-049；拒絕行為由 api-proxyTarget 驗），
+        //故以暫時設定令後端放行 127.0.0.1（after 還原預設設定之後端，同 e2e-external）
+        await restartBackend(genTempSettings({ proxyAllowList: ['127.0.0.1'] }))
         await startEchoServer() //進場起 echo（離場於 after 關閉，lifecycle 對稱）
     })
 
@@ -858,6 +863,7 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
         //還原 base seed 供非 e2e 時段使用；關閉本檔 spawn 之 echo server
         await resetToBaseSeed()
         await stopEchoServer()
+        await restartBackend('./settings.json') //還原預設設定之後端
     })
 
     for (let lang of LANGS) {

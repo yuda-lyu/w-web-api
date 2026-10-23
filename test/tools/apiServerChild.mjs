@@ -106,6 +106,15 @@ let users = {
     tokVTruthy: { id: 'id-vtruthy', name: 'vtruthy', email: 'vtruthy@example.com', isAdmin: 'y' },
     tokNonAdmin: { id: 'id-nonadmin', name: 'nonadmin', email: 'nonadmin@example.com', isAdmin: 'n' },
     tokNoEmail: { id: 'id-noemail', name: 'noemail', isAdmin: 'y' },
+    //api-run02(api-execIdentity／api-connGate): 認證階段之欄位檢查各缺一格、鉤子之其他 falsy 結果與非同步結果、鉤子改寫傳入物件
+    tokNoName: { id: 'id-noname', email: 'noname@example.com', isAdmin: 'y' },
+    tokBadRole: { id: 'id-badrole', name: 'badrole', email: 'badrole@example.com', isAdmin: 'maybe' },
+    tokNoId: { name: 'noid', email: 'noid@example.com', isAdmin: 'y' },
+    tokVNull: { id: 'id-vnull', name: 'vnull', email: 'vnull@example.com', isAdmin: 'y' },
+    tokVZero: { id: 'id-vzero', name: 'vzero', email: 'vzero@example.com', isAdmin: 'y' },
+    tokVEmptyStr: { id: 'id-vemptystr', name: 'vemptystr', email: 'vemptystr@example.com', isAdmin: 'y' },
+    tokVAsyncFalse: { id: 'id-vasyncfalse', name: 'vasyncfalse', email: 'vasyncfalse@example.com', isAdmin: 'y' },
+    tokMutate: { id: 'id-mutate', name: 'mutate', email: 'mutate@example.com', isAdmin: 'y' },
 }
 let getUserByToken = async (token) => (users[token] ? { ...users[token] } : {})
 let verify = (user) => user.isAdmin === 'y'
@@ -133,6 +142,22 @@ let verifyClient = (user, from) => {
         return 1
     }
     if (user.id === 'id-nonadmin') {
+        return true
+    }
+    if (user.id === 'id-vnull') {
+        return null
+    }
+    if (user.id === 'id-vzero') {
+        return 0
+    }
+    if (user.id === 'id-vemptystr') {
+        return ''
+    }
+    if (user.id === 'id-vasyncfalse') {
+        return Promise.resolve(false)
+    }
+    if (user.id === 'id-mutate') {
+        user.id = '' //部署方鉤子改寫傳入之物件(驗執行身分取自驗證前之快照, 不受鉤子改寫影響)
         return true
     }
     return user.isAdmin === 'y'

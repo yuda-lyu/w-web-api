@@ -6,12 +6,13 @@
 //- 資料終態：被拒者不寫入、不送出（新增列筆數＝成功次數；echo 收到之請求數＝成功次數）；既有列只 1 筆且為送出值；刪除後不存在。
 //操作者一律 'sys'（srv.mjs 開發捷徑，使用者 id-for-admin；NODE_ENV!=='production'）。srv.mjs 無第二個有效之測試使用者，
 //「不同使用者並行皆成功」由 unit-procApis／unit-procProxy（PROXY-025）驗。
-//echo 目標：本檔自起 127.0.0.1:11086（延遲 500ms 回應，使兩次請求多半重疊；斷言不依賴之）。後端 srv.mjs 未設 isAllowTarget，本機目標可達。
+//echo 目標：本檔自起 127.0.0.1:11086（延遲 500ms 回應，使兩次請求多半重疊；斷言不依賴之）。內建目標位址政策預設拒絕本機位址（P1, ADR-049），
+//故 before 以 restartBackend(genTempSettings({ proxyAllowList: ['127.0.0.1'] })) 令後端放行 127.0.0.1，after 還原預設設定之後端。
 //跑法：npx mocha test/api-doubleclick.test.mjs --timeout 180000（startServersOnce 於 11005 空著時會 build dist 並起後端，同 api-http）
 import assert from 'assert'
 import http from 'http'
 import get from 'lodash-es/get.js'
-import { startServersOnce, baseUrl, resetToBaseSeed, woItems } from './tools/e2e-setup.mjs'
+import { startServersOnce, restartBackend, genTempSettings, baseUrl, resetToBaseSeed, woItems } from './tools/e2e-setup.mjs'
 import { callFun as callFunAt } from './tools/apiMain.mjs'
 
 
@@ -57,6 +58,7 @@ describe('api-doubleclick（後端依使用者占位：同一使用者之同一�
     before(async function() {
         this.timeout(180000)
         await startServersOnce() //build dist + 起後端（與 api-http／e2e 共用，只起一次）
+        await restartBackend(genTempSettings({ proxyAllowList: ['127.0.0.1'] })) //放行本機 echo 目標
         srvEcho = await new Promise((resolve, reject) => {
             let s = http.createServer((req, res) => {
                 req.resume()
@@ -79,6 +81,7 @@ describe('api-doubleclick（後端依使用者占位：同一使用者之同一�
             await new Promise((resolve) => srvEcho.close(() => resolve()))
         }
         await resetToBaseSeed() //清掉本檔寫入之列、還原 base seed
+        await restartBackend('./settings.json') //還原預設設定之後端
     })
 
     beforeEach(async function() {

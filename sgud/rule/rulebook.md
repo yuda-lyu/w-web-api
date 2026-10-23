@@ -9,7 +9,7 @@
 | 分冊 | 類型 | 內容 |
 |---|---|---|
 | `rulebook_test.md` | 測試 | 測試配置、e2e 落地映射 |
-| `rulebook_backend.md` | 後端與外部同步 | 後端錯誤契約、w-serv-orm 設定／資料通道／外部同步／生命週期、打包後之可用性、權杖外洩防護、外部同步契約、**呼叫者身分驗證(資料通道連線閘, R-CONNGATE-01)**、迭代使用端傳入之物件、〔跨套件規格〕 |
+| `rulebook_backend.md` | 後端與外部同步 | 後端錯誤契約、w-serv-orm 設定／資料通道／外部同步／生命週期、打包後之可用性、權杖外洩防護、外部同步契約、**呼叫者身分驗證(資料通道連線閘 R-CONNGATE-01、執行身分 R-EXECID-01、Authorization 方案 R-AUTHSCHEME-01)**、**代發請求之內建目標位址政策(R-PROXYTARGET-01)**、迭代使用端傳入之物件、〔跨套件規格〕 |
 | `rulebook_ui.md` | 前端 UI | 上方標題列 RWD、計算高度之容器、按鈕雙擊防護 |
 | `rulebook_gaps.md` | 已知缺口與待辦 | 已知缺口 / 待辦(現況摘要見 `../state/state.md`) |
 | `rulebook_concurrency.md` | 多人同時編輯(原則 10) | 欄位三分類、寫入者全集、前端資料流、寫入契約草案、同步穩定識別、現存缺陷實證、第二波實作規劃(2026-10-22 inv01 盤點新建); **§9 實作結果與規則(2026-10-23 api-run01: R-CONC-01~06、V1~V14 驗收對照)** |
@@ -26,7 +26,7 @@
 | 權杖外洩防護(對照 ADR-033; w-web-sso ADR-068 之 W / M / K 契約) | `rulebook_backend.md` |
 | 外部同步契約(對照 ADR-031; 含 R-IMPORT-01 外部匯入〔ADR-043〕與 R-EXT-LOCK-01 外部列受保護〔ADR-044, 2026-10-23 api-run02〕) | `rulebook_backend.md` |
 | 迭代使用端傳入之物件與使用端字串鍵(R-OBJ-ITER-01 / R-KEY-01; 2026-10-20, 主控第 90 項; 對應 wsemi 同名規則、w-web-perm 與 w-web-sso 同日修正) | `rulebook_backend.md` |
-| 呼叫者身分驗證:資料通道連線閘(R-CONNGATE-01; 跨套件規格 w-web呼叫者身分驗證; 2026-10-23, api-run01, ADR-048) | `rulebook_backend.md` |
+| 呼叫者身分驗證:資料通道連線閘(R-CONNGATE-01; 跨套件規格 w-web呼叫者身分驗證; 2026-10-23, api-run01, ADR-048)＋執行身分(R-EXECID-01)、Authorization 方案(R-AUTHSCHEME-01)、代發請求之內建目標位址政策(R-PROXYTARGET-01)(2026-10-23, api-run02, ADR-049／050) | `rulebook_backend.md` |
 | 〔跨套件規格〕(主控 2026-10-16 依使用者交辦寫入) | `rulebook_backend.md` |
 | 上方標題列 RWD(對照 ADR-032; 機制同 w-web-sso ADR-067) | `rulebook_ui.md` |
 | 計算高度之容器(2026-09-29) | `rulebook_ui.md` |

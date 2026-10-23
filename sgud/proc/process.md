@@ -48,6 +48,7 @@
 - **判斷**: 開發與測試以 `?token=sys` 登入; `ssoAppToken` 為空時不打 SSO、直接回 `{}`; 瀏覽端與應用端皆只放行 `isAdmin` 為 `y`; token 時效與撤銷全交 SSO, 本套件不自管 session.
 - **處理**: 要接 SSO 才填 app token 並確認 `ssoBaseUrl`; 正式部署設 `NODE_ENV=production` 即停用 `sys` 捷徑並改提供真實 `getUserByToken`; 認證資料不經任何同步流程進出, 各服務獨立靠自身 token 或 SSO 與 perm.
 - **呼叫者身分驗證(2026-10-23 起, ADR-048、R-CONNGATE-01)**: 資料通道連線閘＝token 認證＋部署方 `verifyClientUser(user, apiType)`(`from` 為 w-converhp 入口名, 資料通道呼叫為 `'main'`), 未通過整次連線被拒; 套件不自訂誰可用之政策, 但**不得讓任何非公開入口略過部署方之鉤子**(無關閉選項). 新增任何由外部可觸及之入口(hapi 路由、kpFunExt、資料通道函數)時: 先對照 `sgud/rule/rulebook_backend.md` R-CONNGATE-01 之站點全集與盤點指令, 補測試(`api-connGate`)與該表; 公開入口只限本質上拿不到 token 者, 須經主控複審. 部署方之 `verifyClientUser` 每個資料通道請求(含輪詢)都會被呼叫, 範例與 README 不得再逐次印使用者物件.
+- **執行身分與 Authorization 方案(2026-10-23 起, api-run02, ADR-050、R-EXECID-01、R-AUTHSCHEME-01)**: 資料通道之兩個 token(標頭 `Authorization`、本體 `__sysToken__`)各經**同等完整**驗證——`getUserIdByToken` ＝ `authToken(token,'main')`(token 認證＋`verifyClientUser`), 與連線閘共用同一函數, 不另寫第二套; 失敗對外一律 `errUserIdMissing`(不分原因)、srLog 記原因鍵; 因此部署方之 `verifyClientUser` 每個函數呼叫被呼叫兩次(`from` 皆 `'main'`). `Authorization` 須為 Bearer 方案(`reBearerAuth`, 方案名不分大小寫), 不符視同未帶 token. 新增任何「由 token 取得使用者」之路徑時一律經 `authToken`, 不得直接只用 `getUserByToken` 取 id; 跨套件〈使用者身分驗證原則〉第三節之標準註解須保留於 `verifyConn`、`getUserIdByToken`.
 
 ## 語系注入
 
@@ -90,9 +91,9 @@
 
 ## 測試分頁之代打請求
 
-- **關聯**: 後端 proxy(繞 CORS); 建構子 opt `isAllowTarget(url)`; ADR-029.
-- **判斷**: 前端一律經後端 proxy 打目標; 請求內容原文送出、標頭表為唯一真理源; Query / Headers 以有序鍵值對送出, 重複鍵不收斂. 不給 `isAllowTarget` 即不限制目標.
-- **處理**: 要限制可打之目標時於建構子 opt 給 `isAllowTarget(url)`, 首跳與轉址每一跳皆會檢核.
+- **關聯**: 後端 proxy(繞 CORS); 建構子 opt `isAllowTarget(url)`、`proxyAllowInternal`、`proxyAllowList`; ADR-029、ADR-049(內建目標位址政策, R-PROXYTARGET-01).
+- **判斷**: 前端一律經後端 proxy 打目標; 請求內容原文送出、標頭表為唯一真理源; Query / Headers 以有序鍵值對送出, 重複鍵不收斂. **自 1.1.16 起預設拒絕內網與本機位址**(依解析後之 IP、連線位址即檢查位址、轉址逐跳檢查); `isAllowTarget` 為部署方自訂之網址層檢核, 與內建政策並存時兩者皆須通過(先 `isAllowTarget`).
+- **處理**: 要連內網或本機目標時於建構子 opt 給 `proxyAllowList`(IP／CIDR／主機名)或 `proxyAllowInternal: 'y'`(參考部署由 `settings.json` 同名鍵轉入); 要再限制可打之目標時另給 `isAllowTarget(url)`, 首跳與轉址每一跳皆會檢核. 測試之代發目標為本機 echo 時, 用 `restartBackend(genTempSettings({ proxyAllowList: ['127.0.0.1'] }))` 或子行程 `opt` 放行 127.0.0.1, 不得改 `settings.json` 預設; 傳輸為 `undici` 套件之 `fetch`＋`Agent`(不得改回 Node 內建 `fetch`, 其無連線位址之注入點). 新增任何出站請求須經同一政策.
 
 ## 多人同時編輯(原則 10)之處理(2026-10-22 起)
 

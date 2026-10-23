@@ -192,3 +192,16 @@
 - **參考部署 `srv.mjs` 的鉤子曾逐次 `console.log(user)`**: 連線閘使它變成每個資料通道請求都印一次，已移除；README 範例同註明 `from` 的取值。
 - **記錄不修的上游問題要有實測**: 雙來源 token(Authorization 放行者＋`__sysToken__` 被拒者 → `saveApi` 成功、`userIdUpdate` 記為被拒者)與 `proxyRequest` 無目標白名單，皆以探測腳本／對照案實測後寫入 ADR-048，不憑讀碼斷言。
 - **harness 副作用**: 本輪 api／e2e 跑完 `dist/*`、`tableTags-web-api.json` 被 `npm run build`／後端改寫，結束前以 `git archive HEAD dist tableTags-web-api.json` 還原並刪除建置產生之未追蹤雜湊檔(不用 checkout/reset)。
+
+## api-run02(2026-10-23, 跨套件規格 P1、C3, 最末輪): 代發請求預設拒絕內網與本機、執行身分完整驗證、Authorization 嚴格 Bearer(ADR-049、050)
+
+- **「檢查後才解析」之防線只能在連線點上做**: Node 內建 `fetch`(undici)無 per-request 之 `lookup` 注入點；`fetch` 前自行 `dns.lookup` 檢查，連線時會再解析一次(TOCTOU)；改寫網址為 IP 則 https 之 SNI 與憑證驗證失敗；以 `node:http` 重寫會改變目標端所見之請求標頭並須自行解壓縮；取 Node 內建 undici 之 `Agent` 類別(`globalThis[Symbol.for('undici.globalDispatcher.1')].constructor`)依賴宿主之全域 dispatcher。採 `undici` 套件之 `fetch`＋`Agent({ connect: { lookup } })`，**Agent 與 fetch 須同一套件**。guarded lookup 以 `all:true` 取全部結果、任一不被允許即整次拒絕(不挑公開者連)，通過者原組交回；IP 字面值不呼叫 lookup，須另在連線前同步檢查(`checkUrl`，每跳)。實測探測腳本見報告(`tmp` 已清)。
+- **改換傳輸要先量「目標端所見之請求」**: undici 套件 7.28.0 之預設 `User-Agent` 為 `undici`(Node 內建為 `node`)，且標頭名大小寫與內建版(7.30.1)不同(套件版轉小寫、內建版保留)；本套件補預設 `user-agent: node` 維持舊值，大小寫差異不影響(HTTP 標頭名不分大小寫；echo 之 `req.headers` 本就小寫)。補 UA 會使標頭在送出時依字母序排入使用者標頭之間，echo 回顯之鍵序略變(只影響人眼，語意斷言與標準圖〔送出前態〕不受影響；E2E-001-3 之標頭區為貼參考片)。以 `unit-procProxy` 29 案不改一字全綠證明契約不變。
+- **整體關閉之變異(政策恆放行)會讓 api 測試極慢**: 每個預期被拒之目標改為真的去連(私有網段 10/8、192.168/16 內之位址,與雲端中繼資料之鏈路本地位址)，各耗滿 30 秒逾時；變異驗證時 P1 政策類以 unit 為主，api 只留 `WWebApi` 接線與選項檢核類。
+- **api 測試之「拒絕」若無放行對照，「零命中」是空洞的**: `api-connGate`／`api-execIdentity` 之代發目標為本機 echo，預設政策本身就會拒絕它；故子行程以 `opt.proxyAllowList:['127.0.0.1']` 放行，使「被拒者之 proxyRequest 零命中」確由連線閘／執行身分決定。參考部署之 `settings.json` 不放行，e2e／api 以 `restartBackend(genTempSettings({ proxyAllowList: ['127.0.0.1'] }))` 暫時放行並於 `after` 還原。
+- **C3 之計數斷言是行為編碼，改行為時必須同步**: `api-connGate` 三處「每請求鉤子一次」於 C3 後為兩次(連線閘＋執行身分)；改測試前先確認它編碼的是被修改之行為(是)，並在 ADR 與報告列出，不是為了綠而放寬。`api-tokenLeak` E6 之 srLog 期望(`errUserIdMissing` → `errUserNotFound`)同理：新實作記實際原因，對外回應仍為固定鍵。
+- **`[sys:polling]` 之回應不受 `getUserIdByToken` 結果影響**: w-serv-broadcast 之 `onExecute` 於資料通道之 `execFun` 之前同步 `pm.resolve`／`pm.reject`，`execFun` 其後仍呼叫 `getUserIdByToken`(鉤子對輪詢亦兩次)，但 `pm` 已定案。故驗「本體 token 被拒則函數不執行」之函數全集不可含它，另以獨立案記錄其行為與呼叫記錄；輪詢之身分只由連線閘把關(框架層)。**原先憑「回應是 invalid clientId」推論「不經 getUserIdByToken」是錯的**——`api-connGate` 之鉤子計數(13 個請求 26 次，含輪詢)才是實證；寫入文件前先以呼叫記錄核對。
+- **回應固定、log 具體**: 執行身分失敗對外一律 `errUserIdMissing`(不洩漏查無／欄位不齊／授權拒絕之差別，本體 token 因此不成為使用者存在性之探測訊號)，srLog 記具體原因鍵供稽核；兩者分開設計，測試也分開斷言(回應全相同、log 依序為各原因鍵)。
+- **IP 解析表要含邊界與寫法**: 用 BigInt 位移比對網段；表中每個網段測「首、尾、緊鄰外側」；URL 寫法依 WHATWG 正規化(`127.1`、`2130706433`、`0x7f.0.0.1`、尾端點、方括號 IPv6、IPv4 映射之十六進位寫法)，字面值走 `checkUrl`、主機名走 lookup，兩條路徑各測；`localhost`／`*.localhost` 名稱不待解析直接拒絕。fake 解析器要對主機名不分大小寫(DNS 本就不分)。
+- **變異驗證之等價變異要排除**: 例如「`localhost` 名稱檢查移除」在真解析下仍會被 lookup 擋下，故以 `reason: 'internalName'` 與「不解析」之斷言才抓得到——斷言要釘到類別與路徑，不只釘回應。
+- **殘留鎖**: 等鎖時 `quiet-run` 回報他套件(owner=hapi-proto pid=12644, 鎖 web-tests-b)殘留鎖，依規定未處理、報告主控。
