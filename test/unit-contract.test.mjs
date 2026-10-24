@@ -5,7 +5,7 @@ import assert from 'assert'
 import http from 'http'
 import { checkContract, pickWriteRow, digestRow } from 'w-serv-orm/src/baseline.mjs'
 import ds from '../src/schema/index.mjs'
-import contract, { fieldsExternal, fieldsLocal, fieldsServerOnly } from '../src/schema/contracts/apis.mjs'
+import contract, { fieldsExternal, fieldsLocal, fieldsServerOnly, fieldsPublic } from '../src/schema/contracts/apis.mjs'
 import provideTabs from '../server/provideTabs.mjs'
 
 
@@ -74,6 +74,21 @@ describe('unit-contract (apis 寫入契約完整性)', function() {
         assert.strictEqual(row.srcKey, '')
         assert.strictEqual(row.userIdUpdate, '')
         assert.strictEqual(row.isActive, 'y')
+    })
+
+    it('C09 公開欄位白名單 fieldsPublic（一般使用者取 API 清單，R-PUBLICAPIS-01）：皆為 schema 欄位；不含任何本系統擁有欄位（tokens、authConfigJson 等憑證與測試設定）與伺服器專有欄位；其餘欄位（外部擁有 16 欄）逐一明確分類', function() {
+        let all = Object.keys(ds.apis.settings)
+        assert.ok(fieldsPublic.every((k) => all.includes(k) || k === contract.pk), 'fieldsPublic 皆為 schema 欄位或主鍵')
+        assert.deepStrictEqual(fieldsPublic.filter((k) => fieldsLocal.includes(k)), [], '本系統擁有欄位（含 tokens、authConfigJson）不得公開')
+        assert.deepStrictEqual(fieldsPublic.filter((k) => fieldsServerOnly.includes(k)), [], '伺服器專有欄位不得公開')
+        assert.deepStrictEqual(sorted(fieldsPublic), sorted([contract.pk, ...fieldsExternal]), '公開欄位＝主鍵＋外部擁有（API 識別與文件）16 欄；新增外部擁有欄位時須明確決定是否公開（此斷言迫使修訂）')
+    })
+
+    it('C10 schema 全欄位（含主鍵）＝ fieldsPublic ∪ fieldsLocal ∪ fieldsServerOnly 且三者不重疊（新增欄位未分類即紅，預設不公開）', function() {
+        let all = Object.keys(ds.apis.settings)
+        let union = [...fieldsPublic, ...fieldsLocal, ...fieldsServerOnly]
+        assert.strictEqual(union.length, new Set(union).size, '三類不重疊且各自無重複')
+        assert.deepStrictEqual(sorted(union), sorted(all))
     })
 
     it('C08 推送端 provideTabs 只送外部擁有欄位與來源鍵 srcKey（不送 id：外部不得指定內部 id；規格 §9）：本系統擁有欄位與伺服器專有欄位不送', async function() {

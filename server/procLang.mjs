@@ -24,6 +24,10 @@ let kpLang = {
         eng: 'Login denied',
         cht: '拒絕登入',
     },
+    csErrNotAdmin: { //後台登入檢查回 errUserNotAdmin 時之連線狀態文字(R-ADMINONLY-01); 未登入畫面走前端 mUI kpFallback 同鍵
+        eng: 'No permission to enter the API management console',
+        cht: '無權進入 API 管理後台',
+    },
 
     systemMessage: {
         eng: 'System message',
@@ -609,6 +613,10 @@ let kpLang = {
     errUserNoPermission: {
         eng: 'User does not have permission',
         cht: '使用者沒有權限',
+    },
+    errUserNotAdmin: { //非系統管理員(getUserByToken 所回 isAdmin 非 'y')進入後台或資料通道之固定錯誤鍵(R-ADMINONLY-01)
+        eng: 'Only system administrators can use the API management console',
+        cht: '僅系統管理員可使用 API 管理後台',
     },
     errUserNotFound: {
         eng: 'Unable to find user from token',

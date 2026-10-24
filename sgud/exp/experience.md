@@ -205,3 +205,18 @@
 - **IP 解析表要含邊界與寫法**: 用 BigInt 位移比對網段；表中每個網段測「首、尾、緊鄰外側」；URL 寫法依 WHATWG 正規化(`127.1`、`2130706433`、`0x7f.0.0.1`、尾端點、方括號 IPv6、IPv4 映射之十六進位寫法)，字面值走 `checkUrl`、主機名走 lookup，兩條路徑各測；`localhost`／`*.localhost` 名稱不待解析直接拒絕。fake 解析器要對主機名不分大小寫(DNS 本就不分)。
 - **變異驗證之等價變異要排除**: 例如「`localhost` 名稱檢查移除」在真解析下仍會被 lookup 擋下，故以 `reason: 'internalName'` 與「不解析」之斷言才抓得到——斷言要釘到類別與路徑，不只釘回應。
 - **殘留鎖**: 等鎖時 `quiet-run` 回報他套件(owner=hapi-proto pid=12644, 鎖 web-tests-b)殘留鎖，依規定未處理、報告主控。
+
+## api-run01(2026-10-24, 任務 20261024105624): 後台與資料通道限系統管理員、一般使用者以 token 取公開欄位 API 清單(ADR-051)
+
+- **角色檢查放在授權鉤子「之後」且判斷原值**: 「認證 → 部署方 `verifyClientUser` → `assertAdmin`」；交給鉤子的必須是拷貝，否則鉤子把 `isAdmin` 改成 `'y'` 就升權。`authToken` 原本就傳拷貝，`getAndVerifyClientUser` 沒傳——變異「兩處各改傳本體」(M05、M06)分別被 `tokMutateAdmin` 的登入檢查與資料通道案抓到，證明兩處都要測，只測一處會漏。
+- **「檢查單一擁有者 + 測試用函數全集 × 角色 × 兩種 token 來源」比逐函數加檢查可靠**: 本套件的 kpFunExt 全都只收驗證後的 `userId`，故角色檢查放在 `authToken`（連線閘與執行身分共用），不在每個函數內重判；測試以 14 個函數 × 2 種一般使用者 ×（標頭／本體／交叉）釘住。新增函數必須同時列入 `api-adminOnly` 之 `mkFuncs`（帳本 R-ADMINONLY-01 盤點指令）。
+- **翻轉既有測試要連帶改文件舊句，用註記不是刪**: `api-connGate`／`api-execIdentity` 原有「`tokNonAdmin`（isAdmin 'n'、鉤子放行）通過」正向案編碼的是「套件不強加政策」；需求翻轉後該案的新預期是被拒。ADR-022／048／050、R-CONNGATE-01、R-EXECID-01 的舊句加「後續修正（ADR-051）」註記留痕，不刪原文。
+- **公開欄位白名單用字面值、不由 `fieldsExternal` 衍生，並在測試端獨立再列一份字面值**: 實作若 import 同一個常數，把憑證欄位加進常數時測試跟著綠；測試檔自列「應公開 17／永不公開 13」並要求與 schema 全欄位合計且不重疊（P02、C09、C10），新 schema 欄位未分類即紅。哨兵值（`SECRET-*`）掃回應全文比逐欄比對更能抓到「藏在別的欄位裡」的外洩。
+- **測試資料會踩到既有保護機制**: 隔離子行程以 `seed` 寫入的列若帶非空 `srcKey`，該列即外部列、其 `group` 即外部管理群組，之後 `saveApi` 在同一群組新增列會得 `saveExternalGroupDenied`（不是本輪被測行為）——驗「後台新增後即時出現在公開清單」要用別的 group。
+- **srLog 白名單斷言要限定在「拒絕記錄」**: 登入檢查通過授權後，`getAndVerifyClientUser` 另記 info `verifyClientUser`（帶 `userId`，既有白名單欄位）；斷言整份 log 不含 `userId` 會誤紅。拒絕記錄（error）才要求無使用者識別；全 log 只要求無 token、email、憑證。
+- **非管理員不轉址**: 前端 `loginError` 原本一律轉址 `urlRedirect`（SSO 登入頁）；已通過驗證的一般使用者轉去登入頁無用，SSO 登入後導回本頁會形成轉址迴圈，且立即轉址使「無權進入」提示看不到。只對 `errUserNotAdmin` 停在畫面，其餘錯誤維持原轉址。此狀態資料通道不可達（kpLang 未載入），文字走 `mUI` `kpFallback`——新增連線狀態文字時 `kpFallback` 與 `procLang` 兩處都要加（前者管未登入畫面）。
+- **新增標準圖須授權**: E2E-006 的畫面與不轉址以語意斷言守（`allowEmpty`），不自行產圖；既有 10 案標準圖比對全過（0 張改變）。授權後以 `--names E2E-006-not-admin` 補產 2 張並審圖。
+- **待授權之產圖指令須先實跑確認會產圖**(主控 2026-10-24 補記): 上條所列指令於授權後實跑「2 passing」卻 0 張產出——案例 `stages: []`、`run` 回 `{}`, `--baseline` 無圖可寫. 延後產圖時仍須先寫好截圖步驟與 `stages`(只以 `allowEmpty` 擋比對), 並以 `E2E_BASELINE_OUT_DIR` 寫到暫存目錄實跑一次, 確認確有產出.
+- **變異在拷貝上做**: 後端／純函數變異在 `./tmp/api-run01/mut/`（repo 工作樹拷貝）改，不碰 repo；前端變異需重建 dist，只能改 repo 的 `src/`，腳本以 try/finally 還原並比對雜湊，最後再跑一次綠燈使 dist 對應最終原始碼。修前紅用 `git archive HEAD` 解到 `./tmp/`，`node_modules` 靠往上找到 repo 根解析，新測試與 `test/tools` 複製進去即可跑。
+- **e2e 的 `npm run build` 會清空被追蹤的 `dist/`**：`dist/w-web-api.umd.js(.map)` 由發布流程產製、非 `vue-cli-service build` 輸出，被一併刪除；跑完以 `git show HEAD:dist/<檔> > dist/<檔>` 還原（不用 checkout），`dist/js/app*.js` 因前端原始碼改變而換 hash 屬預期。`tableTags-web-api.json` 為執行期標記，同樣被改，一併還原。
+- **外審額度**: C 類兩家（nemotron 11:18:09、beam 11:18:30）皆於啟動時即回 `Free usage limit reached`（stderr 字樣，`run` 不結束，須終止行程）；依規定不再派。

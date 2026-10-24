@@ -3,7 +3,7 @@
 //真後端（隔離子行程：獨立 lmdb、埠 8554，部署方 verifyClientUser 由 test/tools/apiServerChild.mjs 提供並記錄 { userId, from }；不碰專案 ./db 與 11005），
 //經真實資料通道（/api/main 及 w-converhp 其餘五條路由）直打。被拒情境之使用者皆 isAdmin 'y'，使「被拒」只能出自 verifyClientUser（而非 isAdmin 欄位）：
 //- tokDenied：verifyClientUser 回 false；tokVThrow：拋錯；tokVReject：reject；tokVFalsy：回 undefined（falsy）；tokOnlyMain：只在入口 'main' 放行（驗 from 為入口名）
-//- 套件不強加政策之正向格：tokNonAdmin（isAdmin 'n' 但鉤子放行）→ 通過；tokVTruthy（鉤子回 1，truthy 非 true）→ 與登入檢查同一判定（falsy 才拒）而通過
+//- 政策分工：tokVTruthy（鉤子回 1，truthy 非 true）→ 與登入檢查同一判定（falsy 才拒）而通過；tokNonAdmin（isAdmin 'n' 但鉤子放行）→ 套件自行限系統管理員（R-ADMINONLY-01，api-run01 翻轉原「通過」），詳見 api-adminOnly
 //- tokNoEmail：使用者欄位不齊 → 認證即失敗（permission denied），不呼叫鉤子
 //- sys／tokA：放行（對照組）
 //斷言：被拒者 → 傳輸層 permission denied（{ error }，未進 w-serv-webdata）、ORM 零操作（零寫入）、庫內不變、代發目標零命中；
@@ -221,21 +221,22 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
     })
 
     //--------------------------------------------------------------------------
-    describe('套件不強加授權政策（規則 3：政策屬部署方）：放行與否只看部署方鉤子', function() {
+    describe('政策分工（規則 3）：部署方鉤子決定放行與否，套件另自行限系統管理員（R-ADMINONLY-01）', function() {
 
-        it('tokNonAdmin（isAdmin \'n\'，鉤子回 true）→ 通過連線閘，函數照常執行（套件未額外要求管理員）', async function() {
+        //api-run01（使用者 2026-10-24 裁示）翻轉原案「tokNonAdmin（鉤子放行）→ 通過」：套件不再把角色全交給部署方；完整矩陣見 api-adminOnly
+        it('tokNonAdmin（isAdmin \'n\'，鉤子回 true）→ 仍 permission denied：函數不執行、ORM 零操作、庫內不變；鉤子仍先被呼叫（管理員檢查在鉤子之後，部署方只能再收緊）', async function() {
             await S.getVerifyCalls(true)
+            await S.getOps(true)
             let r1 = await callFun(S.base, 'tokNonAdmin', 'getApisList', [])
-            assert.strictEqual(r1.state, 'success', `應 success（實得 ${JSON.stringify(r1.data).slice(0, 200)}）`)
+            assert.ok(isDenied(r1), `應被拒（實得 ${JSON.stringify(r1.data).slice(0, 200)}）`)
             let r2 = await callFun(S.base, 'tokNonAdmin', 'saveApi', [{ name: 'nonadmin-write', url: 'http://t/na', method: 'get', levels: 'T', group: 'gate' }])
-            assert.strictEqual(r2.state, 'success')
-            assert.deepStrictEqual(await S.getVerifyCalls(), [ //每個放行之請求兩次：連線閘＋執行身分（C3）
-                { userId: 'id-nonadmin', from: 'main' },
-                { userId: 'id-nonadmin', from: 'main' },
+            assert.ok(isDenied(r2))
+            assert.deepStrictEqual(await S.getVerifyCalls(), [ //被拒於連線閘，故每個請求一次（未進執行身分）
                 { userId: 'id-nonadmin', from: 'main' },
                 { userId: 'id-nonadmin', from: 'main' },
             ])
-            assert.ok((await S.list()).some((v) => v.name === 'nonadmin-write'), '寫入成功') //S.list 以 sys 讀取，會多一筆鉤子記錄，故置於記錄斷言之後
+            assert.deepStrictEqual(await S.getOps(), [], 'ORM 零操作')
+            assert.ok(!(await S.list()).some((v) => v.name === 'nonadmin-write'), '零寫入') //S.list 以 sys 讀取，會多一筆鉤子記錄，故置於記錄斷言之後
         })
 
         it('tokVTruthy（鉤子回 1，truthy 非 true）→ 連線閘與登入檢查同一判定（falsy 才拒）：兩處皆通過', async function() {

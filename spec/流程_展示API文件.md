@@ -133,10 +133,13 @@
              查無使用者（token 非字串，或回傳非非空物件）: reject('errUserNotFound')  [server/WWebApi.mjs:384-401]
              驗證 user 欄位 id/email/name/isAdmin  [server/WWebApi.mjs:351-378]
                  欄位不合: reject('errUserIdMissing'/'errUserEmailMissing'/'errUserNameMissing'/'errUserRoleMissing')  [server/WWebApi.mjs:356,362,368,375]
-             驗證權限 isAdmin==='y'（注入之 verifyClientUser 同經 wrapInjected，拋錯或 reject 視同無權限）  [srv.mjs:106][server/WWebApi.mjs:267,435]
-                 非管理員: reject('errUserNoPermission')  [server/WWebApi.mjs:441]
+             部署方授權（注入之 verifyClientUser(user 之拷貝, 'getUserByToken') 同經 wrapInjected，拋錯或 reject 視同無權限）  [srv.mjs:verifyClientUser][server/WWebApi.mjs:505,712]
+                 未授權: reject('errUserNoPermission')
+             系統管理員檢查（套件自行強制，assertAdmin：getUserByToken 所回 isAdmin==='y'；2026-10-24，ADR-051、R-ADMINONLY-01）  [server/WWebApi.mjs:450,723]
+                 非系統管理員: reject('errUserNotAdmin')（後台只限系統管理員；一般使用者改用 GET /api/getApisList）
 005      登入成功: 更新連線態 / token / user  [src/App.vue:60-65]
-006      登入失敗: 導向 ___pmwapi___.urlRedirect  [src/App.vue:67-83]
+006      登入失敗: 導向 ___pmwapi___.urlRedirect  [src/App.vue:loginError]
+         例外: 失敗鍵為 errUserNotAdmin → 顯示「無權進入 API 管理後台」（connState csErrNotAdmin），停在該畫面、不轉址（見 流程_初始語系.md E2E-006）  [src/App.vue:loginError][src/components/LayoutState.vue]
 007  長連線建立後取 webInfor（webLogo/showLanguage/language/kpLang）  [src/main.js:71]
              kpLang 由 procLang 產生（各分頁/欄位 i18n）  [server/WWebApi.mjs:244]
 008      取得成功: 寫入 webInfor、重刷語系、標記同步完成  [src/main.js:82-86]
@@ -204,7 +207,7 @@
 - **契約**：
   - token='sys' 僅開發模式捷徑；正式須真實 token 且 isAdmin==='y'。
   - 前端不主動輪詢，資料由後端 syncData 推送驅動重渲染。
-  - 資料通道只開放表讀取：前端同步所用之 `apis.select` 只放行已認證者（userId 非空），表寫入（`apis.insert`／`save`／`del`）不綁定、直打回 `invalid func[apis.<方法>]`；寫入一律經 kpFunExt 之 `saveApi`／`deleteApi`（R-DC-1，ADR-038）。同步把整表（含 `tokens`／`authConfigJson`）給已認證者，誰可使用由部署方之 `getUserByToken`／`verifyClientUser` 決定（ADR-022／033）。**資料通道之連線閘（`verifyConn`）＝token 認證＋部署方 `verifyClientUser(user, apiType)`（apiType 為 w-converhp 之入口名，資料通道之函數呼叫為 `'main'`；2026-10-23，ADR-048、R-CONNGATE-01，跨套件規格 `C:\opensrcOper\dspec\w-web呼叫者身分驗證.md` 規則 3）**：被部署方拒絕者（鉤子回 falsy、拋錯或 reject）不論呼叫 kpFunExt、`apis.select` 或系統函數皆在傳輸層回 `permission denied`，函數不執行、零寫入；拒絕記 srLog（`verifyConn`，`err: 'errUserNoPermission'`，含 `apiType`，不含 token 與使用者資料）。**執行身分（C3，2026-10-23，ADR-050、R-EXECID-01）**：函數執行前 w-serv-webdata 以請求本體之 `__sysToken__`（可與標頭 token 不同）呼叫 `getUserIdByToken`，本套件對它做與連線閘同等完整之驗證（token 認證＋`verifyClientUser(user, 'main')`，共用 `authToken`），不通過則函數不執行、回固定鍵 `errUserIdMissing`、srLog `getUserIdByToken` 記原因鍵；兩 token 皆有效而不同者以本體 token 之使用者執行。`Authorization` 須為 `Bearer` 方案（方案名不分大小寫），不符視同未帶 token（ADR-050）。
+  - 資料通道只開放表讀取：前端同步所用之 `apis.select` 只放行已認證者（userId 非空），表寫入（`apis.insert`／`save`／`del`）不綁定、直打回 `invalid func[apis.<方法>]`；寫入一律經 kpFunExt 之 `saveApi`／`deleteApi`（R-DC-1，ADR-038）。同步把整表（含 `tokens`／`authConfigJson`）給通過驗證的**系統管理員**（`getUserByToken` 所回 `isAdmin` 為 `'y'`；套件自行強制，部署方之 `verifyClientUser` 先被呼叫、可再收緊，2026-10-24，ADR-051、R-ADMINONLY-01）；一般使用者經資料通道一律 `permission denied`，其唯一入口為 `GET /api/getApisList?token=`（啟用中 API 之公開欄位，不含憑證；R-PUBLICAPIS-01）。**資料通道之連線閘（`verifyConn`）＝token 認證＋部署方 `verifyClientUser(user, apiType)`（apiType 為 w-converhp 之入口名，資料通道之函數呼叫為 `'main'`；2026-10-23，ADR-048、R-CONNGATE-01，跨套件規格 `C:\opensrcOper\dspec\w-web呼叫者身分驗證.md` 規則 3）**：被部署方拒絕者（鉤子回 falsy、拋錯或 reject）不論呼叫 kpFunExt、`apis.select` 或系統函數皆在傳輸層回 `permission denied`，函數不執行、零寫入；拒絕記 srLog（`verifyConn`，`err: 'errUserNoPermission'`，含 `apiType`，不含 token 與使用者資料）。**執行身分（C3，2026-10-23，ADR-050、R-EXECID-01）**：函數執行前 w-serv-webdata 以請求本體之 `__sysToken__`（可與標頭 token 不同）呼叫 `getUserIdByToken`，本套件對它做與連線閘同等完整之驗證（token 認證＋`verifyClientUser(user, 'main')`，共用 `authToken`），不通過則函數不執行、回固定鍵 `errUserIdMissing`、srLog `getUserIdByToken` 記原因鍵；兩 token 皆有效而不同者以本體 token 之使用者執行。`Authorization` 須為 `Bearer` 方案（方案名不分大小寫），不符視同未帶 token（ADR-050）。
   - 語系切換經 setLang 廣播 forceUpdate，全頁即時重渲染。
   - docs 請求區之 cURL `-X` 動詞經 `src/plugins/mShare.mjs` 之 `methodToHttpVerb` 轉換：資料層 `del` 顯示為 `DELETE`（`DEL` 非 HTTP 動詞，複製貼上即可執行；與測試分頁送出路徑共用同一函式，ADR-030）。樹之 method badge 仍顯示 `DEL`（視覺慣例）。
   - 左樹根節點標籤由語系鍵 `treeRootAll`（eng「All」／cht「全部」）於 template 取值，非烤進樹資料，語系就地切換即時更新；樹資料之根 key 為哨符 `__treeRootAll__`，不與任何 group 名稱相撞（ADR-030）。

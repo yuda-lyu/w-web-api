@@ -22,7 +22,7 @@ let state = {
 
     hostname: `${window.location.origin}`,
     webInfor: {},
-    connState: 'csIng', //'csIng', 'csLogin', 'csLogout', 'csErrConn', 'csErrLogin'
+    connState: 'csIng', //'csIng', 'csLogin', 'csLogout', 'csErrConn', 'csErrLogin', 'csErrNotAdmin'
     syncState: false,
     viewState: 'lists',
     loading: false,

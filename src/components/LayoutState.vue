@@ -51,6 +51,18 @@
 
         </template>
 
+        <template v-else-if="connState==='csErrNotAdmin'">
+
+            <img style="width:75px; height:75px;" :src="img_deny">
+
+            <div style="margin-left:10px;">
+                <div style="color:#aaa;">
+                    {{$t('csErrNotAdmin')}}
+                </div>
+            </div>
+
+        </template>
+
         <template v-else>
 
             <img style="width:75px; height:75px;" :src="img_deny">

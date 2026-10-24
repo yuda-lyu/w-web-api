@@ -192,13 +192,21 @@ describe('api-execIdentity (資料通道執行身分: getUserIdByToken 與連線
             assert.strictEqual(row.userIdUpdate, 'id-for-adminA')
         })
 
-        it('套件不強加政策：本體 tokNonAdmin（isAdmin n，鉤子放行）、tokVTruthy（鉤子回 1）→ 執行，userIdUpdate 為各自 id', async function() {
-            for (let [tok, id] of [['tokNonAdmin', 'id-nonadmin'], ['tokVTruthy', 'id-vtruthy']]) {
-                let r = await post('tokA', tok, 'saveApi', [rowOf(`execid-${tok}`)])
-                assert.strictEqual(r.state, 'success', `${tok} ${JSON.stringify(r.msg)}`)
-                let row = (await S.list('tokA')).find((x) => x.name === `execid-${tok}`)
-                assert.strictEqual(row.userIdUpdate, id, tok)
-            }
+        it('部署方鉤子回 truthy 非 true 之值：本體 tokVTruthy（鉤子回 1）→ 執行，userIdUpdate 為其 id（falsy 才拒，與連線閘、登入檢查同一判定）', async function() {
+            let r = await post('tokA', 'tokVTruthy', 'saveApi', [rowOf('execid-tokVTruthy')])
+            assert.strictEqual(r.state, 'success', `tokVTruthy ${JSON.stringify(r.msg)}`)
+            let row = (await S.list('tokA')).find((x) => x.name === 'execid-tokVTruthy')
+            assert.strictEqual(row.userIdUpdate, 'id-vtruthy', 'tokVTruthy')
+        })
+
+        //R-ADMINONLY-01（api-run01，使用者 2026-10-24 裁示：不管部署方怎麼安排，套件自己限系統管理員）：本體 token 之使用者須 isAdmin 'y'，部署方鉤子放行也不行
+        //（原案「套件不強加政策：tokNonAdmin 本體照常執行」已翻轉；完整矩陣見 api-adminOnly）
+        it('本體 tokNonAdmin（isAdmin n，鉤子放行）→ 函數不執行、固定 key errUserIdMissing、ORM 零操作、庫內無此列', async function() {
+            let r = await post('tokA', 'tokNonAdmin', 'saveApi', [rowOf('execid-tokNonAdmin')])
+            assert.strictEqual(r.state, 'error')
+            assert.strictEqual(r.msg, 'errUserIdMissing')
+            assert.deepStrictEqual(await S.getOps(), [], 'ORM 應零操作')
+            assert.ok(!(await S.list('tokA')).some((x) => x.name === 'execid-tokNonAdmin'))
         })
 
         it('部署方鉤子改寫傳入之使用者物件（tokMutate：鉤子把 user.id 設為空字串後回 true）→ 執行身分取自驗證前之快照，不受改寫影響：userIdUpdate 為 id-mutate', async function() {

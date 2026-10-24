@@ -115,9 +115,16 @@ let users = {
     tokVEmptyStr: { id: 'id-vemptystr', name: 'vemptystr', email: 'vemptystr@example.com', isAdmin: 'y' },
     tokVAsyncFalse: { id: 'id-vasyncfalse', name: 'vasyncfalse', email: 'vasyncfalse@example.com', isAdmin: 'y' },
     tokMutate: { id: 'id-mutate', name: 'mutate', email: 'mutate@example.com', isAdmin: 'y' },
+    //api-run01(api-adminOnly／api-publicApisList, R-ADMINONLY-01): tokNonAdmin 為一般使用者(isAdmin 'n')且鉤子放行(套件須自行拒絕); tokMutateAdmin 為一般使用者且鉤子把傳入物件改寫為 isAdmin 'y' 再放行(角色判斷須取 getUserByToken 所回之原值);
+    //tokNonAdminDenied 為一般使用者且鉤子拒絕(部署方可再收緊: 一般使用者取 API 清單被鉤子拒)
+    tokMutateAdmin: { id: 'id-mutateadmin', name: 'mutateadmin', email: 'mutateadmin@example.com', isAdmin: 'n' },
+    tokNonAdminDenied: { id: 'id-nonadmindenied', name: 'nonadmindenied', email: 'nonadmindenied@example.com', isAdmin: 'n' },
+    //外審 sol R1: 應用入口(POST /syncAndReplaceTabs, verifyAppUser)照舊、不加角色檢查——tokAppNonAdmin 為 isAdmin 'n' 且 verifyAppUser 放行; tokAppMinimal 只有 id(應用入口原本即不經 checkUser, 虛擬應用使用者可只給 id)
+    tokAppNonAdmin: { id: 'id-appnonadmin', name: 'appnonadmin', email: 'appnonadmin@example.com', isAdmin: 'n' },
+    tokAppMinimal: { id: 'id-appminimal' },
 }
 let getUserByToken = async (token) => (users[token] ? { ...users[token] } : {})
-let verify = (user) => user.isAdmin === 'y'
+let verify = (user) => user.isAdmin === 'y' || user.id === 'id-appnonadmin' || user.id === 'id-appminimal'
 
 //verifyCalls: verifyClientUser 之呼叫記錄({ userId, from }), 供測試證明「連線閘確實呼叫部署方之授權鉤子、且 from 為入口名」; IPC 'verifyCalls' 取出
 let verifyCalls = []
@@ -143,6 +150,13 @@ let verifyClient = (user, from) => {
     }
     if (user.id === 'id-nonadmin') {
         return true
+    }
+    if (user.id === 'id-mutateadmin') {
+        user.isAdmin = 'y' //部署方鉤子改寫傳入之物件(企圖把一般使用者升為管理員): 套件須以 getUserByToken 所回之原值判斷角色
+        return true
+    }
+    if (user.id === 'id-nonadmindenied') {
+        return false
     }
     if (user.id === 'id-vnull') {
         return null

@@ -13,6 +13,23 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Upgrade Notes
 
+### Behavior change since 1.1.17：API 管理後台與資料通道只限系統管理員（套件自行強制）；一般使用者以 token 取得 API 清單（`GET /api/getApisList`）
+
+**行為變更**——本套件**無自有使用者表**，**系統管理員＝您的 `getUserByToken(token)` 所回使用者物件之 `isAdmin` 為 `'y'`**（`'n'` 為一般使用者；值域本來就限 `'y'`／`'n'`）。本版起，API 管理後台與資料通道**由套件自行**只限系統管理員，**不論您的 `verifyClientUser` 如何放行**（您的函數照常先被呼叫，仍可再收緊，但不能放寬）：
+- **後台登入檢查** `GET /api/getUserByToken?token=`：一般使用者回 `{ state: 'error', msg: 'errUserNotAdmin' }`（固定錯誤鍵，不回顯 token 與使用者資料，記 srLog `api/getUserByToken` error）；前端顯示「無權進入 API 管理後台」（eng：`No permission to enter the API management console`），不進主畫面、不停在連線中、**不轉址**（已通過驗證者轉去登入頁無用，且 SSO 登入後導回本頁會形成轉址迴圈）。
+- **資料通道**（`/api/main` 之全部 `kpFunExt`〔`getWebInfor`、`getApisList`、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`〕、表 `select`、系統函數 `[sys:*]`，以及 w-converhp 其餘五條上傳／下載路由）：連線閘與執行身分（請求本體 `__sysToken__`）**兩個 token 各自**要求 `isAdmin === 'y'`，順序為 token 認證 → 您的 `verifyClientUser(user, from)` → 系統管理員；一般使用者整次連線被拒（`permission denied`；函數不執行、ORM 零操作、零寫入、第三方憑證 `tokens`／`authConfigJson` 零外洩），srLog `verifyConn`／`getUserIdByToken` 記 `err: 'errUserNotAdmin'`。判斷取自 `getUserByToken` 所回之原值（交給 `verifyClientUser` 的是拷貝，鉤子改寫 `isAdmin` 不影響結果）。
+- **影響與遷移**：原本 `isAdmin` 為 `'n'`、持有效 token 且您的 `verifyClientUser` 放行者（例如 `verifyClientUser` 一律回 `true`），過去能登入後台並讀寫全部 API（含 `tokens`、`authConfigJson`）；自此被拒。系統管理員之行為不變。`verifyClientUser` 不必再以 `isAdmin` 判斷（可刪），只需要再收緊時才寫（例如依 `from` 只放行 `'getUserByToken'`、`'getApisList'`、`'main'`，或排除特定帳號）。
+- **新入口** `GET /api/getApisList?token=<token>`（一般使用者**與**系統管理員皆可用）：回 `{ state: 'success', msg: [列…] }`，列為**啟用中**（`isActive` 為 `'y'`）之 API，且每列**只含公開欄位**：`id`、`order`、`name`、`description`、`url`、`method`、`version`、`group`、`levels`、`keywords`、`state`、`creator`、`dataSource`、`mdInputParams`、`inputExample`、`mdOutputParams`、`outputExample`（單一來源 `src/schema/contracts/apis.mjs` 之 `fieldsPublic`）；**固定排除**第三方憑證 `tokens`、`authConfigJson`、測試設定 `testBaseUrl`、`authType`、`defaultHeadersJson`、`defaultQueryJson`、`defaultBodyJson`、`contentType`，與伺服器專有欄位 `timeCreate`、`timeUpdate`、`isActive`、`userIdUpdate`、`srcKey`。token 須通過完整驗證：`getUserByToken` 查得使用者（欄位齊備）＋您的 `verifyClientUser(user, 'getApisList')`（`from` 為 `'getApisList'`；您可以只放行有權取清單者）；未帶 token 回 `errTokenNoPermission`，查無使用者 `errUserNotFound`，欄位不齊 `errUser…Missing`，鉤子拒絕 `errUserNoPermission`，ORM 讀取失敗 `getDataError`（皆為 `state: 'error'`，不含清單、不含憑證）。成功記 srLog `api/getApisList`（只含 `userId`）。此路由取代原已註解而從未對外存在之 `GET /getAPIsList`（改名並加 `/api` 前綴，與 `/api/getUserByToken` 同為瀏覽端以 token 進入之入口，並與資料通道函數同名但不同內容——後者回整列、僅系統管理員），故無相容問題。
+- 新語系鍵 `errUserNotAdmin`、`csErrNotAdmin`（`server/procLang.mjs` eng／cht；前端未登入畫面走內建字典）。參考部署 `srv.mjs` 增測試權杖 `{token-for-nonadmin}`（一般使用者，`NODE_ENV === 'production'` 時不生效），其 `verifyClientUser` 改為只依 `from` 收緊、不再以 `isAdmin` 判斷。
+- 範例（您的 `verifyClientUser` 不必再判斷 `isAdmin`，僅示範依 `from` 再收緊，其餘入口預設拒絕）：
+```alias
+let verifyClientUser = (user, from) => {
+    //套件已自行限制後台('getUserByToken')與資料通道('main')只限系統管理員(getUserByToken 所回 isAdmin 為 'y')，
+    //此函數先被呼叫、只能再收緊；'getApisList' 為一般使用者取 API 清單之入口
+    return from === 'getUserByToken' || from === 'getApisList' || from === 'main'
+}
+```
+
 ### Behavior change since 1.1.16：測試分頁代發請求（`proxyRequest`）預設拒絕內網與本機位址（可開關、可調整）
 
 **行為變更**——測試分頁之代發請求（資料通道函數 `proxyRequest`，由後端代打目標 API）原本**不限制目標**（只有您自行傳入 `opt.isAllowTarget` 才檢查），任何通過連線閘之使用者可令後端連到本機服務、內網主機或雲端中繼資料位址（伺服端請求偽造，SSRF）。本版起**預設拒絕**：
@@ -112,12 +129,27 @@ let verifyClientUser = (user, from) => {
 **身分驗證責任**：框架（w-converhp、w-serv-hapi、w-serv-webdata、w-serv-orm）不驗證 token，一律由本套件負責。連線閘（`verifyConn`）與執行身分（`getUserIdByToken`）皆須完整驗證（token 有效、本系統使用者存在且啟用、部署方授權）；hapi `apis` 路由各自驗證；函數層級另檢查角色或成員；公開入口只限列名者。（跨套件原則，見 `C:\opensrcOper\dspec\使用者身分驗證原則.md`。）
 
 本套件之落實：
-- **連線閘**（`verifyConn`，資料通道之每個請求，含前端輪詢與同步）：`Authorization` 須為 `Bearer` 方案；token 認證（`getUserByToken` 查得使用者，且 `id`／`email`／`name`／`isAdmin` 齊備）＋您傳入之 `verifyClientUser(user, from)`；任一不通過整次連線被拒（`permission denied`）。token 之有效性、使用者之存在與啟用狀態由您的 `getUserByToken`／`verifyClientUser` 保證（套件檢查者為其回傳之使用者物件欄位齊備、與 `verifyClientUser` 之結果；套件不另持有使用者資料）。
-- **執行身分**（`getUserIdByToken`，函數執行前以請求本體之 `__sysToken__` 反查使用者）：與連線閘同等完整（token 認證＋`verifyClientUser(user, 'main')`），不通過則函數不執行；兩個 token 各自驗證，不因來源不同而放寬。
+- **角色（系統管理員）**：本套件**無自有使用者表**，系統管理員＝您的 `getUserByToken` 所回使用者之 `isAdmin` 為 `'y'`，其餘為一般使用者。判準只有一處（`assertAdmin`），後台與資料通道**一律只限系統管理員，不論您的 `verifyClientUser` 如何放行**（1.1.17 起，見 Upgrade Notes）；一般使用者唯一可用之入口為 `GET /api/getApisList?token=`（啟用中 API 之公開欄位清單，不含 `tokens`、`authConfigJson` 等憑證）。
+- **連線閘**（`verifyConn`，資料通道之每個請求，含前端輪詢與同步）：`Authorization` 須為 `Bearer` 方案；token 認證（`getUserByToken` 查得使用者，且 `id`／`email`／`name`／`isAdmin` 齊備）＋您傳入之 `verifyClientUser(user, from)`＋**系統管理員**；任一不通過整次連線被拒（`permission denied`）。token 之有效性、使用者之存在與啟用狀態由您的 `getUserByToken`／`verifyClientUser` 保證（套件檢查者為其回傳之使用者物件欄位齊備、與 `verifyClientUser` 之結果、`isAdmin`；套件不另持有使用者資料）。
+- **執行身分**（`getUserIdByToken`，函數執行前以請求本體之 `__sysToken__` 反查使用者）：與連線閘同等完整（token 認證＋`verifyClientUser(user, 'main')`＋系統管理員），不通過則函數不執行；兩個 token 各自驗證，不因來源不同而放寬。
 - **資料通道只開 `select`**：表操作只放行 `apis.select`（前端同步用），所有寫入一律經 `saveApi`／`deleteApi`；`apis.insert`／`save`／`del` 直接呼叫回 `invalid func[…]`。
-- **公開入口（逐一列名）**：前端靜態檔（`dist/` 建置檔，不含使用者資料）。其餘皆需 token：`GET /api/getUserByToken`（登入檢查，經 `verifyClientUser(user, 'getUserByToken')`）、`POST /syncAndReplaceTabs`（外部應用匯入，經 `verifyAppUser`）、資料通道（`/api/main` 與 w-converhp 其餘五條路由，經連線閘）。
-- **函數層級**：本套件不自訂「誰可使用」之政策（政策屬您的 `getUserByToken`／`verifyClientUser`／`verifyAppUser`）；`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent` 等函數不另檢查角色，僅管理者可用請在 `verifyClientUser` 內判斷（依 `from`）。
+- **公開入口（逐一列名）**：前端靜態檔（`dist/` 建置檔，不含使用者資料）。其餘皆需 token，見下表。
+- **函數層級**：因資料通道每個函數執行前都經 `getUserIdByToken`（含系統管理員檢查），全部 `kpFunExt`、表 `select`、系統函數皆只限系統管理員，不必（也不應只）靠您的 `verifyClientUser` 把關；`verifyClientUser` 仍可再收緊（依 `from`、自有名單）。
 - **測試分頁代發請求**預設拒絕內網與本機位址（見上方 Upgrade Notes〈代發請求預設拒絕內網與本機位址〉）。
+
+**入口盤點**（行號為 1.1.17 之 `server/WWebApi.mjs`；每個入口皆有自動化測試，見 `sgud/rule/rulebook_backend.md` R-ADMINONLY-01）：
+
+| 入口 | 誰可用 | 於何處檢查（檔:行） |
+|---|---|---|
+| 前端靜態檔（`dist/`） | 公開（不含使用者資料） | `server/WWebApi.mjs:934`（`pathStaticFiles`，由 w-serv-hapi 供應；無檢查） |
+| `GET /api/getUserByToken`（後台登入檢查） | 系統管理員 | `server/WWebApi.mjs:712`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getUserByToken')`，定義 `:505`）→ `:723`（`assertAdmin`，定義 `:450`） |
+| `GET /api/getApisList`（以 token 取 API 清單） | 任何通過驗證之使用者（一般使用者與系統管理員）；只得公開欄位、僅啟用中 | `server/WWebApi.mjs:763`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getApisList')`；**不要求系統管理員**）→ `server/procApis.mjs`（`getPublicApisList`）→ `server/pickPublicApis.mjs`（白名單 `src/schema/contracts/apis.mjs` 之 `fieldsPublic`） |
+| `POST /syncAndReplaceTabs`（外部應用匯入） | 應用系統（`verifyAppUser`） | `server/WWebApi.mjs:882`（`getAndVerifyAppUser`，定義 `:527`）；`keyTable` 限 `apis` |
+| `/api/main`：`kpFunExt`（`getWebInfor`、`getApisList`〔整列〕、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`） | 系統管理員 | 連線閘 `server/WWebApi.mjs:938`（`verifyConn`）→ `:490`（`p.checkToken`）→ `:465`（`authToken`）→ `:480`（`assertAdmin`）；執行身分 `:976`（`getUserIdByToken`）→ `authToken` |
+| `/api/main`：表 `apis.select` | 系統管理員 | 同上兩關，另 `server/getOptDataChannel.mjs:43`（`authorizeExec`：只放行非空 `userId` 之 `select`） |
+| `/api/main`：表 `apis.insert`／`save`／`del` | 無人（未開放，回 `invalid func[…]`） | `server/getOptDataChannel.mjs:58`（`methodsExec: ['select']`） |
+| `/api/main`：系統函數 `[sys:getFuncList]`、`[sys:getTableTags]`、`[sys:polling]` | 系統管理員 | 連線閘（同上；輪詢之回應由 w-serv-broadcast 於執行層前定案，其身分只由連線閘把關） |
+| `/api/ulctr`、`/api/slc`、`/api/dwgfn`、`/api/dwgf`、`/api/dw`（上傳、下載；本套件未註冊監聽，不受理） | 系統管理員（連線閘先擋；通過亦不受理） | 連線閘 `server/WWebApi.mjs:938`（`from` 為各入口名） |
 
 ## Installation
 
@@ -184,12 +216,13 @@ let getUserByToken = async (token) => {
     return {}
 }
 
-//from: 'getUserByToken'(登入檢查)、'main'(資料通道)、'upload-controller'|'upload-slice'|'download-get-filename'|'download-get-file'|'download'(w-converhp 其餘路由)
+//from: 'getUserByToken'(登入檢查)、'getApisList'(一般使用者以 token 取 API 清單)、'main'(資料通道)、'upload-controller'|'upload-slice'|'download-get-filename'|'download-get-file'|'download'(w-converhp 其餘路由)
+//本套件已自行限制後台('getUserByToken')與資料通道('main' 等)只限系統管理員(getUserByToken 所回 isAdmin 為 'y'; 此函數先被呼叫, 只能再收緊),
+//故不必再以 isAdmin 判斷; 此處示範依 from 收緊: 其餘入口預設拒絕
 let verifyBrowserUser = (user, from) => {
-    console.log('verifyBrowserUser/user', user)
     // return false //測試無法登入
-    console.log('於生產環境時得加入限制瀏覽器使用者身份機制')
-    return user.isAdmin === 'y' //測試僅系統管理者使用
+    console.log('於生產環境時得加入限制瀏覽器使用者身份機制(例如排除特定帳號)')
+    return from === 'getUserByToken' || from === 'getApisList' || from === 'main'
 }
 
 let verifyAppUser = (user, from) => {
@@ -212,7 +245,7 @@ instWWebApi.on('error', (err) => {
 
 #### Behavior notes (w-serv-orm 1.1.11 / w-serv-hapi 1.1.6 / w-syslog 1.0.33)
 - `opt.useCheckUser`, `opt.getUserById` and `opt.useExcludeWhenNotAdmin` have been removed: `procOrm` of w-serv-orm no longer authorizes users. Passing any of them with a value other than `undefined`, `null` or `false` throws at construction.
-- The data channel exposes table reads only: `apis.select` (used by the front-end sync) is allowed for authenticated users, and every write goes through `saveApi` / `deleteApi`. Calling `apis.insert`, `apis.save` or `apis.del` directly through `/api/main` now returns `invalid func[apis.<method>]`. The sync still delivers the whole table, including `tokens` and `authConfigJson`, to any user who passes `getUserByToken` and `verifyClientUser`, so decide who may use the service with those functions. Since 1.1.16 (see "Behavior change since 1.1.16") the connection gate of the data channel (`verifyConn`) is token authentication plus your `verifyClientUser(user, from)`, where `from` is the w-converhp `apiType` (`'main'` for every data-channel call): a rejected user (or a `verifyClientUser` that throws, rejects or returns a falsy value) gets `permission denied` and nothing is executed. The execution identity (`getUserIdByToken`, the `__sysToken__` in the request body) gets the same complete check, and the `Authorization` header must use the `Bearer` scheme. The test tab's proxy refuses internal and local targets by default (`proxyAllowInternal`, `proxyAllowList`).
+- The data channel exposes table reads only: `apis.select` (used by the front-end sync) is allowed for authenticated users, and every write goes through `saveApi` / `deleteApi`. Calling `apis.insert`, `apis.save` or `apis.del` directly through `/api/main` now returns `invalid func[apis.<method>]`. The sync still delivers the whole table, including `tokens` and `authConfigJson`, but since 1.1.17 only to system administrators (the user returned by your `getUserByToken` has `isAdmin: 'y'`; the package enforces this itself, in addition to your `verifyClientUser`). Everyone else who holds a valid token can only call `GET /api/getApisList?token=` (enabled APIs, public fields only: never `tokens`, `authConfigJson` or the test settings). Since 1.1.16 (see "Behavior change since 1.1.16") the connection gate of the data channel (`verifyConn`) is token authentication plus your `verifyClientUser(user, from)`, where `from` is the w-converhp `apiType` (`'main'` for every data-channel call): a rejected user (or a `verifyClientUser` that throws, rejects or returns a falsy value) gets `permission denied` and nothing is executed. The execution identity (`getUserIdByToken`, the `__sysToken__` in the request body) gets the same complete check, and the `Authorization` header must use the `Bearer` scheme. The test tab's proxy refuses internal and local targets by default (`proxyAllowInternal`, `proxyAllowList`).
 - `/syncAndReplaceTabs` checks every row before it writes anything: a missing, empty or non-string `srcKey`, or a `srcKey` with HTML markup, longer than 1978 bytes in UTF-8, or repeated in the same batch rejects the whole batch with `errRowInvalid`; a row that carries an `id` (any value, even together with a valid `srcKey`) rejects the whole batch with `idNotAllowed`; existing data stays untouched. The endpoint is a `srcKey`-based differential sync (see "Breaking change since 1.1.15" and "Upgrading from 1.1.13 and earlier"); there is no compatibility for callers that still send `id` instead of `srcKey`, and no `delAll`, so locally owned fields of keyed rows are never cleared. A `srcKey` is a plain string key: values that start with `base64:` are decoded before use (as for every field), so a key that literally starts with `base64:` (for example an old `id` of that form being migrated) must itself be sent base64-encoded with the `base64:` prefix.
 - `id` values are generated by the system. Since w-serv-orm 1.1.11 a numeric id is stored as its string form; this no longer matters for the import, because an `id` sent by the caller is rejected (`idNotAllowed`) and a numeric `srcKey` is rejected (`errRowInvalid`, a `srcKey` must be a string).
 - Database failures are returned as language keys (`saveWriteFail` for writes, `getDataError` for reads) instead of the ORM's English text, which is written to the log.

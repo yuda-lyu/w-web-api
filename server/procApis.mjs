@@ -3,6 +3,7 @@ import iseobj from 'wsemi/src/iseobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import { pickWriteRow, getRejectKey } from 'w-serv-orm/src/baseline.mjs'
 import { ormFail } from './ormErrKey.mjs'
+import pickPublicRows from './pickPublicApis.mjs'
 import contractDef from '../src/schema/contracts/apis.mjs'
 import { isExternalRow, normGroup, isValidGroupValue, pickLocalFields, getExternalGroups, isBlockedByExternalGroup, getExternalChanged } from '../src/schema/contracts/externalRows.mjs'
 
@@ -144,6 +145,16 @@ function procApis(deps = {}) {
         //失敗回語系鍵 getDataError，procOrm 之英文訊息入 srLog（R-ERR-1）
         return await procOrm(userId, 'apis', 'select', {})
             .catch(ormFail({ srLog, event: 'kpfun-getApisList-orm', key: 'getDataError' }))
+    }
+
+
+    //getPublicApisList: 一般使用者以 token 取得之 API 清單(GET /api/getApisList; R-PUBLICAPIS-01)——只回啟用中(isActive 'y')之列, 且每列只含公開欄位白名單(fieldsPublic, pickPublicApis.mjs),
+    //固定排除 tokens、authConfigJson 等第三方憑證、測試設定與伺服器專有欄位。後台資料通道之 getApisList(整列, 僅系統管理員)不變。
+    //查詢條件 isActive 先篩一次(減少讀出), pickPublicRows 再以嚴格比對保證(不依賴後端查詢語意); 失敗回語系鍵 getDataError, 原文入 srLog
+    let getPublicApisList = async (userId) => {
+        let rows = await procOrm(userId, 'apis', 'select', { isActive: 'y' })
+            .catch(ormFail({ srLog, event: 'api-getApisList-orm', key: 'getDataError' }))
+        return pickPublicRows(rows)
     }
 
 
@@ -314,6 +325,7 @@ function procApis(deps = {}) {
 
     return {
         getApisList,
+        getPublicApisList,
         saveApi,
         deleteApi,
     }

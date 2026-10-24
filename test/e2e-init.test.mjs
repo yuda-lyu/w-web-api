@@ -46,8 +46,8 @@ let LANGS = ['eng', 'cht']
 //  csLogin ：hang /api/main → getUserByToken 成功進 csLogin，但 webInfor 永不載入、停已登入
 //  loaded  ：正常載入 → 主畫面
 let T = {
-    eng: { staTitle: 'Statistics Information', timeRange: 'Time range', win: 'eng', connecting: 'Connecting', loggedIn: 'Logged in', errConn: 'Unable to connect', loggedOut: 'Logged out' },
-    cht: { staTitle: '統計資訊', timeRange: '時間範圍', win: 'cht', connecting: '連線中', loggedIn: '已登入', errConn: '無法連線', loggedOut: '已登出' },
+    eng: { staTitle: 'Statistics Information', timeRange: 'Time range', win: 'eng', connecting: 'Connecting', loggedIn: 'Logged in', errConn: 'Unable to connect', loggedOut: 'Logged out', notAdmin: 'No permission to enter the API management console', loginDenied: 'Login denied' },
+    cht: { staTitle: '統計資訊', timeRange: '時間範圍', win: 'cht', connecting: '連線中', loggedIn: '已登入', errConn: '無法連線', loggedOut: '已登出', notAdmin: '無權進入 API 管理後台', loginDenied: '拒絕登入' },
 }
 
 
@@ -303,6 +303,58 @@ async function runLoggedOut(page, lang) {
 
 }
 
+//E2E-006 非系統管理員登入（R-ADMINONLY-01，ADR-051；使用者 2026-10-24 裁示：API 管理後台只限系統管理員）：一般使用者（token 有效、isAdmin 'n'、部署方 verifyClientUser 放行）以
+//`?token={token-for-nonadmin}`（srv.mjs 之測試權杖，NODE_ENV 守門）進站 → 後台登入檢查（GET /api/getUserByToken）回固定鍵 errUserNotAdmin → 畫面顯示該語系「無權進入 API 管理後台」，
+//不進主畫面、不停在連線中（不轉圈）、不轉址（已通過驗證者轉去登入頁無用，且 SSO 登入後導回本頁會形成轉址迴圈，見 src/App.vue loginError）。
+//此狀態下尚無法連資料通道（kpLang 未載入），文字走前端 mUI kpFallback（csErrNotAdmin）依注入語系顯示。
+//標準圖：test/pics/init/init-<lang>-E2E-006-not-admin.png（主控 2026-10-24 授權新增）；紅框框住狀態指示整顆（拒絕圖示與文字之聯集，同 E2E-004）；
+//於負向觀察窗之後、開啟開發模式分頁之前截主分頁（仍停在無權進入畫面）。
+async function runNotAdmin(page, lang) {
+
+    await restartBackend(genTempSettings({ language: lang }))
+
+    let urlOpen = `${baseUrl}/?token=${encodeURIComponent('{token-for-nonadmin}')}`
+    await page.goto(urlOpen, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    //終態：該語系「無權進入 API 管理後台」文字出現（login 流程含 timeWaitAnimation 2 秒）
+    await waitUntilExist(page, `not-admin (${T[lang].notAdmin})`, (t) => (document.body.innerText || '').includes(t), { timeout: 20000, arg: T[lang].notAdmin })
+
+    //負向觀察窗：若程式誤轉址（loginError 之 urlRedirect 立即轉址；非開發模式為立即）會在此期間離開本頁；等 3 秒後仍在本頁（spec：不轉址）
+    await page.waitForTimeout(3000)
+
+    let info = await page.evaluate(() => ({ winLang: (window.___pmwperm___ || {}).language, url: window.location.href, body: document.body.innerText || '' }))
+    let other = T[lang === 'eng' ? 'cht' : 'eng']
+    assert.strictEqual(info.winLang, T[lang].win, `window.___pmwperm___.language 應為 server 注入之「${T[lang].win}」（實得「${info.winLang}」）`)
+    assert.strictEqual(new URL(info.url).href, new URL(urlOpen).href, `不得轉址離開本頁，網址須與開啟時完全相同（實得 ${info.url}）`)
+    assert.ok(info.body.includes(T[lang].notAdmin), `應顯示該語系「${T[lang].notAdmin}」（實際: ${info.body.slice(0, 120)}）`)
+    assert.ok(!info.body.includes(other.notAdmin), `不應含另一語系「${other.notAdmin}」`)
+    assert.ok(!info.body.includes(T[lang].connecting), `不得停在連線中「${T[lang].connecting}」（不卡在處理中）`)
+    assert.ok(!info.body.includes(T[lang].loginDenied), `不是一般的登入拒絕「${T[lang].loginDenied}」，而是無權進入後台`)
+    assert.ok(!info.body.includes(T[lang].loggedIn) && !info.body.includes(T[lang].staTitle), `不得進入已登入或主畫面（「${T[lang].loggedIn}」「${T[lang].staTitle}」）`)
+
+    let buf = await captureStateScreen(page, T[lang].notAdmin)
+
+    //開發模式（網址含 localhost：isDev 為真）下，原登入錯誤分支是 60 秒後才轉址；非管理員分支不得留下該計時器。
+    //以 Playwright 假時鐘快轉 65 秒（第二個分頁，同一後端），網址仍須不變（外審 sol R8：3 秒觀察窗守不住 60 秒計時器）
+    let pageDev = await page.context().newPage()
+    try {
+        await pageDev.clock.install()
+        let urlDev = urlOpen.replace('127.0.0.1', 'localhost')
+        await pageDev.goto(urlDev, { waitUntil: 'domcontentloaded', timeout: 30000 })
+        await waitUntilExist(pageDev, `not-admin dev (${T[lang].notAdmin})`, (t) => (document.body.innerText || '').includes(t), { timeout: 30000, arg: T[lang].notAdmin })
+        await pageDev.clock.fastForward(65000)
+        await pageDev.waitForTimeout(500)
+        assert.strictEqual(new URL(pageDev.url()).href, new URL(urlDev).href, `開發模式下 65 秒後仍不得轉址（實得 ${pageDev.url()}）`)
+        let bodyDev = await pageDev.evaluate(() => document.body.innerText || '')
+        assert.ok(bodyDev.includes(T[lang].notAdmin), '快轉後仍停在無權進入畫面')
+    }
+    finally {
+        await pageDev.close()
+    }
+
+    return { 'E2E-006-not-admin': buf }
+
+}
+
 
 //案例宣告：順序＝原 it 順序；title＝原 it 標題逐字（含語系）；stages＝該案產出之圖鍵（標準圖 init-<lang>-<圖鍵>.png）
 let cases = [
@@ -336,6 +388,12 @@ let cases = [
         run: runLoggedOut,
         stages: ['E2E-005-logged-out'],
     },
+    {
+        name: 'E2E-006-not-admin',
+        title: (lang) => `E2E-006 [${lang}] 非系統管理員進站顯示「無權進入 API 管理後台」（不進主畫面、不轉址）`,
+        run: runNotAdmin,
+        stages: ['E2E-006-not-admin'],
+    },
 ]
 
 //標準圖路徑：test/pics/init/init-<lang>-<圖鍵>.png（與原 assertOrRegenBaseline 之 baselinePath 相同）
@@ -360,6 +418,7 @@ async function runCase(lang, c) {
         run: c.run,
         stages: c.stages,
         compareOnly: !!c.compareOnly,
+        allowEmpty: !!c.allowEmpty,
         launch: launchBrowser,
         openPage: (browser) => openCasePage(browser, { contextOptions: { viewport: { width: 1440, height: 900 } } }),
         prepare: async () => {

@@ -89,5 +89,31 @@ let contract = {
 }
 
 
-export { fieldsExternal, fieldsLocal, fieldsServerOnly }
+//公開欄位白名單(單一來源): 一般使用者以 token 取得 API 清單(GET /api/getApisList)時, 每列只含此處所列欄位(含主鍵 id); R-PUBLICAPIS-01
+//＝API 之識別與文件欄位(名稱、網址、方法、版本、群組、階層、關鍵字、狀態、創建者、資料提供者、說明與輸入輸出文件、順序)。
+//固定排除(不在此名單者一律不出): 第三方憑證 tokens、authConfigJson; 測試設定 testBaseUrl、authType、default*Json、contentType; 本系統擁有之其餘欄位;
+//伺服器專有欄位 timeCreate、timeUpdate、isActive、userIdUpdate、srcKey。名單為字面值而非由 fieldsExternal 衍生: 日後 schema 新增欄位預設不公開(預設拒絕),
+//須經 unit-contract C09 強迫分類後才可加入。
+let fieldsPublic = [
+    'id',
+    'order',
+    'name',
+    'description',
+    'url',
+    'method',
+    'version',
+    'group',
+    'levels',
+    'keywords',
+    'state',
+    'creator',
+    'dataSource',
+    'mdInputParams',
+    'inputExample',
+    'mdOutputParams',
+    'outputExample',
+]
+
+
+export { fieldsExternal, fieldsLocal, fieldsServerOnly, fieldsPublic }
 export default contract
