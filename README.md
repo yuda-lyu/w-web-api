@@ -13,6 +13,36 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Upgrade Notes
 
+### Behavior change since 1.1.18：應用系統路由（`POST /syncAndReplaceTabs`）由套件自行要求系統管理員等級；後台登入檢查成功只回欄位白名單
+
+**行為變更**（兩處）。token 由 w-web-sso 簽發，本套件經您的 `getUserByToken(token)` 反查：**使用者 token** 代表登入者；**應用系統 token**（反查回 `isApp: 'y'`，選用欄位）分兩種用途——**使用者用途**（綁定使用者，反查回所綁使用者之實際資料，等級＝該使用者之 `isAdmin`）與**系統服務用途**（不綁使用者，反查回虛擬身分：`id` 為 `app:<金鑰主鍵>`、`isAdmin` 為 `'y'`）。本套件不簽發 token、不分辨用途，**一律以反查所回之 `isAdmin` 判等級**（與 1.1.17 之 `assertAdmin` 同一判準）；是否簽發系統服務用途或綁定管理員之應用系統 token、交給誰使用，由您（專案方）評估與負責。
+- **應用系統路由** `POST /syncAndReplaceTabs?token=…&keyTable=apis`（外部匯入）：本版起由套件自行要求呼叫者為**系統管理員等級**，順序為 token 認證 → 您的 `verifyAppUser(user, from)` → 系統管理員等級。
+  - **放行**：使用者 token 之系統管理員、應用系統 token・使用者用途且所綁使用者為系統管理員、應用系統 token・系統服務用途。
+  - **拒絕**（`{ state: 'error', msg: 'errUserNotAdmin' }`，固定鍵，不回顯 token 與使用者資料；ORM 零操作、零寫入；記 srLog `api/syncAndReplaceTabs` error）：使用者 token 之一般使用者、應用系統 token・使用者用途且所綁使用者為一般使用者。
+  - **欄位檢查**：反查結果須經與瀏覽端（後台登入檢查、資料通道）**相同的欄位檢查**——`id`、`email`、`name` 為非空字串，`isAdmin` 限 `'y'`／`'n'`；不通過回 `errUserIdMissing`／`errUserEmailMissing`／`errUserNameMissing`／`errUserRoleMissing`（您的 `verifyAppUser` 零呼叫）。理由：等級取自 `isAdmin`、稽核欄 `userIdUpdate` 取自 `id`，缺欄或值不合法（如 `'Y'`）是部署設定錯誤，不能被靜默當成一般使用者，也不另寫第二份欄位規則。
+  - 您的 `verifyAppUser(user, from)`（`user` 為拷貝，`from` 為 `'syncAndReplaceTabs'`）**照舊先被呼叫、只能再收緊**，不能放寬；鉤子改寫傳入之物件（如把 `isAdmin` 改為 `'y'`）不影響等級判斷。
+  - **影響與遷移**：原本 `isAdmin` 為 `'n'` 而 `verifyAppUser` 放行者（例如 `verifyAppUser` 一律回 `true`）過去可匯入，自此被拒；`getUserByToken` 對應用系統只回 `id`（缺 `email`、`name`、`isAdmin`）之虛擬使用者過去可匯入，自此被拒——請補齊四欄，且 `isAdmin` 為 `'y'`（w-web-sso 系統服務用途之反查已含）。系統管理員等級之行為不變；`verifyAppUser` 不必再以 `isAdmin` 判斷。`srcKey` 同步語意與 `keyTable` 白名單不變。
+- **後台登入檢查** `GET /api/getUserByToken?token=`：成功時 `msg` **只含 `id`、`name`、`email`、`isAdmin` 四個欄位**（單一來源 `server/pickLoginUser.mjs` 之 `fieldsLoginUser`），不再原樣回傳您的 `getUserByToken` 所回物件（`password`、`tokenVerify`、`description`、`isApp` 等不會出現於回應）。前端只用 `name`、`email` 顯示登入者，故不含 `isApp`（等級只看 `isAdmin`）。錯誤回應不變（一般使用者仍回 `errUserNotAdmin`）。
+- **部署方使用者物件含拋錯之取值器（getter）時一律固定鍵拒絕**（順帶修正，適用後台登入檢查、公開清單、外部匯入與資料通道）：額外欄位之取值器拋錯 → 視同您的 `verifyClientUser`／`verifyAppUser` 拒絕（`errUserNoPermission`）；必要欄位（`id`、`name`、`email`、`isAdmin`）之取值器拋錯 → 視同查無使用者（`errUserNotFound`）；例外原文不再出現於回應與 srLog，您的鉤子不被呼叫。
+- **存取表**（驗收依據，測試 `test/api-accessMatrix.test.mjs`，19 個入口 × 6 類呼叫者；U＝使用者 token・一般使用者，A＝使用者 token・系統管理員，AU＝應用系統 token・使用者用途，AS＝應用系統 token・系統服務用途）：
+
+| 入口 | 無 token | U | A | AU 綁一般使用者 | AU 綁管理員 | AS |
+|---|---|---|---|---|---|---|
+| 前端靜態檔 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `GET /api/getApisList?token=`（公開欄位清單） | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `GET /api/getUserByToken`（後台登入檢查） | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ |
+| `POST /syncAndReplaceTabs`（外部匯入） | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ |
+| `/api/main` 之 10 個函數（`getWebInfor`、`getApisList`〔整列〕、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`、表 `apis.select`、系統函數 3） | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ |
+| 其餘 5 條通訊路由（`ulctr`、`slc`、`dwgfn`、`dwgf`、`dw`；✓＝僅通過連線閘，本套件未註冊監聽，通過後亦不受理） | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ |
+
+- **註解**：`getUserByToken` 之使用者物件可另提供選用欄位 `isApp`（`'y'` 表示應用系統 token 之反查結果；本套件不據以判斷等級，僅隨使用者物件之拷貝原樣交給 `verifyClientUser`、`verifyAppUser`）；`verifyAppUser` 之呼叫為 `(user, from)`。範例（`verifyAppUser` 不必再判斷 `isAdmin`，僅示範依 `from` 再收緊）：
+```alias
+let verifyAppUser = (user, from) => {
+    //套件已自行要求系統管理員等級(getUserByToken 所回 isAdmin 為 'y'；檢查在本函數之後)，此處只能再收緊
+    return from === 'syncAndReplaceTabs'
+}
+```
+
 ### Behavior change since 1.1.17：API 管理後台與資料通道只限系統管理員（套件自行強制）；一般使用者以 token 取得 API 清單（`GET /api/getApisList`）
 
 **行為變更**——本套件**無自有使用者表**，**系統管理員＝您的 `getUserByToken(token)` 所回使用者物件之 `isAdmin` 為 `'y'`**（`'n'` 為一般使用者；值域本來就限 `'y'`／`'n'`）。本版起，API 管理後台與資料通道**由套件自行**只限系統管理員，**不論您的 `verifyClientUser` 如何放行**（您的函數照常先被呼叫，仍可再收緊，但不能放寬）：
@@ -129,7 +159,7 @@ let verifyClientUser = (user, from) => {
 **身分驗證責任**：框架（w-converhp、w-serv-hapi、w-serv-webdata、w-serv-orm）不驗證 token，一律由本套件負責。連線閘（`verifyConn`）與執行身分（`getUserIdByToken`）皆須完整驗證（token 有效、本系統使用者存在且啟用、部署方授權）；hapi `apis` 路由各自驗證；函數層級另檢查角色或成員；公開入口只限列名者。（跨套件原則，見 `C:\opensrcOper\dspec\使用者身分驗證原則.md`。）
 
 本套件之落實：
-- **角色（系統管理員）**：本套件**無自有使用者表**，系統管理員＝您的 `getUserByToken` 所回使用者之 `isAdmin` 為 `'y'`，其餘為一般使用者。判準只有一處（`assertAdmin`），後台與資料通道**一律只限系統管理員，不論您的 `verifyClientUser` 如何放行**（1.1.17 起，見 Upgrade Notes）；一般使用者唯一可用之入口為 `GET /api/getApisList?token=`（啟用中 API 之公開欄位清單，不含 `tokens`、`authConfigJson` 等憑證）。
+- **角色（系統管理員）**：本套件**無自有使用者表**，系統管理員＝您的 `getUserByToken` 所回使用者之 `isAdmin` 為 `'y'`，其餘為一般使用者。判準只有一處（`assertAdmin`），後台與資料通道**一律只限系統管理員，不論您的 `verifyClientUser` 如何放行**（1.1.17 起，見 Upgrade Notes）；一般使用者唯一可用之入口為 `GET /api/getApisList?token=`（啟用中 API 之公開欄位清單，不含 `tokens`、`authConfigJson` 等憑證）。應用系統路由 `POST /syncAndReplaceTabs` 自 1.1.18 起同樣要求系統管理員等級（同一判準，且反查結果須經與瀏覽端相同之欄位檢查；您的 `verifyAppUser` 照舊先被呼叫、只能再收緊）。應用系統 token 之兩種用途（使用者用途、系統服務用途）以反查之 `isAdmin` 自然分流，本套件不另分辨；簽發何種應用系統 token 由專案方負責。
 - **連線閘**（`verifyConn`，資料通道之每個請求，含前端輪詢與同步）：`Authorization` 須為 `Bearer` 方案；token 認證（`getUserByToken` 查得使用者，且 `id`／`email`／`name`／`isAdmin` 齊備）＋您傳入之 `verifyClientUser(user, from)`＋**系統管理員**；任一不通過整次連線被拒（`permission denied`）。token 之有效性、使用者之存在與啟用狀態由您的 `getUserByToken`／`verifyClientUser` 保證（套件檢查者為其回傳之使用者物件欄位齊備、與 `verifyClientUser` 之結果、`isAdmin`；套件不另持有使用者資料）。
 - **執行身分**（`getUserIdByToken`，函數執行前以請求本體之 `__sysToken__` 反查使用者）：與連線閘同等完整（token 認證＋`verifyClientUser(user, 'main')`＋系統管理員），不通過則函數不執行；兩個 token 各自驗證，不因來源不同而放寬。
 - **資料通道只開 `select`**：表操作只放行 `apis.select`（前端同步用），所有寫入一律經 `saveApi`／`deleteApi`；`apis.insert`／`save`／`del` 直接呼叫回 `invalid func[…]`。
@@ -137,19 +167,19 @@ let verifyClientUser = (user, from) => {
 - **函數層級**：因資料通道每個函數執行前都經 `getUserIdByToken`（含系統管理員檢查），全部 `kpFunExt`、表 `select`、系統函數皆只限系統管理員，不必（也不應只）靠您的 `verifyClientUser` 把關；`verifyClientUser` 仍可再收緊（依 `from`、自有名單）。
 - **測試分頁代發請求**預設拒絕內網與本機位址（見上方 Upgrade Notes〈代發請求預設拒絕內網與本機位址〉）。
 
-**入口盤點**（行號為 1.1.17 之 `server/WWebApi.mjs`；每個入口皆有自動化測試，見 `sgud/rule/rulebook_backend.md` R-ADMINONLY-01）：
+**入口盤點**（行號為 1.1.18 之 `server/WWebApi.mjs`；每個入口 × 呼叫者類皆有自動化測試，見 `test/api-accessMatrix.test.mjs` 與 `sgud/rule/rulebook_backend.md` R-ADMINONLY-01、R-APPLEVEL-01）：
 
 | 入口 | 誰可用 | 於何處檢查（檔:行） |
 |---|---|---|
-| 前端靜態檔（`dist/`） | 公開（不含使用者資料） | `server/WWebApi.mjs:934`（`pathStaticFiles`，由 w-serv-hapi 供應；無檢查） |
-| `GET /api/getUserByToken`（後台登入檢查） | 系統管理員 | `server/WWebApi.mjs:712`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getUserByToken')`，定義 `:505`）→ `:723`（`assertAdmin`，定義 `:450`） |
-| `GET /api/getApisList`（以 token 取 API 清單） | 任何通過驗證之使用者（一般使用者與系統管理員）；只得公開欄位、僅啟用中 | `server/WWebApi.mjs:763`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getApisList')`；**不要求系統管理員**）→ `server/procApis.mjs`（`getPublicApisList`）→ `server/pickPublicApis.mjs`（白名單 `src/schema/contracts/apis.mjs` 之 `fieldsPublic`） |
-| `POST /syncAndReplaceTabs`（外部應用匯入） | 應用系統（`verifyAppUser`） | `server/WWebApi.mjs:882`（`getAndVerifyAppUser`，定義 `:527`）；`keyTable` 限 `apis` |
-| `/api/main`：`kpFunExt`（`getWebInfor`、`getApisList`〔整列〕、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`） | 系統管理員 | 連線閘 `server/WWebApi.mjs:938`（`verifyConn`）→ `:490`（`p.checkToken`）→ `:465`（`authToken`）→ `:480`（`assertAdmin`）；執行身分 `:976`（`getUserIdByToken`）→ `authToken` |
+| 前端靜態檔（`dist/`） | 公開（不含使用者資料） | `server/WWebApi.mjs:976`（`pathStaticFiles`，由 w-serv-hapi 供應；無檢查） |
+| `GET /api/getUserByToken`（後台登入檢查） | 系統管理員（使用者 token 之管理員、應用系統 token 綁管理員或系統服務用途）；成功只回 `id`、`name`、`email`、`isAdmin` | `server/WWebApi.mjs:752`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getUserByToken')`，定義 `:531`）→ `:763`（`assertAdmin`，定義 `:475`）→ `:768`（`pickLoginUser`：白名單 `server/pickLoginUser.mjs` 之 `fieldsLoginUser`） |
+| `GET /api/getApisList`（以 token 取 API 清單） | 任何通過驗證之使用者（一般使用者與系統管理員）；只得公開欄位、僅啟用中 | `server/WWebApi.mjs:805`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getApisList')`；**不要求系統管理員**）→ `server/procApis.mjs`（`getPublicApisList`）→ `server/pickPublicApis.mjs`（白名單 `src/schema/contracts/apis.mjs` 之 `fieldsPublic`） |
+| `POST /syncAndReplaceTabs`（外部應用匯入） | 系統管理員等級（使用者 token 之管理員、應用系統 token 綁管理員或系統服務用途）；一般使用者與綁一般使用者之應用系統 token 被拒 | `server/WWebApi.mjs:924`（`getAndVerifyAppUser`，定義 `:563`：`getTokenUser` 欄位檢查＋`verifyAppUser(user, 'syncAndReplaceTabs')`＋`:581` `assertAdmin`）；`keyTable` 限 `apis` |
+| `/api/main`：`kpFunExt`（`getWebInfor`、`getApisList`〔整列〕、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`） | 系統管理員 | 連線閘 `server/WWebApi.mjs:980`（`verifyConn`）→ `:516`（`p.checkToken`）→ `:490`（`authToken`）→ `:506`（`assertAdmin`）；執行身分 `:1018`（`getUserIdByToken`）→ `authToken` |
 | `/api/main`：表 `apis.select` | 系統管理員 | 同上兩關，另 `server/getOptDataChannel.mjs:43`（`authorizeExec`：只放行非空 `userId` 之 `select`） |
 | `/api/main`：表 `apis.insert`／`save`／`del` | 無人（未開放，回 `invalid func[…]`） | `server/getOptDataChannel.mjs:58`（`methodsExec: ['select']`） |
 | `/api/main`：系統函數 `[sys:getFuncList]`、`[sys:getTableTags]`、`[sys:polling]` | 系統管理員 | 連線閘（同上；輪詢之回應由 w-serv-broadcast 於執行層前定案，其身分只由連線閘把關） |
-| `/api/ulctr`、`/api/slc`、`/api/dwgfn`、`/api/dwgf`、`/api/dw`（上傳、下載；本套件未註冊監聽，不受理） | 系統管理員（連線閘先擋；通過亦不受理） | 連線閘 `server/WWebApi.mjs:938`（`from` 為各入口名） |
+| `/api/ulctr`、`/api/slc`、`/api/dwgfn`、`/api/dwgf`、`/api/dw`（上傳、下載；本套件未註冊監聽，不受理） | 系統管理員（連線閘先擋；通過亦不受理） | 連線閘 `server/WWebApi.mjs:980`（`from` 為各入口名） |
 
 ## Installation
 
@@ -195,11 +225,12 @@ let opt = {
 
 let getUserByToken = async (token) => {
     // return {} //測試無法登入
-    if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者
+    if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者(系統服務用途: 不綁使用者，須為管理員等級才可呼叫 POST /syncAndReplaceTabs)
         return {
-            id: 'id-for-application',
+            id: 'app:id-for-application',
             name: 'application',
             email: 'application@example.com',
+            isApp: 'y', //選用: 'y' 為應用系統 token 之反查結果，本套件不據以判斷等級，僅原樣交給 verifyClientUser 與 verifyAppUser
             isAdmin: 'y',
         }
     }
@@ -225,11 +256,13 @@ let verifyBrowserUser = (user, from) => {
     return from === 'getUserByToken' || from === 'getApisList' || from === 'main'
 }
 
+//from: 目前只有 'syncAndReplaceTabs'(外部匯入)
+//本套件已自行要求應用系統路由之呼叫者為系統管理員等級(getUserByToken 所回 isAdmin 為 'y'; 此函數先被呼叫, 只能再收緊), 故不必再以 isAdmin 判斷
 let verifyAppUser = (user, from) => {
     console.log('verifyAppUser/user', user)
     // return false //測試無法登入
-    console.log('於生產環境時得加入限制應用程式使用者身份機制')
-    return user.isAdmin === 'y' //測試僅系統管理者使用
+    console.log('於生產環境時得加入限制應用程式使用者身份機制(例如只放行特定應用系統之 id)')
+    return from === 'syncAndReplaceTabs'
 }
 
 //WWebApi

@@ -283,21 +283,23 @@ describe('api-adminOnly (API 管理後台與資料通道只限系統管理員：
 
 
     //--------------------------------------------------------------------------
-    //應用入口照舊（提示詞範圍一.3；外審 sol R1）：POST /syncAndReplaceTabs 走 verifyAppUser、不經 authToken、不加角色檢查——
-    //是否放行完全由部署方 verifyAppUser 決定。若有人誤把應用入口改走 authToken（連帶要求 isAdmin 'y' 與欄位齊備），下列兩案即紅
-    describe('POST /syncAndReplaceTabs（應用系統，verifyAppUser）照舊：不加角色檢查', function() {
+    //應用入口之等級（A-1，api-run01〔任務 20261024182736〕翻轉）：POST /syncAndReplaceTabs 原「照舊、不加角色檢查」（只看部署方 verifyAppUser，外審 sol R1），
+    //自 1.1.18 起由套件自行要求管理員等級（反查之 isAdmin 'y'，與 assertAdmin 同一判準），且反查結果須經與瀏覽端相同之欄位檢查；部署方 verifyAppUser 照舊先被呼叫、只能再收緊。
+    //下列前兩案由「放行」翻轉為「被拒」；完整的入口 × 呼叫者矩陣見 api-accessMatrix
+    describe('POST /syncAndReplaceTabs（應用系統，verifyAppUser）：套件自行要求管理員等級（A-1）', function() {
 
         let batch = (key) => ({ group: 'adminonly-sync', rows: [{ srcKey: key, name: `sync-${key}`, url: `http://t/sync-${key}` }] })
 
-        it('tokAppNonAdmin（isAdmin n，verifyAppUser 放行）→ 匯入照常成功（套件不對應用入口要求系統管理員）', async function() {
+        it('【翻轉】tokAppNonAdmin（isAdmin n，verifyAppUser 放行）→ 匯入被拒（errUserNotAdmin），庫內無此列（原：匯入成功）', async function() {
             let r = await S.sync('tokAppNonAdmin', batch('k-nonadmin'))
-            assert.deepStrictEqual({ state: r.state, nAdd: get(r, 'msg.nAdd') }, { state: 'success', nAdd: 1 }, JSON.stringify(r))
-            assert.ok((await S.list('sys')).some((x) => x.name === 'sync-k-nonadmin'))
+            assert.deepStrictEqual({ state: r.state, msg: r.msg }, { state: 'error', msg: 'errUserNotAdmin' }, JSON.stringify(r))
+            assert.ok(!(await S.list('sys')).some((x) => x.name === 'sync-k-nonadmin'))
         })
 
-        it('tokAppMinimal（虛擬應用使用者，只有 id 欄；應用入口原本即不經 checkUser）→ 匯入照常成功', async function() {
+        it('【翻轉】tokAppMinimal（虛擬應用使用者，只有 id 欄）→ 匯入被拒（反查結果須經與瀏覽端相同之欄位檢查：缺 email → errUserEmailMissing），庫內無此列（原：不經 checkUser、匯入成功）', async function() {
             let r = await S.sync('tokAppMinimal', batch('k-minimal'))
-            assert.deepStrictEqual({ state: r.state, nAdd: get(r, 'msg.nAdd') }, { state: 'success', nAdd: 1 }, JSON.stringify(r))
+            assert.deepStrictEqual({ state: r.state, msg: r.msg }, { state: 'error', msg: 'errUserEmailMissing' }, JSON.stringify(r))
+            assert.ok(!(await S.list('sys')).some((x) => x.name === 'sync-k-minimal'))
         })
 
         it('tokNonAdmin（isAdmin n，verifyAppUser 回 false）→ errUserNoPermission（由部署方鉤子決定，不是套件的角色檢查）；管理員 tokApp 照常', async function() {

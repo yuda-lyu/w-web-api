@@ -231,7 +231,7 @@
   - **順序**: token 認證(`getTokenUser`) → 部署方 `verifyClientUser(user 之拷貝, from)` → `assertAdmin`. 部署方鉤子對一般使用者仍被呼叫(可觀察之稽核行為不變), 只能再收緊、不能放寬; 角色取自 `getUserByToken` 所回之原物件, 鉤子改寫拷貝之 `isAdmin` 不影響(`authToken` 與 `getAndVerifyClientUser` 皆傳淺拷貝).
   - **資料通道**: `authToken`(連線閘 `p.checkToken` 與執行身分 `getUserIdByToken` 共用)含 `assertAdmin`. 故 w-converhp 六條路由(`main` 與五條上傳／下載)、`main` 之 kpFunExt 6、表 `select`、系統函數 `[sys:*]` 3、本體 `__sysToken__` 皆只限系統管理員: 一般使用者 → `permission denied`(連線閘)或 `errUserIdMissing`(本體 token), 函數不執行、ORM 零操作、零寫入、零憑證外洩; srLog `verifyConn`／`getUserIdByToken` 記 `err: 'errUserNotAdmin'`(白名單欄位).
   - **後台登入檢查** `GET /api/getUserByToken`: `getAndVerifyClientUser` 後 `assertAdmin`; 一般使用者回 `{ state:'error', msg:'errUserNotAdmin' }`. 前端 `loginError` 對該鍵顯示 `csErrNotAdmin`(eng `No permission to enter the API management console`、cht `無權進入 API 管理後台`; 走 `mUI` `kpFallback`, 因資料通道不可達), **停在該畫面、不轉址**(轉去登入頁無用, 且 SSO 導回形成轉址迴圈); 其餘登入錯誤維持原轉址.
-  - **不變**: `POST /syncAndReplaceTabs` 仍走 `verifyAppUser`(不加角色檢查; `api-adminOnly`「應用入口照舊」守之: `isAdmin 'n'` 但 `verifyAppUser` 放行者、只有 `id` 欄之虛擬應用使用者皆照常匯入); 前端靜態檔公開; 一般使用者唯一入口為 `GET /api/getApisList`(R-PUBLICAPIS-01).
+  - **前端靜態檔公開; 一般使用者唯一入口為 `GET /api/getApisList`**(R-PUBLICAPIS-01). 〔2026-10-24 更正: 本條原載「`POST /syncAndReplaceTabs` 仍走 `verifyAppUser`、不加角色檢查」已作廢——應用系統路由自 1.1.18 起亦要求管理員等級, 見 R-APPLEVEL-01、ADR-052; `api-adminOnly`「應用入口照舊」兩案已翻轉.〕
   - 不在各 kpFunExt 內另判角色: 資料通道每個函數執行前必經 `getUserIdByToken`(含 `assertAdmin`), 函數只收驗證後之 `userId`(見 ADR-051 決定 2).
 - **站點全集**(2026-10-24; 入口 ｜ 誰可用 ｜ 檢查處; 同 README `## Security` 之入口盤點):
 
@@ -240,16 +240,35 @@
 | `GET /api/getUserByToken` | 系統管理員 | `getAndVerifyClientUser` ＋ `assertAdmin(user,'getUserByToken')` | 已套(`api-adminOnly`「後台登入檢查」) |
 | `/api/main` kpFunExt 6、表 `select`、系統函數 3 | 系統管理員 | `verifyConn` → `p.checkToken` → `authToken` ＋ `assertAdmin`; 執行身分 `getUserIdByToken` → `authToken` | 已套(`api-adminOnly` 函數全集 14 項 × 兩種一般使用者; 本體／標頭交叉) |
 | 上傳下載五條路由 | 系統管理員(無監聽, 不受理) | `verifyConn`(`from` 為入口名) | 已套(`api-adminOnly` 六路由) |
-| `POST /syncAndReplaceTabs` | 應用系統(`verifyAppUser`) | `getAndVerifyAppUser` | 刻意不加角色檢查(使用者指示照舊) |
+| `POST /syncAndReplaceTabs` | 系統管理員等級(A、AU 綁管理員、AS) | `getAndVerifyAppUser` ＝ `getTokenUser` ＋ `verifyAppUser` ＋ `assertAdmin` | 已套(R-APPLEVEL-01; 2026-10-24 api-run01〔任務 20261024182736〕起, 原「刻意不加角色檢查」作廢) |
 | `GET /api/getApisList` | 任何通過驗證之使用者 | `getAndVerifyClientUser(token,'getApisList')` | 刻意不要求管理員(R-PUBLICAPIS-01) |
 | 前端靜態檔 | 公開 | 無 | 刻意公開(不含使用者資料) |
 
 - **盤點指令**:
-  - `assertAdmin` 之呼叫站點應恰 2 處(資料通道 `authToken`、登入檢查路由): `git grep -n "await assertAdmin" -- server/WWebApi.mjs`(應 2 行; 定義 `let assertAdmin =` 1 行).
+  - `assertAdmin` 之呼叫站點應恰 3 處(資料通道 `authToken`、登入檢查路由、應用系統路由 `getAndVerifyAppUser`; 2026-10-24 由 2 處增為 3 處): `git grep -n "await assertAdmin" -- server/WWebApi.mjs`(應 3 行; 定義 `let assertAdmin =` 1 行).
   - hapi `apis` 路由應恰 3 條(新增路由須同步更新本表與 README 入口盤點): `git grep -nE "^            path: '" -- server/WWebApi.mjs`.
   - kpFunExt 應恰 6 個: `git grep -nE "^            [a-zA-Z]+: wrapErrLog" -- server/WWebApi.mjs`(新增函數不需另判角色, 但須列入 `api-adminOnly` 之 `mkFuncs` 與本表).
   - `verifyClientUser` 之傳入不得是使用者物件本體: `git grep -n "verifyClientUser(" -- server/WWebApi.mjs`(`authToken`、`getAndVerifyClientUser` 皆為 `{ ...user }`).
 - **驗證**: `test/api-adminOnly.test.mjs`(埠 8566／8567〔srLog 案〕／8568〔echo〕; 隔離子行程; 一般使用者情境 `tokNonAdmin`〔isAdmin 'n'、鉤子放行〕、`tokMutateAdmin`〔isAdmin 'n'、鉤子把拷貝改寫為 'y' 再放行〕、`tokNonAdminDenied`〔鉤子拒絕〕): 後台登入檢查(一般使用者固定鍵且回應無 token／使用者資料、鉤子先被呼叫一次、管理員照常、鉤子拒絕者仍 `errUserNoPermission`、認證先於授權先於角色); 資料通道 14 個函數 × 2 種一般使用者皆 `permission denied`＋ORM 零操作＋鉤子恰一次且 `from='main'`＋代發零命中＋回應無憑證＋庫內不變; 管理員對照組; 六路由 × 2 種一般使用者之 `from`; 執行身分(標頭管理員＋本體一般使用者 → 全函數不執行 `errUserIdMissing`、ORM 零操作; 標頭一般使用者＋本體管理員 → 連線閘即拒; 兩位管理員照常); srLog 白名單與 `errUserNotAdmin`. 另 `api-connGate`／`api-execIdentity` 翻轉原「`tokNonAdmin` 通過」案; `e2e-init` E2E-006(前端畫面與不轉址; 標準圖 2 張). **修前紅**: HEAD 版後端(`git archive HEAD` 於 `./tmp/`)對新增與翻轉之 4 檔 206 案 80 紅(`api-adminOnly` 50／75、`api-publicApisList` 28／29、`api-connGate` 1、`api-execIdentity` 1). **變異**(拷貝上 21 個後端／純函數變異 20 個被抓、1 個等價; 前端 5 個皆被抓): 等價者為 `findTokenUser` 之 `isestr(token)` 放寬——資料通道之本體 token 由 w-serv-webdata 以 `cstr` 正規化為字串(非字串 → 空字串)、hapi 路由先 `isestr`、連線閘取自 Bearer 字串, 該處為縱深防禦, 現行入口不可達; 端到端行為(本體 token 為陣列／物件／數字／null／布林 → `errUserIdMissing`)仍由 `api-adminOnly` 釘住.
+
+### R-APPLEVEL-01 應用系統路由(`POST /syncAndReplaceTabs`)由套件自行要求系統管理員等級; 後台登入檢查成功只回欄位白名單(使用者 2026-10-24 定案之 token 權責, 專案 `CLAUDE.md`、dspec〈使用者身分驗證原則〉二之一; 缺口 A-1〔C5〕、A-2; 2026-10-24, api-run01〔任務 20261024182736, 排程第 133 項〕, ADR-052)
+
+- **token 種類與等級**(本套件不簽發 token, 經部署方 `getUserByToken` 反查; 一律以反查之 `isAdmin` 判等級, 與 R-ADMINONLY-01 的 `assertAdmin` 同一判準, 不另分辨用途): U＝使用者 token・一般使用者(`isAdmin 'n'`); A＝使用者 token・系統管理員(`'y'`); AU＝應用系統 token・使用者用途(反查回**所綁使用者**之實際資料, `isApp 'y'`, 等級同所綁使用者); AS＝應用系統 token・系統服務用途(不綁使用者, 反查回 `id 'app:<金鑰主鍵>'`、`isApp 'y'`、`isAdmin 'y'`). 是否簽發系統服務用途或綁管理員之應用系統 token 由專案方負責(高權限功能由專案方評估).
+- **規則**:
+  - **A-1** `getAndVerifyAppUser(token, 'syncAndReplaceTabs')` 順序: `getTokenUser`(token 認證＋`checkUser` 欄位檢查) → 部署方 `verifyAppUser({ ...user }, from)`(拷貝; 拋錯／reject／falsy 視同拒絕 → `errUserNoPermission`) → `assertAdmin`(→ `errUserNotAdmin`). U、AU 綁一般使用者被拒; A、AU 綁管理員、AS 放行. 被拒時 ORM 零操作、零寫入、回應固定鍵不含 token 與使用者資料, 由路由邊界 `wrapRouteErrLog` 記 srLog `api/syncAndReplaceTabs` error(白名單欄位 `level/time/pid/hostname/event/err`).
+  - **欄位檢查之理由**(單一規則一處): 等級取自 `isAdmin`、稽核欄 `userIdUpdate` 取自 `id`; 缺欄或值不合法(`'Y'`、`'maybe'`、缺 `isAdmin`)屬部署設定錯誤, 不得靜默當成一般使用者(日後誤改判準時甚至當成管理員), 也不另寫第二份規則——故沿用瀏覽端 `checkUser`, 回既有 `errUserIdMissing`／`errUserEmailMissing`／`errUserNameMissing`／`errUserRoleMissing`, 且**部署方鉤子零呼叫**. 破壞性之處: 原「只回 `id` 之虛擬應用使用者」(`findTokenUser` 不經 `checkUser`)自此被拒.
+  - **部署方鉤子照舊**: `verifyAppUser(user, from)`(`from` 為 `'syncAndReplaceTabs'`, `user` 為淺拷貝, 含反查之 `isApp`)先於等級檢查被呼叫、只能再收緊; 鉤子改寫拷貝之 `isAdmin` 不影響結果(等級取自原物件).
+  - **A-2** `GET /api/getUserByToken` 成功時回 `pickLoginUser(user)`: 單一來源 `server/pickLoginUser.mjs` 之 `fieldsLoginUser`(凍結常數) ＝ `['id','name','email','isAdmin']`; 只輸出來源**自身**屬性(不讀原型鏈、缺欄不虛構、`__proto__` 自身鍵不污染), 其餘(`password`、`tokenVerify`、`description`、`account`、`timeExpired`、`isActive`、`isApp`…)一律不輸出. **不含 `isApp` 之理由**: 前端(`Layout.vue`)只用 `userSelf.name`、`userSelf.email`, w-ui-loginout 只要求回傳為非空物件; 等級只看 `isAdmin`, 不需讓瀏覽端知道此 token 是否為應用系統 token. 錯誤回應不變.
+  - **fail-closed(外審 sol #7)**: 部署方使用者物件含拋錯之取值器(getter)或代理陷阱時, 例外原文不得外洩——①交給鉤子之拷貝一律經 `copyUserForHook`(`try { ...user } catch → null`), `null` 視同鉤子拒絕 → `errUserNoPermission`(`authToken`、`getAndVerifyClientUser`、`getAndVerifyAppUser` 三處共用); ②`getTokenUser` 把 `checkUser` 拋出之**非固定鍵**例外(必要欄位之取值器拋錯)一律轉 `errUserNotFound`; 兩者鉤子皆零呼叫, 回應與 srLog 不含例外原文(`api-accessMatrix`「fail-closed」2 案、變異 M12~M15 守之). 原行為: 展開 `{ ...user }` 在 `wrapInjected` 之外求值, 例外經路由邊界 `wrapRouteErrLog` 記入 srLog 並以 `r.msg.message` 回到回應.
+  - **不變**: 1.1.17 之後台與資料通道只限管理員、`GET /api/getApisList` 公開欄位清單; 1.1.16 之連線閘與代發請求政策; `srcKey` 匯入之同步語意(`keyTable` 白名單、`srcKey` 必填、不得送 `id`、整批驗證); 錯誤鍵與回應形狀.
+- **存取表**(驗收依據: dspec〈w-web存取管控表〉§3.2; 測試 `api-accessMatrix`, 字面值 `EXPECT` 逐格): 19 入口 × 6 呼叫者類(無、U、A、AU 綁一般、AU 綁管理員、AS)＝114 格; 靜態檔全 ✓; `GET /api/getApisList` 「無」✗其餘 ✓; 其餘 17 入口「無」✗、U ✗、A ✓、AU 同所綁使用者、AS ✓. 「無」類子變體: 缺、空字串、重複 token(陣列)、查無、逾期(上游 reject)、非 Bearer 方案、Bearer 後無憑證.
+- **站點全集與盤點指令**:
+  - `getAndVerifyAppUser` 唯一呼叫者為 `POST /syncAndReplaceTabs`: `git grep -n "getAndVerifyAppUser" -- server/WWebApi.mjs`(定義 1＋呼叫 1＋註解); 其內須含 `getTokenUser`、`verifyAppUser({ ...user }`、`assertAdmin` 三者且依此順序.
+  - `assertAdmin` 呼叫站點 3 處: `git grep -n "await assertAdmin" -- server/WWebApi.mjs`.
+  - 後台登入檢查之回傳只經白名單: `git grep -n "pickLoginUser" -- server`(定義 1＋import 1＋呼叫 1); `fieldsLoginUser` 之字面值由 `unit-pickLoginUser` L01 釘住.
+  - `verifyAppUser(`／`verifyClientUser(` 傳入不得是使用者物件本體, 且拷貝一律經 `copyUserForHook`: `git grep -n "copyUserForHook\|verifyAppUser(\|verifyClientUser(" -- server/WWebApi.mjs`(定義 1＋呼叫 3; 鉤子呼叫處皆傳 `uc`).
+  - 新增 hapi 路由或資料通道函數須同步更新 `api-accessMatrix` 之 `ENTRIES`／`EXPECT`(`MX01` 以管理員之 `[sys:getFuncList]` 對照函數全集, 漏列即紅)、README 入口盤點與本節.
+- **驗證**: `test/api-accessMatrix.test.mjs`(埠 8571〔主〕／8572〔echo〕／8573〔srLog 案〕; 隔離子行程; 呼叫者 `tokMxU`／`tokMxA`／`tokMxAuU`／`tokMxAuA`／`tokMxAs`／`tokMxExpired` 等由 `apiServerChild` 提供, 部署方鉤子對其一律放行, 故被拒只能出自套件自己的檢查; 靜態檔以 harness 新選項 `files` 於子行程 cwd 建 `dist/`): 155 案＝自檢 2＋矩陣 114＋兩 token 交叉 21〔標頭×本體: 管理員等級 3×3、標頭管理員×本體等級不足或無效 2×5、標頭等級不足×本體管理員 2〕＋取值器拋錯 fail-closed 2＋A-1 欄位檢查 7＋鉤子照舊 5＋不變 2＋srLog 1＋收尾 1; 放行格之鉤子呼叫須恰 2 次(連線閘＋執行身分); 被拒格另斷言 ORM 零操作／庫內不變／代發零命中／回應無敏感值／鉤子呼叫次數與 `from`; 放行格斷言成功結果(登入檢查回應鍵恰為白名單且無 `SECRET-MX-*`、公開清單每列恰 17 欄、匯入列稽核欄＝呼叫者 id、資料通道各函數成功). `test/unit-pickLoginUser.test.mjs`(8 案 L01~L08). `api-adminOnly` 翻轉 2 案(`tokAppNonAdmin` 匯入成功 → `errUserNotAdmin`; `tokAppMinimal` 匯入成功 → `errUserEmailMissing`). **修前紅**: HEAD 版後端副本(`git archive HEAD server src` 於 `./tmp/`, 以 `API_SERVER_MODULE` 指向)對 4 檔(accessMatrix、adminOnly、connGate、execIdentity)的紅燈數見報告〈完成條件〉1; 新 unit 檔因模組不存在整檔載入失敗. **變異**(`API_SERVER_MODULE` 指向 `./tmp/` 副本, 不動 repo): 15 個, 結果見報告〈完成條件〉2(M1 拿掉等級檢查、M2 白名單多 `description`、M3 原樣回傳使用者物件、M4 不經欄位檢查、M5 傳原物件非拷貝、M6 順序顛倒、M7 `isApp` 免等級檢查、M8 白名單多 `isApp`、M9 略過部署方鉤子、M10 白名單少 `email`、M11 AS 被誤拒、M12~M15 取值器拋錯之 fail-closed 四種).
 
 ### R-PUBLICAPIS-01 一般使用者以 token 取得 API 清單: `GET /api/getApisList?token=`, 只含啟用中、只含公開欄位白名單, 固定排除憑證(使用者 2026-10-24 裁示〈經由指定 token 應該是取得 api 清單〉; 2026-10-24, api-run01, ADR-051)
 

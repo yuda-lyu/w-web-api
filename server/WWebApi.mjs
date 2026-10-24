@@ -33,6 +33,7 @@ import srLogInit from './srLog.mjs'
 import { maskTok, maskQuery } from './maskLog.mjs'
 import { wrapInjected } from './wrapInjected.mjs'
 import getOptDataChannel from './getOptDataChannel.mjs'
+import { pickLoginUser } from './pickLoginUser.mjs'
 import ds from '../src/schema/index.mjs'
 
 
@@ -43,9 +44,9 @@ import ds from '../src/schema/index.mjs'
  * @param {Function} WOrm 輸入資料庫ORM函數
  * @param {String} url 輸入資料庫連線字串，例如w-orm-lmdb為'./db'，或w-orm-mongodb為'mongodb://username:password@$127.0.0.1:27017'
  * @param {String} db 輸入資料庫名稱字串
- * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'。本套件無自有使用者表，以此處所回之'isAdmin'判定系統管理員：'y'為系統管理員，'n'為一般使用者。API管理後台（登入檢查GET /api/getUserByToken與全部資料通道，含kpFunExt、表select、系統函數與上傳下載）只限系統管理員，非系統管理員一律被拒（後台登入檢查回固定錯誤鍵'errUserNotAdmin'；資料通道之連線閘回permission denied、請求本體__sysToken__為非系統管理員者回'errUserIdMissing'，函數皆不執行；1.1.17起，見README Upgrade Notes）；一般使用者僅可用GET /api/getApisList?token=取得啟用中API之公開欄位清單。拋錯、reject或回傳非物件視同查無使用者
+ * @param {Function} getUserByToken 輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'。本套件無自有使用者表，以此處所回之'isAdmin'判定系統管理員：'y'為系統管理員，'n'為一般使用者。API管理後台（登入檢查GET /api/getUserByToken與全部資料通道，含kpFunExt、表select、系統函數與上傳下載）只限系統管理員，非系統管理員一律被拒（後台登入檢查回固定錯誤鍵'errUserNotAdmin'；資料通道之連線閘回permission denied、請求本體__sysToken__為非系統管理員者回'errUserIdMissing'，函數皆不執行；1.1.17起，見README Upgrade Notes）；一般使用者僅可用GET /api/getApisList?token=取得啟用中API之公開欄位清單。應用系統入口POST /syncAndReplaceTabs同樣以此處所回之'isAdmin'判定等級（1.1.18起，須為系統管理員，且使用者物件須通過與瀏覽端相同之欄位檢查，見README Upgrade Notes）。使用者物件可另提供'isApp'欄位：'y'表示此token為應用系統token之反查結果（使用者用途回所綁使用者之實際資料、系統服務用途回虛擬身分，如id為'app:<金鑰主鍵>'且'isAdmin'為'y'），其餘為'n'或不給；本套件不據以判斷等級（等級只看'isAdmin'），僅隨使用者物件之拷貝原樣交給verifyClientUser與verifyAppUser供您區分。後台登入檢查GET /api/getUserByToken成功時只回'id'、'name'、'email'、'isAdmin'四個欄位（不原樣回傳此處所回之物件，password、description、isApp等不會出現於回應）。拋錯、reject或回傳非物件視同查無使用者
  * @param {Function} verifyClientUser 輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件之拷貝與入口名from字串，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。瀏覽端以token進入之入口皆會呼叫（外部應用入口POST /syncAndReplaceTabs改走verifyAppUser，前端靜態檔為公開）：登入檢查GET /api/getUserByToken（from為'getUserByToken'）、一般使用者取API清單GET /api/getApisList（from為'getApisList'），以及資料通道（kpFunExt、表select、系統函數與上傳下載，連線閘verifyConn，from為w-converhp之入口名：'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'；1.1.16起，見README Upgrade Notes）。拋錯、reject或回傳falsy值皆視同拒絕。本套件已自行限制後台與資料通道只限系統管理員（getUserByToken所回之isAdmin為'y'者；此檢查在本函數之後，故本函數只能再收緊、不能放寬），本函數不必再以isAdmin判斷；可用來依from或自有名單再收緊，例如只放行'getUserByToken'與'main'，或排除特定帳號。政策若只允許部分入口，請依from區分
- * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false
+ * @param {Function} verifyAppUser 輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件之拷貝與入口名from字串（目前只有外部匯入POST /syncAndReplaceTabs，from為'syncAndReplaceTabs'），通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。拋錯、reject或回傳falsy值皆視同拒絕。1.1.18起本套件已自行要求應用系統路由之呼叫者為系統管理員等級（getUserByToken所回之isAdmin為'y'者，即使用者token之管理員、綁定管理員之應用系統token、不綁使用者之系統服務用途應用系統token；綁定一般使用者者與一般使用者被拒），並要求使用者物件欄位齊備（'id'、'email'、'name'、'isAdmin'，與瀏覽端同一檢查）；此檢查在本函數之後，故本函數只能再收緊、不能放寬，不必再以isAdmin判斷
  * @param {Object} [opt={}] 輸入設定物件，預設{}。w-serv-orm 1.1.9 起移除之 useCheckUser、getUserById、useExcludeWhenNotAdmin 不再支援：未給、null 或 false 照常，給予其他值時建構即拋錯（訊息取自 w-serv-orm 之 checkOptRemoved）
  * @param {Integer} [opt.serverPort=11005] 輸入伺服器通訊port，須為1至65535之整數（可為數字字串），未給(undefined或null)時取預設11005，有給但無效時建構即拋錯'invalid opt.serverPort'，預設11005
  * @param {Object} [opt.webName={}] 輸入站台名稱物件，至少包含語系eng與cht鍵的名稱，預設{}
@@ -93,11 +94,12 @@ import ds from '../src/schema/index.mjs'
  *
  * let getUserByToken = async (token) => {
  *     // return {} //測試無法登入
- *     if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者
+ *     if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者(系統服務用途: 不綁使用者，須為管理員等級才可呼叫POST /syncAndReplaceTabs)
  *         return {
- *             id: 'id-for-application',
+ *             id: 'app:id-for-application',
  *             name: 'application',
  *             email: 'application@example.com',
+ *             isApp: 'y', //選用: 'y'為應用系統token之反查結果，本套件不據以判斷等級，僅原樣交給verifyClientUser與verifyAppUser
  *             isAdmin: 'y',
  *         }
  *     }
@@ -128,10 +130,12 @@ import ds from '../src/schema/index.mjs'
  * }
  *
  * let verifyAppUser = (user, from) => {
+ *     //from: 入口名，目前只有'syncAndReplaceTabs'(外部匯入)
+ *     //本套件已自行要求應用系統路由之呼叫者為系統管理員等級(getUserByToken所回isAdmin為'y'；此檢查在本函數之後)，此處不必再以isAdmin判斷，只能在其上再收緊
  *     console.log('verifyAppUser/user', user)
  *     // return false //測試無法登入
- *     console.log('於生產環境時得加入限制應用程式使用者身份機制')
- *     return user.isAdmin === 'y' //測試僅系統管理者使用
+ *     console.log('於生產環境時得加入限制應用程式使用者身份機制(例如只放行特定應用系統之id)')
+ *     return from === 'syncAndReplaceTabs'
  * }
  *
  * //WWebApi
@@ -407,8 +411,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
 
     //findTokenUser：token → 使用者；token 非字串或查無（非非空物件，含上游失敗經 wrapInjected 轉成之 null）一律 reject errUserNotFound。
-    //查無之同一規則只寫此一處，getTokenUser（瀏覽端／連線閘）與 getAndVerifyAppUser（應用端）共用（S7，ADR-033；
-    //改造前 getTokenUser 未檢查，{} 經 checkUser 回 errUserIdMissing，與應用端之 errUserNotFound 不一致）
+    //查無之同一規則只寫此一處，經 getTokenUser 供瀏覽端／連線閘與應用端（getAndVerifyAppUser）共用（S7，ADR-033；
+    //改造前 getTokenUser 未檢查，{} 經 checkUser 回 errUserIdMissing，與應用端之 errUserNotFound 不一致；應用端自 1.1.18 起亦經 getTokenUser，見 getAndVerifyAppUser）
     let findTokenUser = async (token) => {
 
         //getUserByToken（已包裝，永不 reject）
@@ -435,10 +439,31 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //findTokenUser
         let userSelf = await findTokenUser(token)
 
-        //check
-        await checkUser(userSelf)
+        //check：checkUser 之固定鍵（errUser…Missing）原樣拋出。部署方使用者物件之必要欄位若為拋錯之取值器（或代理物件陷阱），checkUser 會拋出非固定鍵之例外，
+        //其原文（可能夾部署方內部資訊）會經路由邊界回到回應與 srLog；一律視同查無使用者（固定鍵 errUserNotFound，與上游失敗經 wrapInjected 轉成 null 同一處置），不外洩原文
+        try {
+            await checkUser(userSelf)
+        }
+        catch (err) {
+            console.log('can not check the user from token') //不印 err
+            return Promise.reject(isestr(err) ? err : 'errUserNotFound')
+        }
 
         return userSelf
+    }
+
+
+    //copyUserForHook：交給部署方鉤子（verifyClientUser／verifyAppUser）之淺拷貝，鉤子改寫拷貝不影響呼叫端之判斷（外審 sol F07）。
+    //使用者物件含拋錯之取值器（getter）或代理物件陷阱時展開會拋錯，且發生在 wrapInjected 之外（引數在呼叫前即求值），原文會經路由邊界回到回應與 srLog（外審 sol 〔api-run01，任務 20261024182736〕#7）；
+    //故於此攔截，失敗回 null，呼叫端視同鉤子拒絕（errUserNoPermission），與鉤子拋錯同一處置，不外洩原文
+    let copyUserForHook = (user) => {
+        try {
+            return { ...user }
+        }
+        catch (err) {
+            console.log('can not copy the user for verify hook') //不印 err
+            return null
+        }
     }
 
 
@@ -468,7 +493,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         let user = await getTokenUser(token)
 
         //verifyClientUser（已包裝：拋錯或 reject 視同 false）。交給鉤子者為淺拷貝：部署方鉤子若改寫傳入之物件（如把 id 設空），後續取 id 仍用驗證前之原物件（外審 sol F07）
-        let b = await verifyClientUser({ ...user }, from)
+        let uc = copyUserForHook(user)
+        let b = uc === null ? false : await verifyClientUser(uc, from)
 
         //check
         if (!b) {
@@ -508,8 +534,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //getTokenUser
         let user = await getTokenUser(token)
 
-        //verifyClientUser（已包裝：拋錯或 reject 視同 false）
-        let b = await verifyClientUser({ ...user }, from)
+        //verifyClientUser（已包裝：拋錯或 reject 視同 false；拷貝失敗視同 false，見 copyUserForHook）
+        let uc = copyUserForHook(user)
+        let b = uc === null ? false : await verifyClientUser(uc, from)
 
         //check
         if (!b) {
@@ -523,15 +550,25 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     }
 
 
-    //getAndVerifyAppUser
+    //getAndVerifyAppUser：應用入口（POST /syncAndReplaceTabs）之 token 完整驗證＝token 認證（getTokenUser：與瀏覽端同一欄位檢查）＋部署方 verifyAppUser(user, from)＋系統管理員等級（assertAdmin），回傳使用者
+    //（A-1，C5；api-run01〔任務 20261024182736〕，使用者 2026-10-24 定案之 token 權責，跨套件原則 C:\opensrcOper\dspec\使用者身分驗證原則.md 二之一）。
+    //token 種類：使用者 token 代表登入者；應用系統 token（getUserByToken 所回 isApp 'y'）分使用者用途（反查回所綁使用者之實際資料，能用之服務＝所綁使用者以自己 token 能用者）
+    //與系統服務用途（不綁使用者，反查回 id 'app:<金鑰主鍵>'、isAdmin 'y'，能用管理員之服務）。本套件不簽發 token 亦不分辨用途，一律以反查之 isAdmin 判等級（與 assertAdmin 同一判準）：
+    //綁一般使用者者與一般使用者同被拒、綁管理員者與管理員同放行、系統服務用途放行；是否簽發系統服務用途或綁管理員之應用系統 token 由專案方負責。
+    //欄位檢查（getTokenUser→checkUser）：改造前本函數只 findTokenUser、不檢查欄位（虛擬應用使用者可只給 id）。等級取自 isAdmin、稽核欄 userIdUpdate 取自 id，
+    //故反查結果須與瀏覽端同一規則（id／email／name 非空字串、isAdmin 限 'y'／'n'）：缺欄或值非 'y'／'n'（如 'Y'）屬部署設定錯誤，不能靜默當成一般使用者（日後誤改判準時甚至當成管理員），
+    //也不另寫第二份欄位規則（一個規則一處）；不通過回既有之 errUser…Missing 鍵，部署方鉤子零呼叫。
+    //順序：認證在前、授權在後、等級最後——部署方 verifyAppUser 照舊先被呼叫，只能再收緊、不能放寬；交給鉤子者為淺拷貝（同 authToken）：鉤子改寫傳入之物件（如把 isAdmin 改為 'y'）不影響等級判斷。
+    //不通過 reject 'errUserNoPermission'（部署方否決）或 'errUserNotAdmin'（等級不足），由路由邊界 wrapRouteErrLog 記 srLog；回應不回顯 token 與使用者資料。
     let getAndVerifyAppUser = async (token, from = '') => {
-        //基於token查找app使用者, 會基於外部getUserByToken進行查找, 故只要getUserByToken提供使用者即可, 可支援getUserByToken給予針對應用程式所產生之虛擬使用者
+        //基於token查找app使用者, 會基於外部getUserByToken進行查找, 故getUserByToken須提供欄位齊備之使用者（含針對應用系統所產生之虛擬使用者，w-web-sso 之系統服務用途即是）
 
-        //findTokenUser（沿用既有設計不經 checkUser，見上）
-        let user = await findTokenUser(token)
+        //getTokenUser（findTokenUser＋checkUser）
+        let user = await getTokenUser(token)
 
-        //verifyAppUser（已包裝：拋錯或 reject 視同 false）
-        let b = await verifyAppUser(user, from)
+        //verifyAppUser（已包裝：拋錯或 reject 視同 false；拷貝失敗視同 false，見 copyUserForHook）
+        let uc = copyUserForHook(user)
+        let b = uc === null ? false : await verifyAppUser(uc, from)
 
         //check
         if (!b) {
@@ -540,7 +577,10 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
             return Promise.reject('errUserNoPermission')
         }
 
-        srLog.info({ event: 'verifyAppUser', from, userId: get(user, 'id', '') }) //應用程式使用者驗證通過
+        //系統管理員等級（R-ADMINONLY-01 之同一判準，A-1）
+        await assertAdmin(user, from)
+
+        srLog.info({ event: 'verifyAppUser', from, userId: get(user, 'id', '') }) //應用程式使用者驗證通過（含等級）
         return user
     }
 
@@ -723,7 +763,9 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     await assertAdmin(user, 'getUserByToken')
 
                     srLog.info({ event: 'api/getUserByToken', userId: get(user, 'id', '') })
-                    return user
+
+                    //成功只回欄位白名單（A-2，fieldsLoginUser）：部署方 getUserByToken 所回物件可能帶 password、tokenVerify、description、isApp 等與前端無關之欄位，不原樣回傳
+                    return pickLoginUser(user)
                 }
 
                 //pm2resolve core

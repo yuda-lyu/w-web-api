@@ -5,8 +5,12 @@
 //供測試以人為延遲驗證「比對與寫入間插不進他人寫入」(多人同時編輯規格 V14、外部匯入 I11)。
 //argv: [port, dbName, optJson?]（optJson 為額外之 WWebApi opt, 如 {"lockExternalRows":"n"}; 未給＝預設）
 import path from 'path'
+import { pathToFileURL } from 'url'
 import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
-import WWebApi from '../../server/WWebApi.mjs'
+
+//被測後端模組: 預設為本 repo 之 server/WWebApi.mjs; 環境變數 API_SERVER_MODULE 可指向另一份副本（供「修前紅」對 HEAD 版後端、變異測試對變異副本重跑同一批測試，副本放 ./tmp/，不動 repo 之 server/）
+let urlServer = process.env.API_SERVER_MODULE ? pathToFileURL(path.resolve(process.env.API_SERVER_MODULE)).href : new URL('../../server/WWebApi.mjs', import.meta.url).href
+let { default: WWebApi } = await import(urlServer)
 
 
 let port = parseInt(process.argv[2], 10)
@@ -92,7 +96,7 @@ function SlowOrm(opt) {
 //使用者: sys 為開發捷徑; tokA／tokB 為兩位後台管理員; tokApp 為外部應用(app 權杖)之使用者
 //api-connGate 用之部署方授權情境(除標明者外皆 isAdmin 'y', 使「拒絕」只能出自 verifyClientUser 而非 isAdmin 欄位):
 //tokDenied(verifyClientUser 回 false)、tokVThrow(拋錯)、tokVReject(reject)、tokVFalsy(回 undefined)、tokVTruthy(回 1, 非 true 之 truthy)、
-//tokOnlyMain(只在入口 'main' 放行, 驗 from 為入口名)、tokNonAdmin(isAdmin 'n' 但鉤子放行: 套件不強加管理員政策)、tokNoEmail(使用者欄位不齊: 認證即失敗, 不呼叫鉤子)
+//tokOnlyMain(只在入口 'main' 放行, 驗 from 為入口名)、tokNonAdmin(isAdmin 'n' 但資料通道之鉤子放行: 1.1.17 起套件自行限系統管理員, 仍被拒; 其 verifyAppUser 回 false)、tokNoEmail(使用者欄位不齊: 認證即失敗, 不呼叫鉤子)
 let users = {
     sys: { id: 'id-for-admin', name: 'admin', email: 'admin@example.com', isAdmin: 'y' },
     tokA: { id: 'id-for-adminA', name: 'adminA', email: 'a@example.com', isAdmin: 'y' },
@@ -119,19 +123,97 @@ let users = {
     //tokNonAdminDenied 為一般使用者且鉤子拒絕(部署方可再收緊: 一般使用者取 API 清單被鉤子拒)
     tokMutateAdmin: { id: 'id-mutateadmin', name: 'mutateadmin', email: 'mutateadmin@example.com', isAdmin: 'n' },
     tokNonAdminDenied: { id: 'id-nonadmindenied', name: 'nonadmindenied', email: 'nonadmindenied@example.com', isAdmin: 'n' },
-    //外審 sol R1: 應用入口(POST /syncAndReplaceTabs, verifyAppUser)照舊、不加角色檢查——tokAppNonAdmin 為 isAdmin 'n' 且 verifyAppUser 放行; tokAppMinimal 只有 id(應用入口原本即不經 checkUser, 虛擬應用使用者可只給 id)
+    //應用入口(POST /syncAndReplaceTabs, verifyAppUser): 1.1.18 起套件自行要求管理員等級與欄位齊備(A-1)——tokAppNonAdmin 為 isAdmin 'n' 且 verifyAppUser 放行(仍被拒 errUserNotAdmin); tokAppMinimal 只有 id(欄位檢查不過, errUserEmailMissing)
     tokAppNonAdmin: { id: 'id-appnonadmin', name: 'appnonadmin', email: 'appnonadmin@example.com', isAdmin: 'n' },
     tokAppMinimal: { id: 'id-appminimal' },
 }
-let getUserByToken = async (token) => (users[token] ? { ...users[token] } : {})
-let verify = (user) => user.isAdmin === 'y' || user.id === 'id-appnonadmin' || user.id === 'id-appminimal'
+
+//api-run01(存取矩陣 api-accessMatrix, 任務 20261024182736, 排程第 133 項): dspec w-web存取管控表 §3.2 之呼叫者類。
+//部署方鉤子(verifyClientUser／verifyAppUser)對 id 以 'id-mx-' 或 'app:' 起頭者一律放行, 使「被拒」只能出自套件自己的等級檢查;
+//反查回傳形狀比照 w-web-sso 第 130 項: 使用者 token＝該使用者實際資料、isApp 'n'; 應用系統 token 使用者用途＝所綁使用者實際資料、isApp 'y'; 系統服務用途＝id 'app:<金鑰主鍵>'、isApp 'y'、isAdmin 'y'、name 為金鑰名稱、其餘為佔位字串。
+//MX_EXTRA 為部署方使用者物件上「不得出現在後台登入檢查回應」之多餘欄位(哨兵值前綴 SECRET-MX-, 便於全文掃描)
+let MX_EXTRA = {
+    account: 'SECRET-MX-ACCOUNT',
+    password: 'SECRET-MX-PASSWORD',
+    tokenVerify: 'SECRET-MX-TOKENVERIFY',
+    description: 'SECRET-MX-DESCRIPTION',
+    timeExpired: 'SECRET-MX-TIMEEXPIRED',
+    isActive: 'y',
+}
+Object.assign(users, {
+    tokMxU: { id: 'id-mx-u', name: 'mx-u', email: 'mx-u@example.com', isAdmin: 'n', isApp: 'n', ...MX_EXTRA }, //U: 使用者 token・一般使用者
+    tokMxA: { id: 'id-mx-a', name: 'mx-a', email: 'mx-a@example.com', isAdmin: 'y', isApp: 'n', ...MX_EXTRA }, //A: 使用者 token・系統管理員
+    tokMxAuU: { id: 'id-mx-au-u', name: 'mx-au-u', email: 'mx-au-u@example.com', isAdmin: 'n', isApp: 'y', ...MX_EXTRA }, //AU: 應用系統 token・使用者用途, 綁一般使用者
+    tokMxAuA: { id: 'id-mx-au-a', name: 'mx-au-a', email: 'mx-au-a@example.com', isAdmin: 'y', isApp: 'y', ...MX_EXTRA }, //AU: 應用系統 token・使用者用途, 綁系統管理員
+    tokMxAs: { id: 'app:key-mx-001', name: 'mx-as-key', email: 'placeholder@app.invalid', isAdmin: 'y', isApp: 'y', ...MX_EXTRA }, //AS: 應用系統 token・系統服務用途(不綁使用者)
+    //一般使用者, 部署方鉤子(兩支)把傳入物件改寫為 isAdmin 'y' 再放行: 套件須以 getUserByToken 所回之原值判斷等級
+    tokMxMutate: { id: 'id-mx-mutate', name: 'mx-mutate', email: 'mx-mutate@example.com', isAdmin: 'n', isApp: 'n', ...MX_EXTRA },
+    //欄位檢查(與瀏覽端同一規則): isAdmin 值域只限 'y'／'n', 大寫 'Y' 不是管理員也不是合法值; 缺 isAdmin 欄亦不合法
+    tokMxRoleY: { id: 'id-mx-roley', name: 'mx-roley', email: 'mx-roley@example.com', isAdmin: 'Y', isApp: 'y', ...MX_EXTRA },
+    tokMxNoRole: { id: 'id-mx-norole', name: 'mx-norole', email: 'mx-norole@example.com', isApp: 'y', ...MX_EXTRA },
+    //管理員, 部署方鉤子拒絕(部署方可再收緊)
+    tokMxDenied: { id: 'id-mx-denied', name: 'mx-denied', email: 'mx-denied@example.com', isAdmin: 'y', isApp: 'n', ...MX_EXTRA },
+})
+let isMxId = (id) => typeof id === 'string' && (id.startsWith('id-mx-') || id.startsWith('app:'))
+
+//mkGetterUser: 部署方使用者物件含「拋錯之取值器」(getter)——prop 為額外欄位('trap')或必要欄位('email'); 套件須固定鍵拒絕且不外洩例外原文(外審 sol #7)
+let GETTER_SECRET = 'SYNTH-GETTER-SECRET-FOR-TEST'
+let mkGetterUser = (id, prop) => {
+    let u = { id, name: 'mx-getter', email: 'mx-getter@example.com', isAdmin: 'y', isApp: 'y' }
+    Object.defineProperty(u, prop, {
+        enumerable: true,
+        configurable: true,
+        get() {
+            throw new Error(GETTER_SECRET)
+        },
+    })
+    return u
+}
+
+//tokMxExpired: 上游(如 w-web-sso)對逾期或不可用之 token 以 reject 回應; 套件須視同查無(errUserNotFound)
+let getUserByToken = async (token) => {
+    if (token === 'tokMxExpired') {
+        return Promise.reject(new Error('SYNTH-EXPIRED-FOR-TEST'))
+    }
+    if (token === 'tokMxGetterExtra') {
+        return mkGetterUser('id-mx-getter-x', 'trap')
+    }
+    if (token === 'tokMxGetterReq') {
+        return mkGetterUser('id-mx-getter-r', 'email')
+    }
+    return users[token] ? { ...users[token] } : {}
+}
+
+//verifyAppCalls: verifyAppUser 之呼叫記錄({ userId, from, isApp }), 供測試證明「部署方鉤子照舊被呼叫(欄位不齊者不呼叫)、from 為入口名」; IPC 'verifyAppCalls' 取出
+let verifyAppCalls = []
+let verify = (user, from) => {
+    verifyAppCalls.push({ userId: user.id, from, isApp: user.isApp })
+    if (user.id === 'id-mx-denied') {
+        return false
+    }
+    if (user.id === 'id-mx-mutate') {
+        user.isAdmin = 'y' //部署方鉤子改寫傳入之物件(企圖把一般使用者升為管理員): 套件須以 getUserByToken 所回之原值判斷等級
+        return true
+    }
+    if (isMxId(user.id)) {
+        return true
+    }
+    return user.isAdmin === 'y' || user.id === 'id-appnonadmin' || user.id === 'id-appminimal'
+}
 
 //verifyCalls: verifyClientUser 之呼叫記錄({ userId, from }), 供測試證明「連線閘確實呼叫部署方之授權鉤子、且 from 為入口名」; IPC 'verifyCalls' 取出
 let verifyCalls = []
 let verifyClient = (user, from) => {
     verifyCalls.push({ userId: user.id, from })
-    if (user.id === 'id-denied') {
+    if (user.id === 'id-denied' || user.id === 'id-mx-denied') {
         return false
+    }
+    if (user.id === 'id-mx-mutate') {
+        user.isAdmin = 'y' //同 verifyAppUser 之改寫情境
+        return true
+    }
+    if (isMxId(user.id)) {
+        return true //存取矩陣之呼叫者類: 部署方一律放行, 被拒只能出自套件自己的等級檢查
     }
     if (user.id === 'id-vthrow') {
         throw new Error('SYNTH-VERIFY-SECRET-FOR-TEST')
@@ -227,6 +309,13 @@ process.on('message', async (msg) => {
         let r = verifyCalls.slice()
         if (msg.clear) {
             verifyCalls = []
+        }
+        process.send({ id: msg.id, ok: true, value: r })
+    }
+    else if (msg.cmd === 'verifyAppCalls') {
+        let r = verifyAppCalls.slice()
+        if (msg.clear) {
+            verifyAppCalls = []
         }
         process.send({ id: msg.id, ok: true, value: r })
     }

@@ -124,10 +124,11 @@ let verifyAppUser = (user, from) => {
     if (get(user, 'id') === 'id-for-verify-throw' && process.env.NODE_ENV !== 'production') {
         throw new Error('SYNTH-VERIFY-SECRET-FOR-TEST')
     }
+    //本套件已自行要求應用系統路由之呼叫者為系統管理員等級(getUserByToken 所回 isAdmin 為 'y'; 檢查在本函數之後, 本函數只能再收緊), 此處不再以 isAdmin 判斷, 只示範依 from 收緊(目前只有 'syncAndReplaceTabs')
     console.log('verifyAppUser/user', user)
     console.log('於生產環境時得加入限制應用程式使用者身份機制')
     // return false //測試無法登入
-    return user.isAdmin === 'y' //測試僅系統管理者使用
+    return from === 'syncAndReplaceTabs'
 }
 
 //WWebApi

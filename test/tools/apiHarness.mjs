@@ -12,11 +12,17 @@ let fdTools = path.dirname(fileURLToPath(import.meta.url))
 let fpChild = path.resolve(fdTools, 'apiServerChild.mjs')
 
 
-async function startApiServer({ name, port, opt = null }) {
+//files: 啟動前寫入子行程 cwd 之檔案（相對路徑 → 內容，如 { 'dist/index.tmp': '…' }），供需要前端靜態檔之測試（子行程以 cwd 下之 dist 供應 /{file*}）
+async function startApiServer({ name, port, opt = null, files = null }) {
 
     let cwd = path.resolve(fdTools, '..', '_tmp', name)
     fs.rmSync(cwd, { recursive: true, force: true })
     fs.mkdirSync(cwd, { recursive: true })
+    for (let [fn, content] of Object.entries(files || {})) {
+        let fp = path.resolve(cwd, fn)
+        fs.mkdirSync(path.dirname(fp), { recursive: true })
+        fs.writeFileSync(fp, content, 'utf8')
+    }
 
     let base = `http://127.0.0.1:${port}`
     let args = [String(port), name.replace(/[^a-zA-Z0-9]/g, '')]
@@ -105,6 +111,11 @@ async function startApiServer({ name, port, opt = null }) {
         let r = await ipc('verifyCalls', { clear })
         return r.value
     }
+    //getVerifyAppCalls: 部署方 verifyAppUser 之呼叫記錄 [{ userId, from, isApp }]（clear=true 取後清空）
+    let getVerifyAppCalls = async (clear = false) => {
+        let r = await ipc('verifyAppCalls', { clear })
+        return r.value
+    }
     let now = async () => {
         let r = await ipc('now')
         return r.value
@@ -130,7 +141,7 @@ async function startApiServer({ name, port, opt = null }) {
         fs.rmSync(cwd, { recursive: true, force: true })
     }
 
-    return { base, cwd, fun, sync, list, wipe, seed, setDelays, setFails, setFailItems, getOps, getVerifyCalls, now, stop }
+    return { base, cwd, fun, sync, list, wipe, seed, setDelays, setFails, setFailItems, getOps, getVerifyCalls, getVerifyAppCalls, now, stop }
 }
 
 
