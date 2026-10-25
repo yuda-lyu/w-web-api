@@ -61,7 +61,7 @@ import ds from '../src/schema/index.mjs'
  * @param {String} [opt.proxyAllowInternal='n'] 輸入測試分頁proxy是否關閉內建之內網與本機位址拒絕，可選'y'或'n'（亦接受true、false），預設'n'。預設（'n'）時代發請求之目標若為內網或本機位址一律拒絕（回err-key 'errReqTargetNotAllowed'，不回顯目標位址，並記srLog）：loopback（127.0.0.0/8、::1，含localhost名稱）、私有網段（10/8、172.16/12、192.168/16、fc00::/7）、鏈路本地（169.254/16、fe80::/10）、CGNAT（100.64/10）、未指定位址（0.0.0.0、::）、保留與文件與多播位址、IPv4映射或內嵌之IPv6（::ffff:127.0.0.1等，依其內嵌之IPv4判斷）等凡非全域單播之位址；依實際解析後之IP判斷（主機名於連線當下解析並檢查全部結果，連線所用之位址即檢查過之位址），轉址每一跳皆檢查。給'y'即整體關閉此拒絕（僅限部署於可信任網路、代發目標皆可信時）；給其他值建構即拋錯'invalid opt.proxyAllowInternal'。1.1.15及之前版本不限制目標，見README Upgrade Notes
  * @param {Array} [opt.proxyAllowList=[]] 輸入測試分頁proxy之內網與本機位址放行清單（調整內建拒絕之範圍），項為字串：IP（'127.0.0.1'、'::1'）、CIDR（'10.0.0.0/8'、'fd00::/8'）或主機名（'api.internal'，不分大小寫，不含port與萬用字元）。IP與CIDR涵蓋之位址不受內建拒絕（IPv4映射之IPv6亦以其IPv4比對）；主機名所列之主機其解析結果不受內建拒絕（含解析到內網，故只列可信之主機名）。公開位址不受此清單影響；此清單只放寬內建拒絕，不放寬opt.isAllowTarget。項不合法（非字串、格式錯誤）或非陣列時建構即拋錯'invalid opt.proxyAllowList'，預設[]
  * @param {String} [opt.lockExternalRows='y'] 輸入後台是否不得動外部列（srcKey為非空字串，即經syncAndReplaceTabs由外部來源匯入之API）與外部管理之群組（group內存在外部列者），可選'y'或'n'，預設'y'。'y'時伺服端強制：外部列不可刪除（deleteExternalRowDenied）、不可改group與srcKey及外部擁有欄位（order、name、description、url、method、version、group、levels、keywords、state、creator、dataSource、mdInputParams、inputExample、mdOutputParams、outputExample；saveExternalRowChanged），本系統擁有欄位（tokens、testBaseUrl、authType、authConfigJson、defaultHeadersJson、defaultQueryJson、defaultBodyJson、contentType）仍可改；外部管理之群組不可由後台新增列，也不可把列改入該群組（saveExternalGroupDenied）；違規整次拒收、零寫入，前端同步顯示鎖頭、欄位唯讀、刪除鈕停用與說明。給'n'回到升版前行為（後台可改可刪外部列、可在外部管理之群組新增列，下次匯入以外部為主覆蓋或刪除）。外部匯入（syncAndReplaceTabs）不受此選項影響。升版後既有庫中srcKey為非空之列即視為外部列而唯讀，請先依README Upgrade Notes盤點（g_auditExternalRows.mjs）
- * @returns {Object} 回傳w-serv-hapi之伺服器事件物件，可監聽error事件，並提供ready函數（回傳promise，啟動成功時resolve為hapi伺服器實體）、getServer與getInstWConverServer函數，以及stop函數：依序停止伺服器（w-serv-hapi之stop）、清除本套件之快取計時器、關閉各資料表ORM之連線、關閉後端log，可重複呼叫並回傳同一promise，之後不可再使用本實例。建構於資源建立後失敗時，已建立之資源於拋錯前釋放。資料通道只開放表操作select（同步用），寫入一律經kpFunExt之saveApi與deleteApi。本函數與參考部署皆不註冊process之unhandledRejection與uncaughtException監聽，未處理之rejection會依Node預設終止行程，宜由行程管理器重啟
+ * @returns {Object} 系統函數收緊（1.1.19起，w-serv-hapi須^1.1.8）：資料通道之三個系統函數（[sys:getFuncList]、[sys:getTableTags]、[sys:polling]）中，本套件顯式只公開[sys:getFuncList]（sysFuncsPublic），[sys:getTableTags]與輪詢[sys:polling]須有效身分；框架預設三者皆公開，本套件不採預設。輪詢須於請求本體帶有效__sysToken__（新前端元件隨w-serv-hapi 1.1.8起自動帶登入後之token），已發布之舊前端建置檔之輪詢不帶token，升版後被拒，使用者須重新載入頁面（見README Upgrade Notes）。資料通道本就先經連線閘（只限系統管理員）與執行身分驗證（getUserIdByToken，對空或無效token拒絕），故[sys:getFuncList]雖列為公開，實際仍須有效身分。回傳w-serv-hapi之伺服器事件物件，可監聽error事件，並提供ready函數（回傳promise，啟動成功時resolve為hapi伺服器實體）、getServer與getInstWConverServer函數，以及stop函數：依序停止伺服器（w-serv-hapi之stop）、清除本套件之快取計時器、關閉各資料表ORM之連線、關閉後端log，可重複呼叫並回傳同一promise，之後不可再使用本實例。建構於資源建立後失敗時，已建立之資源於拋錯前釋放。資料通道只開放表操作select（同步用），寫入一律經kpFunExt之saveApi與deleteApi。本函數與參考部署皆不註冊process之unhandledRejection與uncaughtException監聽，未處理之rejection會依Node預設終止行程，宜由行程管理器重啟
  * @example
  *
  * import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
@@ -1074,6 +1074,13 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         },
         fpTableTags: 'tableTags-web-api.json', //w-serv-hapi 1.0.87 起正名 fpTableTags（同 sso / perm）; 舊名 fnTableTags 於 1.0.86 傳到 w-serv-webdata 時不被讀取, 實際一直寫預設 tableTags.json
+
+        //系統函數收緊（R-SYSFUNCS-01；跨套件〈使用者身分驗證原則〉二.7、二.8；w-serv-hapi 1.1.8／w-serv-webdata 1.1.16／w-serv-broadcast 1.1.12）：
+        //三個系統函數（[sys:getFuncList]、[sys:getTableTags]、[sys:polling]）中只有函數名稱清單可公開，其餘須身分；框架預設三者皆公開（相容），須顯式設定。
+        //本套件之 getUserIdByToken 為真實反查（與連線閘共用 authToken、fail-closed），故不需如 w-web-sso 另公開 [sys:polling]：新前端元件之輪詢於本體帶 __sysToken__（getToken＝登入後之 userToken，
+        //useWaitToken 使未取得 token 前不連線），帶有效 token 者放行；已發布之舊前端建置檔其輪詢不帶 __sysToken__ 鍵，升版後被拒（使用者重新載入頁面即可）。
+        //實際上資料通道函數（含 [sys:getFuncList]）本就先經連線閘（只限系統管理員）與 getUserIdByToken（對空／無效 token reject），此設定新增之防線只在輪詢（本體不帶 token 鍵者）。
+        sysFuncsPublic: ['[sys:getFuncList]'],
     }
 
 

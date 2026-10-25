@@ -36,7 +36,7 @@ let rowOf = (name, group = 'execid') => ({ name, url: `http://t/${name}`, method
 let mkFuncs = (idDel) => [
     { name: '[sys:getFuncList]（系統函數）', func: '[sys:getFuncList]', args: [] },
     { name: '[sys:getTableTags]（系統函數）', func: '[sys:getTableTags]', args: [] },
-    //[sys:polling] 不在此列：w-serv-broadcast 之輪詢層於資料通道執行之前同步定案其回應（getUserIdByToken 其後仍被呼叫，但結果無法改變回應），身分只由連線閘（標頭 token）把關；屬框架層，見下方獨立案
+    //[sys:polling] 不在此列：輸入為 { clientId, __sysToken__ }（非 __sysInputArgs__），由 w-serv-broadcast 於資料通道之前處理並經 verifyPolling 驗證本體 token（w-serv-webdata 1.1.16 起），見下方獨立案與 api-sysFuncs
     { name: 'getWebInfor', func: 'getWebInfor', args: [] },
     { name: 'getApisList', func: 'getApisList', args: [] },
     { name: 'saveApi', func: 'saveApi', args: [rowOf('execid-write')] },
@@ -147,17 +147,22 @@ describe('api-execIdentity (資料通道執行身分: getUserIdByToken 與連線
             assert.ok(!list.some((x) => x.name === 'execid-write'), 'saveApi 不得寫入')
         })
 
-        it('[sys:polling]（框架之輪詢層於資料通道執行之前同步回應）：getUserIdByToken 仍被呼叫（鉤子兩次），但其結果不影響輪詢之回應——本體 token 被拒亦同；身分只由連線閘把關（框架層行為之記錄）', async function() {
+        it('[sys:polling]（w-serv-webdata 1.1.16 起由 w-serv-broadcast 於資料通道之前經 verifyPolling 驗證本體 __sysToken__）：本體 token 被拒者之輪詢被拒、放行者回其佇列；無 clientId 者在身分關卡前即被輪詢層自家檢查拒絕；系統函數收緊之完整矩陣見 api-sysFuncs', async function() {
             for (let bodyTok of ['tokDenied', 'tokA']) {
                 await S.getVerifyCalls(true)
                 //無 clientId：輪詢層之固定錯誤
                 let r = await post('tokA', bodyTok, '[sys:polling]')
                 assert.ok(r.raw.includes('[sys:polling] invalid clientId'), `本體 ${bodyTok}（實得 ${r.raw.slice(0, 200)}）`)
-                //有 clientId：輪詢層回其佇列（空陣列）；本體被拒者之回應與放行者相同
-                let r2 = await postMain(S.base, 'tokA', { func: '[sys:polling]', input: { clientId: 'c-execid', __sysInputArgs__: [], __sysToken__: bodyTok } })
-                assert.deepStrictEqual(get(r2.data, 'success.output'), [], `本體 ${bodyTok} 有 clientId 之輪詢回應（實得 ${r2.raw.slice(0, 200)}）`)
+                //有 clientId：w-serv-webdata 1.1.16 起輪詢經 verifyPolling 驗證本體 token（帶 token 鍵者一律反查）——被拒者之輪詢被拒，放行者回其佇列（空陣列）
+                let r2 = await postMain(S.base, 'tokA', { func: '[sys:polling]', input: { clientId: `c-execid-${bodyTok}`, __sysInputArgs__: [], __sysToken__: bodyTok } })
+                if (bodyTok === 'tokDenied') {
+                    assert.strictEqual(get(r2.data, 'error'), '[sys:polling] permission denied', `本體 ${bodyTok} 有 clientId 之輪詢應被拒（實得 ${r2.raw.slice(0, 200)}）`)
+                }
+                else {
+                    assert.deepStrictEqual(get(r2.data, 'success.output'), [], `本體 ${bodyTok} 有 clientId 之輪詢回應（實得 ${r2.raw.slice(0, 200)}）`)
+                }
                 let ids = (await S.getVerifyCalls()).map((c) => c.userId)
-                assert.deepStrictEqual(ids, ['id-for-adminA', bodyTok === 'tokDenied' ? 'id-denied' : 'id-for-adminA', 'id-for-adminA', bodyTok === 'tokDenied' ? 'id-denied' : 'id-for-adminA'], `本體 ${bodyTok}：兩次輪詢請求各呼叫鉤子兩次（連線閘＋執行身分，後者之結果不影響回應）`)
+                assert.deepStrictEqual(ids, ['id-for-adminA', 'id-for-adminA', bodyTok === 'tokDenied' ? 'id-denied' : 'id-for-adminA'], `本體 ${bodyTok}：無 clientId 之輪詢鉤子一次（連線閘，輪詢層在身分關卡前即拒）；有 clientId 之輪詢鉤子兩次（連線閘＋輪詢身分關卡）`)
             }
             assert.deepStrictEqual(await S.getOps(), [], 'ORM 零操作')
             let rd = await post('tokDenied', 'tokA', '[sys:polling]') //標頭被拒者仍於連線閘即被拒

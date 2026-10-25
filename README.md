@@ -13,6 +13,16 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Upgrade Notes
 
+### Behavior change since 1.1.19：系統函數收緊（`sysFuncsPublic` 只公開 `[sys:getFuncList]`）；輪詢須帶 token——已發布之舊前端建置檔升版後輪詢被拒，需重新載入頁面
+
+**行為變更**。資料通道有三個系統函數：`[sys:getFuncList]`（函數名稱清單）、`[sys:getTableTags]`（同步表時間戳）、`[sys:polling]`（輪詢，取得推播）。w-serv-webdata 之 `sysFuncsPublic` 預設三者皆公開（為相容舊前端），本版起**本套件顯式只公開 `[sys:getFuncList]`**（跨套件原則：只回公開資訊者可公開，其餘須身分）。
+- **相依**：`w-serv-hapi` 升為 `^1.1.8`（連帶 w-serv-webdata 1.1.16、w-serv-broadcast 1.1.12）；前端元件隨升版，**輪詢於請求本體帶 `__sysToken__`**（本套件前端以登入後之使用者 token 提供，`src/main.js` 之 `getToken`；未取得 token 前不連線〔`useWaitToken`〕）。
+- **輪詢須帶有效 token**：輪詢（本體為合法 `clientId` 者；`clientId` 不合法者在身分關卡前即被輪詢層拒絕）帶 `__sysToken__` 者一律反查（與資料通道函數同一完整驗證：token 認證＋您的 `verifyClientUser(user, 'main')`＋系統管理員），不通過被拒（`[sys:polling] permission denied`）；**不帶 `__sysToken__` 鍵者被拒**。輪詢之 `clientId` 與**本體 token 之使用者**（`userId`，非 token 字串，亦與標頭 token 無關）綁定：先到先綁，同一 `clientId` 改以他人身分輪詢被拒；被拒之輪詢不建立、不刷新綁定，也不取走佇列。綁定於該 `clientId` 最後一次成功輪詢後逾約 10 秒（框架之在線逾時）解除；整頁重新載入會產生新的 `clientId`。
+- **已發布之舊前端建置檔**（本套件舊版 `dist/`、或自行以舊版 w-serv-hapi 元件建置之前端）其**輪詢**不帶 token（舊元件之函數呼叫仍帶 `__sysToken__`），**升版後輪詢被拒——使用者須重新載入頁面**（重新載入即取得新前端；已開啟之舊頁面不再收到推播，若以舊建置檔於升版後重新連線，畫面會停在「已登入」而不載入主畫面——以真瀏覽器剝除輪詢 token 模擬實測）；自行建置前端者須升 w-serv-hapi 至 `^1.1.8` 後重建，並於 `WServHapiClient` 提供 `getToken`。已載入之頁面若中途換身分、或 token 被撤銷／失效，輪詢同樣被拒而不再收到推播，請重新載入頁面（框架語意）。
+- **影響範圍**：本套件之資料通道原已由連線閘（標頭 token，只限系統管理員）與執行身分（`getUserIdByToken`，對空或無效 token 拒絕）把關，故 `[sys:getFuncList]` 雖列為公開，實際仍須有效身分；`[sys:getTableTags]` 本就無法匿名呼叫。本版新增之防線只在**輪詢**（本體不帶 token 鍵者原被放行）。標頭 token 有效之管理員等級呼叫者，其他入口之存取規則不變。
+- **為何不需如 w-web-sso 另公開 `[sys:polling]`**：sso 之登入頁於登入前（無 token）即須連線，故另公開輪詢；本套件之前端待登入取得 token 後才連線，`getUserIdByToken` 為真實反查，不需公開。
+- 系統函數 × 呼叫者之實測矩陣見 `test/api-sysFuncs.test.mjs`（呼叫者 7 類 × 協定 4 種〔新：本體帶同一 token、舊：不帶 token 鍵、空字串、他人〕× 系統函數 3 個）。
+
 ### Behavior change since 1.1.18：應用系統路由（`POST /syncAndReplaceTabs`）由套件自行要求系統管理員等級；後台登入檢查成功只回欄位白名單
 
 **行為變更**（兩處）。token 由 w-web-sso 簽發，本套件經您的 `getUserByToken(token)` 反查：**使用者 token** 代表登入者；**應用系統 token**（反查回 `isApp: 'y'`，選用欄位）分兩種用途——**使用者用途**（綁定使用者，反查回所綁使用者之實際資料，等級＝該使用者之 `isAdmin`）與**系統服務用途**（不綁使用者，反查回虛擬身分：`id` 為 `app:<金鑰主鍵>`、`isAdmin` 為 `'y'`）。本套件不簽發 token、不分辨用途，**一律以反查所回之 `isAdmin` 判等級**（與 1.1.17 之 `assertAdmin` 同一判準）；是否簽發系統服務用途或綁定管理員之應用系統 token、交給誰使用，由您（專案方）評估與負責。
@@ -162,6 +172,7 @@ let verifyClientUser = (user, from) => {
 - **角色（系統管理員）**：本套件**無自有使用者表**，系統管理員＝您的 `getUserByToken` 所回使用者之 `isAdmin` 為 `'y'`，其餘為一般使用者。判準只有一處（`assertAdmin`），後台與資料通道**一律只限系統管理員，不論您的 `verifyClientUser` 如何放行**（1.1.17 起，見 Upgrade Notes）；一般使用者唯一可用之入口為 `GET /api/getApisList?token=`（啟用中 API 之公開欄位清單，不含 `tokens`、`authConfigJson` 等憑證）。應用系統路由 `POST /syncAndReplaceTabs` 自 1.1.18 起同樣要求系統管理員等級（同一判準，且反查結果須經與瀏覽端相同之欄位檢查；您的 `verifyAppUser` 照舊先被呼叫、只能再收緊）。應用系統 token 之兩種用途（使用者用途、系統服務用途）以反查之 `isAdmin` 自然分流，本套件不另分辨；簽發何種應用系統 token 由專案方負責。
 - **連線閘**（`verifyConn`，資料通道之每個請求，含前端輪詢與同步）：`Authorization` 須為 `Bearer` 方案；token 認證（`getUserByToken` 查得使用者，且 `id`／`email`／`name`／`isAdmin` 齊備）＋您傳入之 `verifyClientUser(user, from)`＋**系統管理員**；任一不通過整次連線被拒（`permission denied`）。token 之有效性、使用者之存在與啟用狀態由您的 `getUserByToken`／`verifyClientUser` 保證（套件檢查者為其回傳之使用者物件欄位齊備、與 `verifyClientUser` 之結果、`isAdmin`；套件不另持有使用者資料）。
 - **執行身分**（`getUserIdByToken`，函數執行前以請求本體之 `__sysToken__` 反查使用者）：與連線閘同等完整（token 認證＋`verifyClientUser(user, 'main')`＋系統管理員），不通過則函數不執行；兩個 token 各自驗證，不因來源不同而放寬。
+- **系統函數**（1.1.19 起，見 Upgrade Notes）：`sysFuncsPublic` 顯式只列 `[sys:getFuncList]`（框架預設三者皆公開）；`[sys:getTableTags]` 與輪詢 `[sys:polling]` 須有效身分，輪詢須於請求本體帶有效 `__sysToken__`（與函數同一完整驗證），不帶 token 之輪詢（已發布之舊前端建置檔）被拒，使用者須重新載入頁面。
 - **資料通道只開 `select`**：表操作只放行 `apis.select`（前端同步用），所有寫入一律經 `saveApi`／`deleteApi`；`apis.insert`／`save`／`del` 直接呼叫回 `invalid func[…]`。
 - **公開入口（逐一列名）**：前端靜態檔（`dist/` 建置檔，不含使用者資料）。其餘皆需 token，見下表。
 - **函數層級**：因資料通道每個函數執行前都經 `getUserIdByToken`（含系統管理員檢查），全部 `kpFunExt`、表 `select`、系統函數皆只限系統管理員，不必（也不應只）靠您的 `verifyClientUser` 把關；`verifyClientUser` 仍可再收緊（依 `from`、自有名單）。
@@ -178,7 +189,7 @@ let verifyClientUser = (user, from) => {
 | `/api/main`：`kpFunExt`（`getWebInfor`、`getApisList`〔整列〕、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`） | 系統管理員 | 連線閘 `server/WWebApi.mjs:980`（`verifyConn`）→ `:516`（`p.checkToken`）→ `:490`（`authToken`）→ `:506`（`assertAdmin`）；執行身分 `:1018`（`getUserIdByToken`）→ `authToken` |
 | `/api/main`：表 `apis.select` | 系統管理員 | 同上兩關，另 `server/getOptDataChannel.mjs:43`（`authorizeExec`：只放行非空 `userId` 之 `select`） |
 | `/api/main`：表 `apis.insert`／`save`／`del` | 無人（未開放，回 `invalid func[…]`） | `server/getOptDataChannel.mjs:58`（`methodsExec: ['select']`） |
-| `/api/main`：系統函數 `[sys:getFuncList]`、`[sys:getTableTags]`、`[sys:polling]` | 系統管理員 | 連線閘（同上；輪詢之回應由 w-serv-broadcast 於執行層前定案，其身分只由連線閘把關） |
+| `/api/main`：系統函數 `[sys:getFuncList]`、`[sys:getTableTags]`、`[sys:polling]` | 系統管理員（`sysFuncsPublic` 只列 `[sys:getFuncList]`，但連線閘與執行身分先擋，實際仍須有效身分；`[sys:getTableTags]`、輪詢須有效 `__sysToken__`，不帶 token 之輪詢被拒） | 連線閘（同上）→ 函數：執行身分 `:1018`（`getUserIdByToken`）；輪詢：w-serv-webdata 之輪詢關卡（`verifyPolling`）以同一 `getUserIdByToken` 反查本體 `__sysToken__`、不帶鍵者拒絕；設定 `server/WWebApi.mjs:1083`（`sysFuncsPublic`，1.1.19 起） |
 | `/api/ulctr`、`/api/slc`、`/api/dwgfn`、`/api/dwgf`、`/api/dw`（上傳、下載；本套件未註冊監聽，不受理） | 系統管理員（連線閘先擋；通過亦不受理） | 連線閘 `server/WWebApi.mjs:980`（`from` 為各入口名） |
 
 ## Installation

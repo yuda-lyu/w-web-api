@@ -163,14 +163,15 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
         it('tokA 呼叫各函數 → 皆非 permission denied；寫入與讀取照常；proxyRequest 命中目標；鉤子 from 為 main', async function() {
             let idDel = await seedRow('gate-ok')
             await S.getVerifyCalls(true)
-            let nCall = 0
+            let nHook = 0
             for (let f of mkFuncs(idDel)) {
                 if (f.func === 'deleteApi') {
                     continue //最後單獨驗
                 }
                 await S.getOps(true)
                 let r = await callFun(S.base, 'tokA', f.func, f.args)
-                nCall++
+                //w-serv-webdata 1.1.16 起輪詢於資料通道之前由 w-serv-broadcast 驗證：無 clientId 之輪詢在身分關卡前即被其自家檢查拒絕（'invalid clientId'），只經連線閘（鉤子一次）；其餘請求為連線閘＋執行身分（鉤子兩次）
+                nHook += f.func === '[sys:polling]' ? 1 : 2
                 assert.ok(!isDenied(r), `${f.name} 放行者不得被拒（實得 ${JSON.stringify(r.data).slice(0, 200)}）`)
                 if (f.func.startsWith('apis.') && f.func !== 'apis.select') {
                     assert.strictEqual(r.state, 'error', `${f.name} 未開放，應 invalid func（R-DC-1，行為不變）`)
@@ -185,11 +186,11 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
                 }
             }
             let rd = await callFun(S.base, 'tokA', 'deleteApi', [idDel])
-            nCall++
+            nHook += 2
             assert.strictEqual(rd.state, 'success', 'deleteApi 放行者可刪')
             let calls = await S.getVerifyCalls()
-            //每個放行之請求呼叫鉤子兩次：連線閘（標頭 token）＋執行身分（本體 __sysToken__，C3：getUserIdByToken 與連線閘同等完整驗證；api-execIdentity 另驗兩 token 不同之情形）
-            assert.strictEqual(calls.length, nCall * 2, '每個放行之請求呼叫鉤子兩次（連線閘＋執行身分）')
+            //每個放行之請求呼叫鉤子兩次：連線閘（標頭 token）＋執行身分（本體 __sysToken__，C3：getUserIdByToken 與連線閘同等完整驗證；api-execIdentity 另驗兩 token 不同之情形）；無 clientId 之輪詢僅連線閘一次（見上）
+            assert.strictEqual(calls.length, nHook, '每個放行之請求呼叫鉤子兩次（連線閘＋執行身分；無 clientId 之輪詢僅連線閘一次）')
             assert.ok(calls.every((c) => c.userId === 'id-for-adminA' && c.from === 'main'), `from 皆為 main（實得 ${JSON.stringify(calls.slice(0, 3))}）`)
             assert.strictEqual(nEcho, 1, 'proxyRequest 命中目標一次')
             let rs = await S.list()

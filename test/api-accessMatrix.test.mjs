@@ -72,6 +72,8 @@ let EXPECT = {
 
 let isDenied = (r) => r.ok === false && r.data && r.data.error === 'permission denied'
 
+let seqPoll = 0 //輪詢之 clientId 序號（每次呼叫不同）
+
 //mx-3 為停用列（isActive 'n'）：公開清單不得含它（R-PUBLICAPIS-01）；整列（資料通道 getApisList）管理員等級仍可見
 let seedRows = () => [
     mkLegacyRow('mx-1', 'mx-group', { name: 'mx-1', tokens: SECRET_ROW[0], authConfigJson: SECRET_ROW[1] }),
@@ -94,7 +96,7 @@ async function postAuth(authorization, f, bodyToken = '') {
     if (authorization !== null) {
         headers['Authorization'] = authorization
     }
-    let payload = { func: f.func, input: { ...(f.input || {}), __sysInputArgs__: f.args(), __sysToken__: bodyToken } }
+    let payload = { func: f.func, input: { ...(typeof f.input === 'function' ? f.input() : (f.input || {})), __sysInputArgs__: f.args(), __sysToken__: bodyToken } }
     let res = await fetch(`${S.base}/api/main`, { method: 'POST', headers, body: Buffer.from(obj2u8arr(payload)) })
     let u8a = new Uint8Array(await res.arrayBuffer())
     let data = u8arr2obj(u8a)
@@ -251,10 +253,11 @@ let MAIN_FUNCS = [
         verify: okSuccess,
     },
     {
-        //[sys:polling] 之回應由 w-serv-broadcast 輪詢層於資料通道執行之前同步定案（身分只由連線閘把關）：帶非空 clientId 時回其佇列（空陣列），見 api-execIdentity
+        //[sys:polling] 由 w-serv-broadcast 輪詢層於資料通道執行之前處理（w-serv-webdata 1.1.16 起經 verifyPolling 驗證本體 __sysToken__，見 api-sysFuncs）：帶非空 clientId 與有效 token 時回其佇列（空陣列）。
+        //clientId 與身分綁定（先到先綁，不同身分重用即被拒），故每次呼叫用不同 clientId（各呼叫者類不共用）
         key: 'main: [sys:polling]',
         func: '[sys:polling]',
-        input: { clientId: 'c-mx-polling' },
+        input: () => ({ clientId: `c-mx-polling-${++seqPoll}` }),
         args: () => [],
         verify: async (r) => {
             assert.ok(!isDenied(r), `不得被連線閘拒絕（實得 ${JSON.stringify(r.data).slice(0, 200)}）`)

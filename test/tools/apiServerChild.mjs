@@ -151,6 +151,8 @@ Object.assign(users, {
     //欄位檢查(與瀏覽端同一規則): isAdmin 值域只限 'y'／'n', 大寫 'Y' 不是管理員也不是合法值; 缺 isAdmin 欄亦不合法
     tokMxRoleY: { id: 'id-mx-roley', name: 'mx-roley', email: 'mx-roley@example.com', isAdmin: 'Y', isApp: 'y', ...MX_EXTRA },
     tokMxNoRole: { id: 'id-mx-norole', name: 'mx-norole', email: 'mx-norole@example.com', isApp: 'y', ...MX_EXTRA },
+    //同一使用者(id 與 tokMxA 相同)之另一把 token(如使用者 token 與綁定同一使用者之應用系統 token): 驗輪詢 clientId 綁的是 userId 而非 token(api-sysFuncs)
+    tokMxASame: { id: 'id-mx-a', name: 'mx-a', email: 'mx-a@example.com', isAdmin: 'y', isApp: 'y', ...MX_EXTRA },
     //管理員, 部署方鉤子拒絕(部署方可再收緊)
     tokMxDenied: { id: 'id-mx-denied', name: 'mx-denied', email: 'mx-denied@example.com', isAdmin: 'y', isApp: 'n', ...MX_EXTRA },
 })
