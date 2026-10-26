@@ -93,10 +93,10 @@ function SlowOrm(opt) {
     return wo
 }
 
-//使用者: sys 為開發捷徑; tokA／tokB 為兩位後台管理員; tokApp 為外部應用(app 權杖)之使用者
+//使用者: sys 為開發捷徑; tokA／tokB 為兩位後台系統管理者; tokApp 為外部應用(app 權杖)之使用者
 //api-connGate 用之部署方授權情境(除標明者外皆 isAdmin 'y', 使「拒絕」只能出自 verifyClientUser 而非 isAdmin 欄位):
 //tokDenied(verifyClientUser 回 false)、tokVThrow(拋錯)、tokVReject(reject)、tokVFalsy(回 undefined)、tokVTruthy(回 1, 非 true 之 truthy)、
-//tokOnlyMain(只在入口 'main' 放行, 驗 from 為入口名)、tokNonAdmin(isAdmin 'n' 但資料通道之鉤子放行: 1.1.17 起套件自行限系統管理員, 仍被拒; 其 verifyAppUser 回 false)、tokNoEmail(使用者欄位不齊: 認證即失敗, 不呼叫鉤子)
+//tokOnlyMain(只在入口 'main' 放行, 驗 from 為入口名)、tokNonAdmin(isAdmin 'n' 但資料通道之鉤子放行: 1.1.17 起套件自行限系統管理者, 仍被拒; 其 verifyAppUser 回 false)、tokNoEmail(使用者欄位不齊: 認證即失敗, 不呼叫鉤子)
 let users = {
     sys: { id: 'id-for-admin', name: 'admin', email: 'admin@example.com', isAdmin: 'y' },
     tokA: { id: 'id-for-adminA', name: 'adminA', email: 'a@example.com', isAdmin: 'y' },
@@ -123,7 +123,7 @@ let users = {
     //tokNonAdminDenied 為一般使用者且鉤子拒絕(部署方可再收緊: 一般使用者取 API 清單被鉤子拒)
     tokMutateAdmin: { id: 'id-mutateadmin', name: 'mutateadmin', email: 'mutateadmin@example.com', isAdmin: 'n' },
     tokNonAdminDenied: { id: 'id-nonadmindenied', name: 'nonadmindenied', email: 'nonadmindenied@example.com', isAdmin: 'n' },
-    //應用入口(POST /syncAndReplaceTabs, verifyAppUser): 1.1.18 起套件自行要求管理員等級與欄位齊備(A-1)——tokAppNonAdmin 為 isAdmin 'n' 且 verifyAppUser 放行(仍被拒 errUserNotAdmin); tokAppMinimal 只有 id(欄位檢查不過, errUserEmailMissing)
+    //應用入口(POST /syncAndReplaceTabs, verifyAppUser): 1.1.18 起套件自行要求系統管理者等級與欄位齊備(A-1)——tokAppNonAdmin 為 isAdmin 'n' 且 verifyAppUser 放行(仍被拒 errUserNotAdmin); tokAppMinimal 只有 id(欄位檢查不過, errUserEmailMissing)
     tokAppNonAdmin: { id: 'id-appnonadmin', name: 'appnonadmin', email: 'appnonadmin@example.com', isAdmin: 'n' },
     tokAppMinimal: { id: 'id-appminimal' },
 }
@@ -142,18 +142,18 @@ let MX_EXTRA = {
 }
 Object.assign(users, {
     tokMxU: { id: 'id-mx-u', name: 'mx-u', email: 'mx-u@example.com', isAdmin: 'n', isApp: 'n', ...MX_EXTRA }, //U: 使用者 token・一般使用者
-    tokMxA: { id: 'id-mx-a', name: 'mx-a', email: 'mx-a@example.com', isAdmin: 'y', isApp: 'n', ...MX_EXTRA }, //A: 使用者 token・系統管理員
+    tokMxA: { id: 'id-mx-a', name: 'mx-a', email: 'mx-a@example.com', isAdmin: 'y', isApp: 'n', ...MX_EXTRA }, //A: 使用者 token・系統管理者
     tokMxAuU: { id: 'id-mx-au-u', name: 'mx-au-u', email: 'mx-au-u@example.com', isAdmin: 'n', isApp: 'y', ...MX_EXTRA }, //AU: 應用系統 token・使用者用途, 綁一般使用者
-    tokMxAuA: { id: 'id-mx-au-a', name: 'mx-au-a', email: 'mx-au-a@example.com', isAdmin: 'y', isApp: 'y', ...MX_EXTRA }, //AU: 應用系統 token・使用者用途, 綁系統管理員
+    tokMxAuA: { id: 'id-mx-au-a', name: 'mx-au-a', email: 'mx-au-a@example.com', isAdmin: 'y', isApp: 'y', ...MX_EXTRA }, //AU: 應用系統 token・使用者用途, 綁系統管理者
     tokMxAs: { id: 'app:key-mx-001', name: 'mx-as-key', email: 'placeholder@app.invalid', isAdmin: 'y', isApp: 'y', ...MX_EXTRA }, //AS: 應用系統 token・系統服務用途(不綁使用者)
     //一般使用者, 部署方鉤子(兩支)把傳入物件改寫為 isAdmin 'y' 再放行: 套件須以 getUserByToken 所回之原值判斷等級
     tokMxMutate: { id: 'id-mx-mutate', name: 'mx-mutate', email: 'mx-mutate@example.com', isAdmin: 'n', isApp: 'n', ...MX_EXTRA },
-    //欄位檢查(與瀏覽端同一規則): isAdmin 值域只限 'y'／'n', 大寫 'Y' 不是管理員也不是合法值; 缺 isAdmin 欄亦不合法
+    //欄位檢查(與瀏覽端同一規則): isAdmin 值域只限 'y'／'n', 大寫 'Y' 不是系統管理者也不是合法值; 缺 isAdmin 欄亦不合法
     tokMxRoleY: { id: 'id-mx-roley', name: 'mx-roley', email: 'mx-roley@example.com', isAdmin: 'Y', isApp: 'y', ...MX_EXTRA },
     tokMxNoRole: { id: 'id-mx-norole', name: 'mx-norole', email: 'mx-norole@example.com', isApp: 'y', ...MX_EXTRA },
     //同一使用者(id 與 tokMxA 相同)之另一把 token(如使用者 token 與綁定同一使用者之應用系統 token): 驗輪詢 clientId 綁的是 userId 而非 token(api-sysFuncs)
     tokMxASame: { id: 'id-mx-a', name: 'mx-a', email: 'mx-a@example.com', isAdmin: 'y', isApp: 'y', ...MX_EXTRA },
-    //管理員, 部署方鉤子拒絕(部署方可再收緊)
+    //系統管理者, 部署方鉤子拒絕(部署方可再收緊)
     tokMxDenied: { id: 'id-mx-denied', name: 'mx-denied', email: 'mx-denied@example.com', isAdmin: 'y', isApp: 'n', ...MX_EXTRA },
 })
 let isMxId = (id) => typeof id === 'string' && (id.startsWith('id-mx-') || id.startsWith('app:'))
@@ -194,7 +194,7 @@ let verify = (user, from) => {
         return false
     }
     if (user.id === 'id-mx-mutate') {
-        user.isAdmin = 'y' //部署方鉤子改寫傳入之物件(企圖把一般使用者升為管理員): 套件須以 getUserByToken 所回之原值判斷等級
+        user.isAdmin = 'y' //部署方鉤子改寫傳入之物件(企圖把一般使用者升為系統管理者): 套件須以 getUserByToken 所回之原值判斷等級
         return true
     }
     if (isMxId(user.id)) {
@@ -236,7 +236,7 @@ let verifyClient = (user, from) => {
         return true
     }
     if (user.id === 'id-mutateadmin') {
-        user.isAdmin = 'y' //部署方鉤子改寫傳入之物件(企圖把一般使用者升為管理員): 套件須以 getUserByToken 所回之原值判斷角色
+        user.isAdmin = 'y' //部署方鉤子改寫傳入之物件(企圖把一般使用者升為系統管理者): 套件須以 getUserByToken 所回之原值判斷角色
         return true
     }
     if (user.id === 'id-nonadmindenied') {

@@ -204,7 +204,7 @@ describe('api-execIdentity (資料通道執行身分: getUserIdByToken 與連線
             assert.strictEqual(row.userIdUpdate, 'id-vtruthy', 'tokVTruthy')
         })
 
-        //R-ADMINONLY-01（api-run01，使用者 2026-10-24 裁示：不管部署方怎麼安排，套件自己限系統管理員）：本體 token 之使用者須 isAdmin 'y'，部署方鉤子放行也不行
+        //R-ADMINONLY-01（api-run01，使用者 2026-10-24 裁示：不管部署方怎麼安排，套件自己限系統管理者）：本體 token 之使用者須 isAdmin 'y'，部署方鉤子放行也不行
         //（原案「套件不強加政策：tokNonAdmin 本體照常執行」已翻轉；完整矩陣見 api-adminOnly）
         it('本體 tokNonAdmin（isAdmin n，鉤子放行）→ 函數不執行、固定 key errUserIdMissing、ORM 零操作、庫內無此列', async function() {
             let r = await post('tokA', 'tokNonAdmin', 'saveApi', [rowOf('execid-tokNonAdmin')])

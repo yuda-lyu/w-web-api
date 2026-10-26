@@ -3,7 +3,7 @@
 //真後端（隔離子行程：獨立 lmdb、埠 8554，部署方 verifyClientUser 由 test/tools/apiServerChild.mjs 提供並記錄 { userId, from }；不碰專案 ./db 與 11005），
 //經真實資料通道（/api/main 及 w-converhp 其餘五條路由）直打。被拒情境之使用者皆 isAdmin 'y'，使「被拒」只能出自 verifyClientUser（而非 isAdmin 欄位）：
 //- tokDenied：verifyClientUser 回 false；tokVThrow：拋錯；tokVReject：reject；tokVFalsy：回 undefined（falsy）；tokOnlyMain：只在入口 'main' 放行（驗 from 為入口名）
-//- 政策分工：tokVTruthy（鉤子回 1，truthy 非 true）→ 與登入檢查同一判定（falsy 才拒）而通過；tokNonAdmin（isAdmin 'n' 但鉤子放行）→ 套件自行限系統管理員（R-ADMINONLY-01，api-run01 翻轉原「通過」），詳見 api-adminOnly
+//- 政策分工：tokVTruthy（鉤子回 1，truthy 非 true）→ 與登入檢查同一判定（falsy 才拒）而通過；tokNonAdmin（isAdmin 'n' 但鉤子放行）→ 套件自行限系統管理者（R-ADMINONLY-01，api-run01 翻轉原「通過」），詳見 api-adminOnly
 //- tokNoEmail：使用者欄位不齊 → 認證即失敗（permission denied），不呼叫鉤子
 //- sys／tokA：放行（對照組）
 //斷言：被拒者 → 傳輸層 permission denied（{ error }，未進 w-serv-webdata）、ORM 零操作（零寫入）、庫內不變、代發目標零命中；
@@ -222,10 +222,10 @@ describe('api-connGate (資料通道連線閘: token 認證＋部署方 verifyCl
     })
 
     //--------------------------------------------------------------------------
-    describe('政策分工（規則 3）：部署方鉤子決定放行與否，套件另自行限系統管理員（R-ADMINONLY-01）', function() {
+    describe('政策分工（規則 3）：部署方鉤子決定放行與否，套件另自行限系統管理者（R-ADMINONLY-01）', function() {
 
         //api-run01（使用者 2026-10-24 裁示）翻轉原案「tokNonAdmin（鉤子放行）→ 通過」：套件不再把角色全交給部署方；完整矩陣見 api-adminOnly
-        it('tokNonAdmin（isAdmin \'n\'，鉤子回 true）→ 仍 permission denied：函數不執行、ORM 零操作、庫內不變；鉤子仍先被呼叫（管理員檢查在鉤子之後，部署方只能再收緊）', async function() {
+        it('tokNonAdmin（isAdmin \'n\'，鉤子回 true）→ 仍 permission denied：函數不執行、ORM 零操作、庫內不變；鉤子仍先被呼叫（系統管理者檢查在鉤子之後，部署方只能再收緊）', async function() {
             await S.getVerifyCalls(true)
             await S.getOps(true)
             let r1 = await callFun(S.base, 'tokNonAdmin', 'getApisList', [])

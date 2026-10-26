@@ -145,7 +145,7 @@
 
 - **E2E-012**（2026-10-23 新增，外審補強）
   - title: 舊資料無法建立基準時禁止儲存
-  - description: 若某筆 API 是舊版匯入留下、欄位內容含無法比對的值（例如過深的巢狀資料），使用者在「編輯」分頁修改後按「儲存」，畫面會在儲存鈕上方顯示「此 API 之載入資料無法建立存檔基準…」，不送出儲存、不彈出成功訊息，已輸入的內容保留；這是為了避免在無法比對的情況下覆蓋他人的更新。需洽管理者處理該筆資料。
+  - description: 若某筆 API 是舊版匯入留下、欄位內容含無法比對的值（例如過深的巢狀資料），使用者在「編輯」分頁修改後按「儲存」，畫面會在儲存鈕上方顯示「此 API 之載入資料無法建立存檔基準…」，不送出儲存、不彈出成功訊息，已輸入的內容保留；這是為了避免在無法比對的情況下覆蓋他人的更新。需洽系統管理者處理該筆資料。
   - flow:
     - 測試資料：base seed；先以資料庫直接寫入使「取得API清單」之 dataSource 欄含 120 層巢狀物件（現行匯入已拒收此型別；非 UI 可造成）；Name 草稿「草稿-取得API清單-<lang>」。
     - 操作：點「編輯／編輯」分頁 → 於 Name 欄輸入草稿 → 點「儲存／儲存」。
@@ -184,7 +184,7 @@
 
 - **E2E-015**（2026-10-23 新增，ADR-044，原則 3）
   - title: 外部群組內無來源鍵的 API 顯示警告，仍可編輯
-  - description: 外部管理的群組內，若有後台自建、沒有來源鍵的 API（升級前就存在的資料），它不會被鎖，但在左側樹狀清單的名稱旁顯示警告，滑鼠停留時說明「群組「ext-demo」由外部來源管理，而此 API 無來源鍵，下次匯入若未以其 id 列入，它會被移除」。點「編輯」分頁，上方顯示同意旨的警告；欄位皆可編輯、「刪除」鈕可用，修改說明後儲存成功，群組不變。便於管理者在下次匯入前決定保留（改到其他群組）或接受移除。
+  - description: 外部管理的群組內，若有後台自建、沒有來源鍵的 API（升級前就存在的資料），它不會被鎖，但在左側樹狀清單的名稱旁顯示警告，滑鼠停留時說明「群組「ext-demo」由外部來源管理，而此 API 無來源鍵，下次匯入若未以其 id 列入，它會被移除」。點「編輯」分頁，上方顯示同意旨的警告；欄位皆可編輯、「刪除」鈕可用，修改說明後儲存成功，群組不變。便於系統管理者在下次匯入前決定保留（改到其他群組）或接受移除。
   - flow:
     - 測試資料：同 E2E-013 前置；對象為「取得寵物清單」（group `ext-demo`、srcKey 空）；說明改為「混雜列說明-<lang>」。
     - 操作：開 `/?token=sys` → 於左樹搜尋「取得寵物清單」並點選 → 滑鼠停留於該列警告 → 點「編輯／編輯」分頁 → 於「Description／說明」欄輸入 → 點「儲存／儲存」→ 成功 modal 點「OK／確認」。
@@ -210,7 +210,7 @@
 
 - **E2E-017**（2026-10-23 新增，ADR-044 外審補強）
   - title: 編輯中被匯入補上來源鍵，權杖仍可儲存
-  - description: 使用者正在編輯一筆後台自建的 API（來源鍵為空）並已在權杖欄輸入內容、尚未儲存時，外部來源以該筆 API 的 id 匯入完全相同的內容，這筆 API 因此補上來源鍵、成為外部匯入的 API。此時編輯頁上方出現唯讀說明、名稱等欄位轉為唯讀，但因內容未變，不會出現「已被他人更新」提示，已輸入的權杖保留；按「儲存」仍可成功，權杖寫入、其餘欄位維持原內容。便於確認外部來源將後台資料納管時不會讓管理員的操作被誤擋。
+  - description: 使用者正在編輯一筆後台自建的 API（來源鍵為空）並已在權杖欄輸入內容、尚未儲存時，外部來源以該筆 API 的 id 匯入完全相同的內容，這筆 API 因此補上來源鍵、成為外部匯入的 API。此時編輯頁上方出現唯讀說明、名稱等欄位轉為唯讀，但因內容未變，不會出現「已被他人更新」提示，已輸入的權杖保留；按「儲存」仍可成功，權杖寫入、其餘欄位維持原內容。便於確認外部來源將後台資料納管時不會讓系統管理者的操作被誤擋。
   - flow:
     - 測試資料：同 E2E-013 前置，另把「取得貓咪清單」之 group 改為專用之「promo-group」（後台列，來源鍵空）；匯入列之 `srcKey` 等於該列 id（一次性遷移，不得帶 `id`），外部擁有欄位逐欄取自庫內（內容相同）；權杖輸入「tok-promo」。
     - 操作：於左樹搜尋「取得貓咪清單」並點選 → 點「編輯／編輯」分頁 → 於「Tokens／授權金鑰」欄輸入 →（外部匯入，補上來源鍵）→ 點「儲存／儲存」→ 成功 modal 點「OK／確認」。
@@ -223,7 +223,7 @@
 
 - **E2E-018**（2026-10-23 新增，ADR-044 外審補強）
   - title: 編輯中被匯入補上來源鍵且草稿含外部欄位修改，被拒並可重新載入
-  - description: 使用者正在編輯一筆後台自建的 API，在說明欄輸入了草稿（尚未儲存）時，外部來源匯入同一筆 API 的相同內容，使它成為外部匯入的 API：編輯頁轉為唯讀（說明欄保留草稿）。此時按「儲存」會被拒絕，顯示「未儲存：此 API 由外部來源匯入…」，上方出現「此 API 已被他人更新…」提示與「重新載入」鈕，資料不變；按「重新載入」後表單回到目前的內容，之後修改權杖並儲存即可成功。便於管理員在 API 被外部來源納管後，知道要重新載入而不是反覆嘗試。
+  - description: 使用者正在編輯一筆後台自建的 API，在說明欄輸入了草稿（尚未儲存）時，外部來源匯入同一筆 API 的相同內容，使它成為外部匯入的 API：編輯頁轉為唯讀（說明欄保留草稿）。此時按「儲存」會被拒絕，顯示「未儲存：此 API 由外部來源匯入…」，上方出現「此 API 已被他人更新…」提示與「重新載入」鈕，資料不變；按「重新載入」後表單回到目前的內容，之後修改權杖並儲存即可成功。便於系統管理者在 API 被外部來源納管後，知道要重新載入而不是反覆嘗試。
   - flow:
     - 測試資料：同 E2E-017 前置；說明草稿「draft-before-promotion」；權杖「tok-after-reload」。
     - 操作：於左樹搜尋「取得貓咪清單」並點選 → 點「編輯／編輯」分頁 → 於「Description／說明」欄輸入草稿 →（外部匯入，補上來源鍵）→ 點「儲存／儲存」→ 點提示上之「重新載入／重新載入」→ 於「Tokens／授權金鑰」欄輸入 → 點「儲存／儲存」→ 成功 modal 點「OK／確認」。
@@ -404,7 +404,7 @@
 | 多人同時編輯: 修改／刪除時該 API 已不存在 | 找 `errApiRowNotFound`（rowNotFound）| errSave inline 紅字（eng「This API no longer exists (it may have been deleted by someone else). Please reload the data.」／cht「此 API 已不存在（可能已被他人刪除），請重新載入資料」）+ 提示（E2E-008） | 存、刪共用一鍵 |
 | 存檔基準格式或版本不識 | 找 `errBaselineFormat`（baselineFormat）| errSave inline 紅字；UI 不可達——前端基準由同一契約自算（以 `api-concurrency` V13 覆蓋） | 存、刪共用一鍵 |
 | 編輯中收到他人更新／刪除之推播 | 找 `staleChanged` / `staleDeleted` / `reloadData` | 編輯區上方 `.bk-stale` 提示（平時不渲染）| 更新、刪除各一鍵；重新載入鈕一鍵 |
-| 既有列之載入資料無法建立存檔基準 | 找 `errBaselineBroken` | errSave inline 紅字（eng「The loaded data of this API cannot be used as a save baseline, so it cannot be saved or deleted here. Please contact the administrator.」／cht「此 API 之載入資料無法建立存檔基準，故無法於此儲存或刪除，請洽管理者」）（E2E-012） | 存、刪共用一鍵；前端檢測，不送後端 |
+| 既有列之載入資料無法建立存檔基準 | 找 `errBaselineBroken` | errSave inline 紅字（eng「The loaded data of this API cannot be used as a save baseline, so it cannot be saved or deleted here. Please contact the administrator.」／cht「此 API 之載入資料無法建立存檔基準，故無法於此儲存或刪除，請洽系統管理者」）（E2E-012） | 存、刪共用一鍵；前端檢測，不送後端 |
 | 外部列受保護: 後台改外部列之 group／srcKey／外部擁有欄位 | 找 `saveExternalRowChanged` | errSave inline 紅字（eng「Not saved: this API is imported from an external source, so its group and the fields provided by the source cannot be changed here. Only the tokens and the test settings can be changed. …」／cht「未儲存：此 API 由外部來源匯入，其群組與外部來源提供之欄位不可在此修改，僅可修改權杖與測試設定。…」）；UI 不可達——欄位唯讀（以 `api-externalRows` 直打覆蓋） | 改欄位一鍵（ADR-044） |
 | 外部列受保護: 後台刪除外部列 | 找 `deleteExternalRowDenied` | errSave inline 紅字；UI 不可達——刪除鈕停用（以 `api-externalRows` 直打覆蓋） | 刪除一鍵 |
 | 外部列受保護: 在外部管理 group 新增列或把列改入 | 找 `saveExternalGroupDenied` | errSave inline 紅字（eng「Not saved: this group is managed by an external source, so APIs cannot be added to it or moved into it here …」／cht「未儲存：此群組由外部來源管理，不可在此新增 API 或把 API 改入該群組…」）；前端同步檢測先擋（E2E-014），API 直打之並行由後端回（`api-externalRows`） | 新增、改入共用一鍵 |
@@ -477,6 +477,6 @@
 - **設計事實（記錄備查）：列以同一 id 重新出現之前端規則無使用者路徑可觸發（2026-10-23，ADR-046）**：E2E-008 末段所驗「曾被回已不存在之列以同一 `id` 重新出現 → 解除拒收狀態」（sol#13，R-CONC-06）原由外部匯入以 `id` 代替來源鍵造成；外部不得送 `id` 後，匯入不能使已刪之列以原 `id` 重現。該規則留為防禦性規則（同步空窗後回來等），測試以直接寫庫模擬由備份還原。使用者可觀察之後果：外部匯入同內容之列會是新列（新 `id`），不會使已刪之舊列復活。
 - **設計事實（記錄備查）：升級前限制（2026-10-23，ADR-043）**：已開啟之舊版頁面與外部應用不帶基準，本 major 允許（仍取表鎖、只改不增、本系統擁有欄位不被匯入寫）；舊版頁面不受草稿保護（升級前限制，重新整理後即生效）。下一 major 後台必帶基準（未帶即拒收）。
 - **設計事實（記錄備查）：搜尋與選取脫鉤僅在編輯既有列時生效（2026-10-23，ADR-043）**：文件、測試分頁維持「搜尋結果不含目前選取者即改選第一筆」，以免改變展示流程 E2E-003 之畫面與既有標準圖。
-- **已修復（附修復紀錄）：後台可改可刪外部列（原標待裁示；2026-10-23 發現，同日由使用者裁示之原則 5 定案並修復，ADR-044）**：外部匯入規格第 7 節要求「外部列（`srcKey` 非空）後台不可刪除、不可改身分欄與外部擁有欄位」，run01 範圍未含，現況後台可改可刪外部列，下次匯入以外部為主覆蓋；後台在外部 group 內自建之列則於下次匯入被刪（run01 D6）。使用者可觀察之後果：管理員改了外部列的名稱或說明、或在外部 group 新增 API，下次匯入就被還原或移除，而畫面沒有任何預先提示。層級：產品程式碼（本專案）。修復紀錄：①本專案 2026-10-23（排程第 112 項 run02）；②後端 `server/procApis.mjs`（表鎖內以新鮮讀取之庫內原列判定）、共用判定 `src/schema/contracts/externalRows.mjs`、選項 `opt.lockExternalRows`（`server/WWebApi.mjs`、`srv.mjs`）、語系鍵 `server/procLang.mjs`、前端 `LayoutContentEdit.vue`／`LayoutContent.vue`／`ExtMark.vue`；③前端變更需重建 dist（e2e 啟動時建置）；④證據：`test/unit-externalRows.test.mjs`、`test/unit-procApis-external.test.mjs`、`test/api-externalRows.test.mjs`、`test/e2e-external.test.mjs`（E2E-013～E2E-018）；修前紅：同一批測試對修前之 `server/` 複本全紅（見 `sgud/rule/rulebook_backend.md` R-EXT-LOCK-01）；⑤新增案例 E2E-013～E2E-018 與新標準圖 `test/pics/ext/`，既有案例與標準圖 0 張改變；⑥無轉交。
+- **已修復（附修復紀錄）：後台可改可刪外部列（原標待裁示；2026-10-23 發現，同日由使用者裁示之原則 5 定案並修復，ADR-044）**：外部匯入規格第 7 節要求「外部列（`srcKey` 非空）後台不可刪除、不可改身分欄與外部擁有欄位」，run01 範圍未含，現況後台可改可刪外部列，下次匯入以外部為主覆蓋；後台在外部 group 內自建之列則於下次匯入被刪（run01 D6）。使用者可觀察之後果：系統管理者改了外部列的名稱或說明、或在外部 group 新增 API，下次匯入就被還原或移除，而畫面沒有任何預先提示。層級：產品程式碼（本專案）。修復紀錄：①本專案 2026-10-23（排程第 112 項 run02）；②後端 `server/procApis.mjs`（表鎖內以新鮮讀取之庫內原列判定）、共用判定 `src/schema/contracts/externalRows.mjs`、選項 `opt.lockExternalRows`（`server/WWebApi.mjs`、`srv.mjs`）、語系鍵 `server/procLang.mjs`、前端 `LayoutContentEdit.vue`／`LayoutContent.vue`／`ExtMark.vue`；③前端變更需重建 dist（e2e 啟動時建置）；④證據：`test/unit-externalRows.test.mjs`、`test/unit-procApis-external.test.mjs`、`test/api-externalRows.test.mjs`、`test/e2e-external.test.mjs`（E2E-013～E2E-018）；修前紅：同一批測試對修前之 `server/` 複本全紅（見 `sgud/rule/rulebook_backend.md` R-EXT-LOCK-01）；⑤新增案例 E2E-013～E2E-018 與新標準圖 `test/pics/ext/`，既有案例與標準圖 0 張改變；⑥無轉交。
 - **設計事實（記錄備查）：外部列判定與混雜資料（2026-10-23，ADR-044）**：外部列以 `srcKey` 非空判定。升版前尚未被匯入命中之列（舊同步寫入、相容期所寫之無鍵列）`srcKey` 為空，無從與後台自建者區分，視為後台列（不鎖）——要得到保護請外部端以其 `id` 作為 `srcKey` 匯入一次（README Upgrade Notes；2026-10-23 ADR-046 起外部匯入不再產生無鍵列）。外部管理 group 內既有之後台列（混雜列）不鎖、不自動刪除，但下次匯入批次 `srcKey` 未等於其 `id` 者被刪；前端警告、匯入記 warn、升版前以 `g_auditExternalRows.mjs` 盤點。使用者可觀察之後果：混雜列可編輯、可刪除，但可能於下次匯入消失。
 - **設計事實（記錄備查）：`srcKey` 之處置（2026-10-23，ADR-044）**：`srcKey` 為伺服器專有欄位，客戶端值一律不採用。外部列帶來「非空且與庫內不同」之 `srcKey` 整次拒收（企圖改身分欄）；後台列帶來之 `srcKey` 不採用也不拒（run01 A7，`api-concurrency` A7 不變）；**空值（缺欄／null／空字串）一律不算**——持舊畫面之整列回聲帶載入當時之 `srcKey`，列於載入後才被匯入補上 `srcKey`（空 → id）時回聲為空字串，算改則「只改了權杖」之存檔被誤拒（`api-concurrency` V5 暴露，原實作將空字串算改，已修）。使用者可觀察之後果：該情形下編輯頁因 store 更新而轉為唯讀顯示，已輸入之權杖仍可儲存。

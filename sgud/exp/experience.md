@@ -184,7 +184,7 @@
 ## api-run01(2026-10-23, 跨套件規格 w-web呼叫者身分驗證 C1): 資料通道連線閘補上部署方之 `verifyClientUser`(ADR-048)
 
 - **「授權屬部署方」不等於「部署方的授權函數可以對某入口無效」**: ADR-022/038 把授權責任推給部署方，但部署方唯一的落點(`verifyClientUser`)只接在登入檢查，資料通道另有一條只認證的閘。修前紅實測：被鉤子拒絕的使用者(isAdmin 'y'，使拒絕只能出自鉤子)經 `/api/main` 可 `saveApi` 寫入、`deleteApi` 刪除、`proxyRequest` 命中目標。盤點「政策鉤子」時要列「每一條進入內部函數的路徑各接了哪個鉤子」，不是只看登入那條。
-- **測試的「被拒者」要與管理員欄位脫鉤**: 部署方情境(`apiServerChild`：`tokDenied`／`tokVThrow`／`tokVReject`／`tokVFalsy`／`tokOnlyMain`)全部 `isAdmin:'y'`，這樣即使連線閘仍殘留 `isAdmin` 判斷也不會讓測試假綠；並由鉤子記錄 `{ userId, from }`(`S.getVerifyCalls()`)證明「鉤子確實被呼叫、`from` 是入口名」，不只看回應被拒——否則「被拒」可能來自別的原因。
+- **測試的「被拒者」要與系統管理者欄位脫鉤**: 部署方情境(`apiServerChild`：`tokDenied`／`tokVThrow`／`tokVReject`／`tokVFalsy`／`tokOnlyMain`)全部 `isAdmin:'y'`，這樣即使連線閘仍殘留 `isAdmin` 判斷也不會讓測試假綠；並由鉤子記錄 `{ userId, from }`(`S.getVerifyCalls()`)證明「鉤子確實被呼叫、`from` 是入口名」，不只看回應被拒——否則「被拒」可能來自別的原因。
 - **斷言「未執行」要用側面證據，不能只看回應**: ORM 操作記錄為空(零讀零寫)、代發目標(本機 echo 伺服器)零命中、庫內列未變；`[sys:*]` 無法以資料驗證，改看傳輸層回 `{ error:'permission denied' }`(沒有 `success.output`)與 ORM 零操作。
 - **w-converhp 六路由的 `apiType` 是 `from` 的來源**: `main`／`upload-controller`／`upload-slice`／`download-get-filename`／`download-get-file`／`download`；`download-get-file` 的 token 走 query(合成 Authorization)、拒絕時狀態碼 403，其餘 200＋`Return-Msg: permission denied`。本套件未註冊上傳／下載監聽，通過連線閘的請求仍回參數錯誤——「不是 permission denied」就是放行的觀察值。
 - **srLog 計數案要用獨立子行程**: 同一子行程先前的案已累積拒絕記錄，之後的計數案會算不準；另起一個子行程(埠 8558)讓 log 只含該案請求。pino 經 worker 非同步落檔，需輪詢至筆數到位。
@@ -206,7 +206,7 @@
 - **變異驗證之等價變異要排除**: 例如「`localhost` 名稱檢查移除」在真解析下仍會被 lookup 擋下，故以 `reason: 'internalName'` 與「不解析」之斷言才抓得到——斷言要釘到類別與路徑，不只釘回應。
 - **殘留鎖**: 等鎖時 `quiet-run` 回報他套件(owner=hapi-proto pid=12644, 鎖 web-tests-b)殘留鎖，依規定未處理、報告主控。
 
-## api-run01(2026-10-24, 任務 20261024105624): 後台與資料通道限系統管理員、一般使用者以 token 取公開欄位 API 清單(ADR-051)
+## api-run01(2026-10-24, 任務 20261024105624): 後台與資料通道限系統管理者、一般使用者以 token 取公開欄位 API 清單(ADR-051)
 
 - **角色檢查放在授權鉤子「之後」且判斷原值**: 「認證 → 部署方 `verifyClientUser` → `assertAdmin`」；交給鉤子的必須是拷貝，否則鉤子把 `isAdmin` 改成 `'y'` 就升權。`authToken` 原本就傳拷貝，`getAndVerifyClientUser` 沒傳——變異「兩處各改傳本體」(M05、M06)分別被 `tokMutateAdmin` 的登入檢查與資料通道案抓到，證明兩處都要測，只測一處會漏。
 - **「檢查單一擁有者 + 測試用函數全集 × 角色 × 兩種 token 來源」比逐函數加檢查可靠**: 本套件的 kpFunExt 全都只收驗證後的 `userId`，故角色檢查放在 `authToken`（連線閘與執行身分共用），不在每個函數內重判；測試以 14 個函數 × 2 種一般使用者 ×（標頭／本體／交叉）釘住。新增函數必須同時列入 `api-adminOnly` 之 `mkFuncs`（帳本 R-ADMINONLY-01 盤點指令）。
@@ -214,16 +214,16 @@
 - **公開欄位白名單用字面值、不由 `fieldsExternal` 衍生，並在測試端獨立再列一份字面值**: 實作若 import 同一個常數，把憑證欄位加進常數時測試跟著綠；測試檔自列「應公開 17／永不公開 13」並要求與 schema 全欄位合計且不重疊（P02、C09、C10），新 schema 欄位未分類即紅。哨兵值（`SECRET-*`）掃回應全文比逐欄比對更能抓到「藏在別的欄位裡」的外洩。
 - **測試資料會踩到既有保護機制**: 隔離子行程以 `seed` 寫入的列若帶非空 `srcKey`，該列即外部列、其 `group` 即外部管理群組，之後 `saveApi` 在同一群組新增列會得 `saveExternalGroupDenied`（不是本輪被測行為）——驗「後台新增後即時出現在公開清單」要用別的 group。
 - **srLog 白名單斷言要限定在「拒絕記錄」**: 登入檢查通過授權後，`getAndVerifyClientUser` 另記 info `verifyClientUser`（帶 `userId`，既有白名單欄位）；斷言整份 log 不含 `userId` 會誤紅。拒絕記錄（error）才要求無使用者識別；全 log 只要求無 token、email、憑證。
-- **非管理員不轉址**: 前端 `loginError` 原本一律轉址 `urlRedirect`（SSO 登入頁）；已通過驗證的一般使用者轉去登入頁無用，SSO 登入後導回本頁會形成轉址迴圈，且立即轉址使「無權進入」提示看不到。只對 `errUserNotAdmin` 停在畫面，其餘錯誤維持原轉址。此狀態資料通道不可達（kpLang 未載入），文字走 `mUI` `kpFallback`——新增連線狀態文字時 `kpFallback` 與 `procLang` 兩處都要加（前者管未登入畫面）。
+- **非系統管理者不轉址**: 前端 `loginError` 原本一律轉址 `urlRedirect`（SSO 登入頁）；已通過驗證的一般使用者轉去登入頁無用，SSO 登入後導回本頁會形成轉址迴圈，且立即轉址使「無權進入」提示看不到。只對 `errUserNotAdmin` 停在畫面，其餘錯誤維持原轉址。此狀態資料通道不可達（kpLang 未載入），文字走 `mUI` `kpFallback`——新增連線狀態文字時 `kpFallback` 與 `procLang` 兩處都要加（前者管未登入畫面）。
 - **新增標準圖須授權**: E2E-006 的畫面與不轉址以語意斷言守（`allowEmpty`），不自行產圖；既有 10 案標準圖比對全過（0 張改變）。授權後以 `--names E2E-006-not-admin` 補產 2 張並審圖。
 - **待授權之產圖指令須先實跑確認會產圖**(主控 2026-10-24 補記): 上條所列指令於授權後實跑「2 passing」卻 0 張產出——案例 `stages: []`、`run` 回 `{}`, `--baseline` 無圖可寫. 延後產圖時仍須先寫好截圖步驟與 `stages`(只以 `allowEmpty` 擋比對), 並以 `E2E_BASELINE_OUT_DIR` 寫到暫存目錄實跑一次, 確認確有產出.
 - **變異在拷貝上做**: 後端／純函數變異在 `./tmp/api-run01/mut/`（repo 工作樹拷貝）改，不碰 repo；前端變異需重建 dist，只能改 repo 的 `src/`，腳本以 try/finally 還原並比對雜湊，最後再跑一次綠燈使 dist 對應最終原始碼。修前紅用 `git archive HEAD` 解到 `./tmp/`，`node_modules` 靠往上找到 repo 根解析，新測試與 `test/tools` 複製進去即可跑。
 - **e2e 的 `npm run build` 會清空被追蹤的 `dist/`**：`dist/w-web-api.umd.js(.map)` 由發布流程產製、非 `vue-cli-service build` 輸出，被一併刪除；跑完以 `git show HEAD:dist/<檔> > dist/<檔>` 還原（不用 checkout），`dist/js/app*.js` 因前端原始碼改變而換 hash 屬預期。`tableTags-web-api.json` 為執行期標記，同樣被改，一併還原。
 - **外審額度**: C 類兩家（nemotron 11:18:09、beam 11:18:30）皆於啟動時即回 `Free usage limit reached`（stderr 字樣，`run` 不結束，須終止行程）；依規定不再派。
 
-## api-run01(2026-10-24, 任務 20261024182736, 排程第 133 項): 應用系統路由之管理員等級、後台登入檢查回應欄位白名單(A-1、A-2, ADR-052)
+## api-run01(2026-10-24, 任務 20261024182736, 排程第 133 項): 應用系統路由之系統管理者等級、後台登入檢查回應欄位白名單(A-1、A-2, ADR-052)
 
-- **用「存取表逐格」當驗收，比「對現有檢查補測試」更能抓到漏格**: 把 dspec 表（19 入口 × 6 呼叫者類）寫成測試內的字面值 `EXPECT`（不由實作衍生），每格一個 `it`；修前（HEAD 副本）只有 5 格紅，其餘 109 格全綠——正好證明「資料通道與後台已收緊，唯獨應用系統路由與登入檢查回應有缺口」。矩陣另用管理員的 `[sys:getFuncList]` 對照函數全集（`MX01`），伺服端新增函數而矩陣漏列即紅。
+- **用「存取表逐格」當驗收，比「對現有檢查補測試」更能抓到漏格**: 把 dspec 表（19 入口 × 6 呼叫者類）寫成測試內的字面值 `EXPECT`（不由實作衍生），每格一個 `it`；修前（HEAD 副本）只有 5 格紅，其餘 109 格全綠——正好證明「資料通道與後台已收緊，唯獨應用系統路由與登入檢查回應有缺口」。矩陣另用系統管理者的 `[sys:getFuncList]` 對照函數全集（`MX01`），伺服端新增函數而矩陣漏列即紅。
 - **「檢查之值即使用之值」**: A-1 的等級取自 `getUserByToken` 所回原物件，交給 `verifyAppUser` 的是 `{ ...user }`；`getAndVerifyAppUser` 原先傳本體，部署方鉤子改寫 `isAdmin` 即可升級。變異 M5（改傳本體）由 `tokMxMutate` 案抓到——**鉤子必須真的被呼叫且真的改寫過**（斷言鉤子呼叫紀錄含該使用者），否則「被拒」可能只是鉤子沒動。
 - **欄位檢查要沿用既有 `checkUser`，不另寫**: 原 `getAndVerifyAppUser` 刻意不經 `checkUser`（「虛擬應用使用者可只給 id」）；翻轉成經 `getTokenUser` 後，`tokAppMinimal`（只有 id）由匯入成功變為 `errUserEmailMissing`。這是破壞性變更，README 與 ADR-052 明寫；w-web-sso 之系統服務用途反查已含 name／email（佔位）／isAdmin 'y'，不受影響。
 - **白名單用凍結常數 + 測試端另列字面值，並讓測試的敏感欄位帶哨兵值**: 部署方物件的 `password`／`tokenVerify`／`description`／`isApp`… 各帶 `SECRET-MX-*`；斷言「回應鍵恰為白名單」與「回應全文無 `SECRET-MX-`」兩者都要（前者抓多帶欄位，後者抓藏在值裡的外洩）。`isApp` 刻意不放進白名單（前端只用 name／email；等級只看 isAdmin），但仍隨拷貝交給部署方鉤子。
@@ -237,10 +237,17 @@
 
 ## api-run01(2026-10-25, 任務 20261025161335, 排程第 128 項): 系統函數收緊——`sysFuncsPublic` 只公開 `[sys:getFuncList]`、輪詢須帶 token(R-SYSFUNCS-01, ADR-053)
 
-- **先升版、不加設定，跑一次既有 unit＋api 全部，就能看出「框架升版本身」改了什麼**: w-serv-webdata 1.1.16 升上來後既有 1019 案有 4 案紅（皆與 `sysFuncsPublic` 無關，是輪詢行為變了）——輪詢由「資料通道之前同步回應、本體 token 不影響回應」改為經 `verifyPolling` 驗證本體 `__sysToken__`：①`api-execIdentity` 的框架行為記錄案（本體 `tokDenied` 之輪詢現被拒）；②`api-connGate` 的鉤子計數（無 `clientId` 之輪詢在身分關卡前被輪詢層自家檢查拒絕，鉤子只一次非兩次）；③`api-accessMatrix` 的輪詢格（同一固定 `clientId` 被不同身分重用即被拒，AU 綁管理員與 AS 兩格紅，A 先到先綁）。這 4 案不是本變更的紅，是升版的紅，修測試時要在報告分開寫。
-- **`sysFuncsPublic` 對函數路徑沒有可觀察差異，唯一差異在輪詢**: 函數路徑先經連線閘（只限系統管理員）與 `getUserIdByToken`（fail-closed）——本體缺 `__sysToken__` 鍵框架先回 `invalid token`（在 `getUserIdByToken` 之前），空字串或無效者回 `errUserIdMissing`；`userId` 永遠不會是空字串，故 `[sys:getFuncList]`／`[sys:getTableTags]` 列不列公開都一樣。輪詢才有差：`genPollingGate` 對「缺鍵」（已發布之舊前端建置檔）以空身分處理，公開時放行、不公開時 `[sys:polling] permission denied`；帶鍵者（含空字串）一律反查。所以修前紅只有「標頭有效、本體不帶鍵之輪詢」這一格形狀（矩陣 3＋輪詢案 2）。
+- **先升版、不加設定，跑一次既有 unit＋api 全部，就能看出「框架升版本身」改了什麼**: w-serv-webdata 1.1.16 升上來後既有 1019 案有 4 案紅（皆與 `sysFuncsPublic` 無關，是輪詢行為變了）——輪詢由「資料通道之前同步回應、本體 token 不影響回應」改為經 `verifyPolling` 驗證本體 `__sysToken__`：①`api-execIdentity` 的框架行為記錄案（本體 `tokDenied` 之輪詢現被拒）；②`api-connGate` 的鉤子計數（無 `clientId` 之輪詢在身分關卡前被輪詢層自家檢查拒絕，鉤子只一次非兩次）；③`api-accessMatrix` 的輪詢格（同一固定 `clientId` 被不同身分重用即被拒，AU 綁系統管理者與 AS 兩格紅，A 先到先綁）。這 4 案不是本變更的紅，是升版的紅，修測試時要在報告分開寫。
+- **`sysFuncsPublic` 對函數路徑沒有可觀察差異，唯一差異在輪詢**: 函數路徑先經連線閘（只限系統管理者）與 `getUserIdByToken`（fail-closed）——本體缺 `__sysToken__` 鍵框架先回 `invalid token`（在 `getUserIdByToken` 之前），空字串或無效者回 `errUserIdMissing`；`userId` 永遠不會是空字串，故 `[sys:getFuncList]`／`[sys:getTableTags]` 列不列公開都一樣。輪詢才有差：`genPollingGate` 對「缺鍵」（已發布之舊前端建置檔）以空身分處理，公開時放行、不公開時 `[sys:polling] permission denied`；帶鍵者（含空字串）一律反查。所以修前紅只有「標頭有效、本體不帶鍵之輪詢」這一格形狀（矩陣 3＋輪詢案 2）。
 - **等價變異要補靜態盤點案**: 「多公開 `[sys:getTableTags]`」「設為空陣列」兩個變異對請求行為不可觀測（`api` 矩陣抓不到），第一次變異跑出 2 個存活；補一個讀 `server/WWebApi.mjs`（或 `API_SERVER_MODULE` 指向之副本）的靜態案——恰一處 `sysFuncsPublic` 且值恰 `['[sys:getFuncList]']`——後 5 個變異全被抓。靜態案的正則要注意值字串內含 `]`，用貪婪比對至行尾（第一版 `[^\]]*` 比對不到）。
 - **輪詢 `clientId` 綁定是測試要自己管的狀態**: 每格用不同 `clientId`（`c-sf-<序號>`、`c-mx-polling-<序號>`），否則不同呼叫者共用 `clientId` 時，先到者綁定，後到者「放行格」誤紅；被拒之輪詢不建立綁定（`api-sysFuncs` 以「舊協定被拒後同 `clientId` 新協定仍放行」釘住）。
 - **api 測試（`api-http`、`api-dataChannel`、`api-tokenLeak`、`api-doubleclick`）的 `startServersOnce` 會 `npm run build` 並啟動 11005 後端**: 一跑 api 全部就改動被追蹤的 `dist/`（`index.tmp` 刪、`w-web-api.umd.js(.map)` 刪、新 hash 之 `js/` 出現）與 `tableTags-web-api.json`，收尾必須再 `npm run build`＋`node toolg/genEntry.mjs`＋`node toolg/gDistRollup.mjs` 重建，並確認 `dist/index.tmp` 與 umd 在；此外 `npm i` 會順手把 `package.json` 末尾補換行、把 `package-lock.json` 根的 `version` 改成現版（lock 原本落後 1.1.15），須手動還原以免誤成「改了 version」。
 - **api 測試埠 8551～8574 已用滿**: 新檔 `api-sysFuncs` 用 8574（`unit-wwebapi-lifecycle` 設定值雖同為 8574，但建構於啟動前即失敗、不開埠，實際無衝突）。
 - **真瀏覽器確認未登入／登入前畫面**: 見報告〈完成條件〉與 `probe.mjs` 之結果（`useWaitToken` 使登入前不連線，登入前畫面與輪詢無關）。
+
+## api-run01(2026-10-26, 任務 20261026145816): 角色用詞統一為「系統管理者」(R-TERM-ADMIN-01)
+
+- **`dist/` 與 `docs/` 已入版控，`git grep` 會命中它們**: 完成條件要求盤點為 0，產物不可略過。作法: ①先批次改原始碼（腳本 `replace.mjs`，規則見 `rulebook_backend.md` R-TERM-ADMIN-01）；②`dist/w-web-api.umd.js` 以官方 `node toolg/gDistRollup.mjs` 再產製（輸出 `dist/w-web-api.umd.js(.map)`）；③`docs/*.html` 以 `./node_modules/.bin/jsdoc -c .jsdoc -d <暫存夾>` 再產製到暫存夾，與「現行產物套用同一替換」之結果逐檔比對（扣除頁尾產製時間），相等才對 `docs/` 做同一替換（只動有命中之 2 檔，其餘檔頁尾日期不動，避免全部 docs 檔因日期而變）。實測: 現行 umd 套用替換後與再產製之 umd 逐位元組相同（證明入版控之 dist 與 HEAD 原始碼同步）；`.map` 之 `sources`／`names` 不變，只有 `mappings` 隨字元位置改變。
+- **e2e／api 之 `startServersOnce` 會 `npm run build`，清掉整個 `dist/`**（`index.tmp`、`w-web-api.umd.js(.map)`、`js/app*.<hash>.js` 皆被刪、冒出新 hash 之 `app*.js` 與忽略檔 `dist/index.html`）。本輪再次實測: 前端 bundle 之 hash 由 `4b3fd2dd` 變 `17cb3f99`，與 HEAD 之差只在 webpack 模組編號（`647` 對 `1128`，其餘內容同、長度差 2），與本輪（僅註解與字串）無關。收尾**不要**把這次建置之新 hash 檔當成果: 以 `git archive HEAD dist` 解到 `./tmp/` 取回被刪之追蹤檔（`index.tmp`、舊 hash 之 `app*.js`）放回、刪除新 hash 之 `app*.js` 與 `dist/index.html`，最後再跑 `node toolg/gDistRollup.mjs` 重產 umd；以 `git status --short dist` 確認只剩 `w-web-api.umd.js(.map)` 為已修改。
+- **標準圖差異只落在用詞文字者，先以 `E2E_BASELINE_OUT_DIR` 產到暫存夾再比對**: `conc-cht-E2E-012-1-broken.png`（「請洽系統管理者」，字數 +2，紅框右緣隨之右移）以舊圖／新圖／差異圖比對，嚴格 RGBA 差異 996 px、全部落在 x 764–831、y 818–852（68×35，即該行紅字尾端與紅框右緣），其餘 0 差異；比對失敗當次之 capture 與產到暫存夾之圖逐位元組相同（產製與比對同管線）。授權範圍內才以正式 regen 入口（`--baseline --names E2E-012-1-broken --langs cht --write-mode changed`）寫入 `test/pics/conc/`，並以 `test/pics` 全檔 sha1 前後清單證明其餘 0 改變。
+- **盤點指令自身不得命中**: 在 `sgud/` 內寫「禁用詞」之說明時，以 `管理[員]`、`管理[者]` 之方括號寫法或敘述（「系統管理＋員」）代替字面，否則對該字面之 `git grep` 永遠不為 0。

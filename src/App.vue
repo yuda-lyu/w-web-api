@@ -66,7 +66,7 @@ export default {
         function loginError(data) {
             console.log('login error', cloneDeep(data))
 
-            //非系統管理員（後台登入檢查回固定鍵 errUserNotAdmin；R-ADMINONLY-01）：token 有效但無權進入後台，顯示「無權進入 API 管理後台」並停在此畫面。
+            //非系統管理者（後台登入檢查回固定鍵 errUserNotAdmin；R-ADMINONLY-01）：token 有效但無權進入後台，顯示「無權進入 API 管理後台」並停在此畫面。
             //不轉址：轉去登入頁毫無用處（已通過驗證），而 SSO 登入後會導回本頁，將形成登入頁與本頁間的轉址迴圈；也不留在連線中（csIng）轉圈。
             if (get(data, 'msg') === 'errUserNotAdmin') {
                 vo.$ui.updateConnState('csErrNotAdmin')

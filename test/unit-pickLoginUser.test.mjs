@@ -63,7 +63,7 @@ describe('unit-pickLoginUser (後台登入檢查回應欄位白名單與投影)'
         }
     })
 
-    it('L05 pickLoginUser：不讀原型鏈（原型上的 id／isAdmin 不被當成自身屬性；防借原型升級為管理員之物件）', function() {
+    it('L05 pickLoginUser：不讀原型鏈（原型上的 id／isAdmin 不被當成自身屬性；防借原型升級為系統管理者之物件）', function() {
         let proto = { id: 'proto-id', name: 'proto-name', email: 'proto@example.com', isAdmin: 'y' }
         let u = Object.create(proto)
         assert.deepStrictEqual(pickLoginUser(u), {})

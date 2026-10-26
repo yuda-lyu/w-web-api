@@ -86,7 +86,7 @@ let kpLang = {
     },
     anUnexpectedErrorOccurred: {
         eng: `An unexpected error occurred, please contact the administrator`,
-        cht: `發生非預期錯誤，請洽管理員`,
+        cht: `發生非預期錯誤，請洽系統管理者`,
     },
 
     username: {
@@ -525,7 +525,7 @@ let kpLang = {
     },
     errBaselineBroken: { //前端：既有列無法自算載入基準（如舊資料含過深巢狀值）→ 不得改用不帶基準存檔（會靜默覆寫他人更新）
         eng: 'The loaded data of this API cannot be used as a save baseline, so it cannot be saved or deleted here. Please contact the administrator.',
-        cht: '此 API 之載入資料無法建立存檔基準，故無法於此儲存或刪除，請洽管理者',
+        cht: '此 API 之載入資料無法建立存檔基準，故無法於此儲存或刪除，請洽系統管理者',
     },
     //草稿保護（編輯中收到他人更新之推播: 不覆寫表單、凍結載入時之基準, 提示）
     staleChanged: {
@@ -614,9 +614,9 @@ let kpLang = {
         eng: 'User does not have permission',
         cht: '使用者沒有權限',
     },
-    errUserNotAdmin: { //非系統管理員(getUserByToken 所回 isAdmin 非 'y')進入後台或資料通道之固定錯誤鍵(R-ADMINONLY-01)
+    errUserNotAdmin: { //非系統管理者(getUserByToken 所回 isAdmin 非 'y')進入後台或資料通道之固定錯誤鍵(R-ADMINONLY-01)
         eng: 'Only system administrators can use the API management console',
-        cht: '僅系統管理員可使用 API 管理後台',
+        cht: '僅系統管理者可使用 API 管理後台',
     },
     errUserNotFound: {
         eng: 'Unable to find user from token',

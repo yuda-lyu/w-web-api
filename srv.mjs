@@ -60,7 +60,7 @@ let opt = {
 let getUserByToken = async (token) => {
     // return {} //測試無法登入
     //'sys' 為開發捷徑（w-ui-loginout 於 localhost 自動帶入）。加環境守門：NODE_ENV==='production' 時不接受，
-    //避免 srv.mjs 若作正式入口時 'sys' 成為遠端管理員後門。e2e/dev 未設 NODE_ENV=production 故仍可用；
+    //避免 srv.mjs 若作正式入口時 'sys' 成為遠端系統管理者後門。e2e/dev 未設 NODE_ENV=production 故仍可用；
     //正式部署設 NODE_ENV=production 即停用此捷徑（並應改提供真實 getUserByToken）。
     if (token === 'sys' && process.env.NODE_ENV !== 'production') {
         return { id: 'id-for-admin', name: '測試者', email: 'admin@example.com', isAdmin: 'y' }
@@ -70,11 +70,11 @@ let getUserByToken = async (token) => {
     if (token === '{token-for-reject}' && process.env.NODE_ENV !== 'production') {
         return Promise.reject(`can not get user data by url[http://127.0.0.1:11007/api/getSsoUserInfor?token=SYNTH-SYS-SECRET-FOR-TEST&key=token&value=${token}]`)
     }
-    //'{token-for-verify-throw}': 回合法管理員使用者, 但 verifyClientUser / verifyAppUser 對其 throw(見下), 驗 verify 系拋錯視同無權限且不外洩
+    //'{token-for-verify-throw}': 回合法系統管理者使用者, 但 verifyClientUser / verifyAppUser 對其 throw(見下), 驗 verify 系拋錯視同無權限且不外洩
     if (token === '{token-for-verify-throw}' && process.env.NODE_ENV !== 'production') {
         return { id: 'id-for-verify-throw', name: 'verify-throw', email: 'verify-throw@example.com', isAdmin: 'y' }
     }
-    //'{token-for-nonadmin}': 回合法之一般使用者(isAdmin 'n'), 供 e2e 與手動驗證「非系統管理員進不了後台、只能取 API 清單」(R-ADMINONLY-01, R-PUBLICAPIS-01); 同樣以 NODE_ENV 守門, 正式部署不生效
+    //'{token-for-nonadmin}': 回合法之一般使用者(isAdmin 'n'), 供 e2e 與手動驗證「非系統管理者進不了後台、只能取 API 清單」(R-ADMINONLY-01, R-PUBLICAPIS-01); 同樣以 NODE_ENV 守門, 正式部署不生效
     if (token === '{token-for-nonadmin}' && process.env.NODE_ENV !== 'production') {
         return { id: 'id-for-nonadmin', name: '一般使用者', email: 'user@example.com', isAdmin: 'n' }
     }
@@ -114,7 +114,7 @@ let verifyClientUser = (user, from) => {
     }
     //from: 入口名——'getUserByToken'(登入檢查)、'getApisList'(一般使用者以 token 取 API 清單)、'main'(資料通道，每個請求都會呼叫，故此處不逐次印使用者)、'upload-controller'|'upload-slice'|'download-get-filename'|'download-get-file'|'download'(其餘路由，本套件未啟用上傳下載)
     //於生產環境時得加入限制瀏覽器使用者身份機制（政策屬部署方；瀏覽端之登入檢查與資料通道連線閘皆呼叫本函數，ADR-048；外部應用入口 POST /syncAndReplaceTabs 走 verifyAppUser）
-    //本套件已自行限制後台('getUserByToken')與資料通道('main' 等)只限系統管理員(getUserByToken 所回 isAdmin 為 'y'; 檢查在本函數之後, 本函數只能再收緊), 此處不再以 isAdmin 判斷, 只示範依 from 收緊: 其餘入口預設拒絕(R-ADMINONLY-01, ADR-051)
+    //本套件已自行限制後台('getUserByToken')與資料通道('main' 等)只限系統管理者(getUserByToken 所回 isAdmin 為 'y'; 檢查在本函數之後, 本函數只能再收緊), 此處不再以 isAdmin 判斷, 只示範依 from 收緊: 其餘入口預設拒絕(R-ADMINONLY-01, ADR-051)
     // return false //測試無法登入
     return from === 'getUserByToken' || from === 'getApisList' || from === 'main'
 }
@@ -124,7 +124,7 @@ let verifyAppUser = (user, from) => {
     if (get(user, 'id') === 'id-for-verify-throw' && process.env.NODE_ENV !== 'production') {
         throw new Error('SYNTH-VERIFY-SECRET-FOR-TEST')
     }
-    //本套件已自行要求應用系統路由之呼叫者為系統管理員等級(getUserByToken 所回 isAdmin 為 'y'; 檢查在本函數之後, 本函數只能再收緊), 此處不再以 isAdmin 判斷, 只示範依 from 收緊(目前只有 'syncAndReplaceTabs')
+    //本套件已自行要求應用系統路由之呼叫者為系統管理者等級(getUserByToken 所回 isAdmin 為 'y'; 檢查在本函數之後, 本函數只能再收緊), 此處不再以 isAdmin 判斷, 只示範依 from 收緊(目前只有 'syncAndReplaceTabs')
     console.log('verifyAppUser/user', user)
     console.log('於生產環境時得加入限制應用程式使用者身份機制')
     // return false //測試無法登入

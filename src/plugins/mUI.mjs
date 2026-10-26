@@ -31,7 +31,7 @@ let kpFallback = {
         eng: 'Login denied',
         cht: '拒絕登入',
     },
-    csErrNotAdmin: { //非系統管理員(後台登入檢查回 errUserNotAdmin): 此時尚無法連資料通道, kpLang 未載入, 文字只能走本字典(R-ADMINONLY-01)
+    csErrNotAdmin: { //非系統管理者(後台登入檢查回 errUserNotAdmin): 此時尚無法連資料通道, kpLang 未載入, 文字只能走本字典(R-ADMINONLY-01)
         eng: 'No permission to enter the API management console',
         cht: '無權進入 API 管理後台',
     },

@@ -303,7 +303,7 @@ async function runLoggedOut(page, lang) {
 
 }
 
-//E2E-006 非系統管理員登入（R-ADMINONLY-01，ADR-051；使用者 2026-10-24 裁示：API 管理後台只限系統管理員）：一般使用者（token 有效、isAdmin 'n'、部署方 verifyClientUser 放行）以
+//E2E-006 非系統管理者登入（R-ADMINONLY-01，ADR-051；使用者 2026-10-24 裁示：API 管理後台只限系統管理者）：一般使用者（token 有效、isAdmin 'n'、部署方 verifyClientUser 放行）以
 //`?token={token-for-nonadmin}`（srv.mjs 之測試權杖，NODE_ENV 守門）進站 → 後台登入檢查（GET /api/getUserByToken）回固定鍵 errUserNotAdmin → 畫面顯示該語系「無權進入 API 管理後台」，
 //不進主畫面、不停在連線中（不轉圈）、不轉址（已通過驗證者轉去登入頁無用，且 SSO 登入後導回本頁會形成轉址迴圈，見 src/App.vue loginError）。
 //此狀態下尚無法連資料通道（kpLang 未載入），文字走前端 mUI kpFallback（csErrNotAdmin）依注入語系顯示。
@@ -333,7 +333,7 @@ async function runNotAdmin(page, lang) {
 
     let buf = await captureStateScreen(page, T[lang].notAdmin)
 
-    //開發模式（網址含 localhost：isDev 為真）下，原登入錯誤分支是 60 秒後才轉址；非管理員分支不得留下該計時器。
+    //開發模式（網址含 localhost：isDev 為真）下，原登入錯誤分支是 60 秒後才轉址；非系統管理者分支不得留下該計時器。
     //以 Playwright 假時鐘快轉 65 秒（第二個分頁，同一後端），網址仍須不變（外審 sol R8：3 秒觀察窗守不住 60 秒計時器）
     let pageDev = await page.context().newPage()
     try {
@@ -390,7 +390,7 @@ let cases = [
     },
     {
         name: 'E2E-006-not-admin',
-        title: (lang) => `E2E-006 [${lang}] 非系統管理員進站顯示「無權進入 API 管理後台」（不進主畫面、不轉址）`,
+        title: (lang) => `E2E-006 [${lang}] 非系統管理者進站顯示「無權進入 API 管理後台」（不進主畫面、不轉址）`,
         run: runNotAdmin,
         stages: ['E2E-006-not-admin'],
     },

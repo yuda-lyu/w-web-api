@@ -59,7 +59,7 @@ function genPlan(timeLength = 7, timeInterval = 'hr', opt = {}) {
     //timeLength 驗證（必須在 subtract 之前）。
     //why：dayjs 對非數字、NaN、或超出 Date 可表示範圍之極大值會回 Invalid Date，而 Invalid Date 之 isAfter 恆為
     //false，使下方 `while (!tCurr.isAfter(tEnd))` 成為**同步無窮迴圈**。該迴圈位於 staLogs 之第一行（早於 worker
-    //派工），會佔死主執行緒使整個伺服器停止回應、需重啟。getStaEvent 為對外 kpFunExt，資料通道雖只限系統管理員，
+    //派工），會佔死主執行緒使整個伺服器停止回應、需重啟。getStaEvent 為對外 kpFunExt，資料通道雖只限系統管理者，
     //參數仍由呼叫端傳入而可為任意型別，故此處為必要之輸入閘。允許 0（測試以 timeLength=0 取「現在起算」）至 MAX_TIME_LENGTH_DAY。
     if (!Number.isInteger(timeLength) || timeLength < 0 || timeLength > MAX_TIME_LENGTH_DAY) {
         throw new Error('errTimeLengthInvalid')

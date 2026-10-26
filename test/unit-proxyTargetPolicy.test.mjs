@@ -165,7 +165,7 @@ describe('unit-proxyTargetPolicy', function() {
             assert.strictEqual(q.isAddressAllowed('127.0.0.1'), false, 'IPv6 項不涵蓋 IPv4 loopback')
         })
 
-        it('allowList 之 /0、/32、/128 邊界：/32 與 /128 即單一位址；/0 涵蓋同族全部（管理者之明確決定）', function() {
+        it('allowList 之 /0、/32、/128 邊界：/32 與 /128 即單一位址；/0 涵蓋同族全部（系統管理者之明確決定）', function() {
             let p = createTargetPolicy({ allowList: ['10.1.2.3/32', 'fd00::5/128'] })
             assert.strictEqual(p.isAddressAllowed('10.1.2.3'), true)
             assert.strictEqual(p.isAddressAllowed('10.1.2.4'), false)

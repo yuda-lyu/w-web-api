@@ -28,7 +28,7 @@ describe('api-http (HTTP API 整合 / 認證鏈)', function() {
 
     describe('GET /api/getUserByToken', function() {
 
-        it('token=sys（開發捷徑）→ state success + 管理員 user', async function() {
+        it('token=sys（開發捷徑）→ state success + 系統管理者 user', async function() {
             let r = await getJson(`${baseUrl}/api/getUserByToken?token=sys`)
             assert.strictEqual(r.state, 'success', `應 success（實得 ${JSON.stringify(r)}）`)
             assert.strictEqual(r.msg.isAdmin, 'y', 'sys 應回 isAdmin=y')

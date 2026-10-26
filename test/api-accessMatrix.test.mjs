@@ -1,9 +1,9 @@
 //api-accessMatrix：API 層存取矩陣（入口 × 呼叫者），以 dspec《w-web存取管控表》第三節 3.2 為驗收依據逐格斷言（任務 20261024182736，排程第 133 項 api-run01；缺口 A-1、A-2）。
-//目標存取表（C:\opensrcOper\dspec\w-web存取管控表.md §3.2；管理員之判準為 token 反查回來之 isAdmin，api 無自有使用者表）：
+//目標存取表（C:\opensrcOper\dspec\w-web存取管控表.md §3.2；系統管理者之判準為 token 反查回來之 isAdmin，api 無自有使用者表）：
 //- 入口 19 個：靜態檔 1、hapi 路由 3（GET /api/getUserByToken、GET /api/getApisList、POST /syncAndReplaceTabs）、資料通道 /api/main 之 10 個函數（kpFunExt 6、表 apis.select、系統函數 3）、通訊路由 5（ulctr、slc、dwgfn、dwgf、dw）
-//- 呼叫者 6 類：無（無 token：缺、空、重複、查無、逾期、非 Bearer 方案）、U（使用者 token・一般使用者）、A（使用者 token・系統管理員）、AU綁一般使用者（應用系統 token・使用者用途，反查回所綁一般使用者、isApp 'y'）、AU綁管理員（同，綁系統管理員）、AS（應用系統 token・系統服務用途，反查回 id 'app:<金鑰主鍵>'、isApp 'y'、isAdmin 'y'）
-//- 預期（EXPECT，字面值取自 dspec 表，不由實作衍生）：靜態檔六類皆 ✓；GET /api/getApisList 「無」✗、其餘 ✓；其餘 17 個入口「無」✗、U ✗、A ✓、AU 同所綁使用者（綁一般 ✗、綁管理員 ✓）、AS ✓
-//- 通訊路由 5 條之「✓」只表示**通過連線閘**（dspec 該列原文：未註冊監聽，通過連線閘後亦不受理）：管理員等級通過連線閘後回 invalid …（空本體之參數錯誤，不受理）；其餘呼叫者被連線閘 permission denied
+//- 呼叫者 6 類：無（無 token：缺、空、重複、查無、逾期、非 Bearer 方案）、U（使用者 token・一般使用者）、A（使用者 token・系統管理者）、AU綁一般使用者（應用系統 token・使用者用途，反查回所綁一般使用者、isApp 'y'）、AU綁系統管理者（同，綁系統管理者）、AS（應用系統 token・系統服務用途，反查回 id 'app:<金鑰主鍵>'、isApp 'y'、isAdmin 'y'）
+//- 預期（EXPECT，字面值取自 dspec 表，不由實作衍生）：靜態檔六類皆 ✓；GET /api/getApisList 「無」✗、其餘 ✓；其餘 17 個入口「無」✗、U ✗、A ✓、AU 同所綁使用者（綁一般 ✗、綁系統管理者 ✓）、AS ✓
+//- 通訊路由 5 條之「✓」只表示**通過連線閘**（dspec 該列原文：未註冊監聽，通過連線閘後亦不受理）：系統管理者等級通過連線閘後回 invalid …（空本體之參數錯誤，不受理）；其餘呼叫者被連線閘 permission denied
 //- 共 19 × 6 = 114 格，每格一個 it；「無」格內含多種子變體（各變體皆須被拒）。UI 頁面（dspec §3.1，3 格）由 e2e-init 覆蓋，不在本檔
 //- 延伸：資料通道兩個 token（標頭＝連線閘、本體 __sysToken__＝執行身分）交叉；部署方使用者物件含拋錯取值器之 fail-closed；欄位檢查、鉤子照舊、不變語意、srLog 與全 log 無敏感值
 //真後端（隔離子行程：獨立 lmdb、埠 8571；部署方 getUserByToken／verifyClientUser／verifyAppUser 由 test/tools/apiServerChild.mjs 提供，對本檔之呼叫者一律放行〔id 以 id-mx- 或 app: 起頭〕，故「被拒」只能出自套件自己的等級檢查）。
@@ -40,14 +40,14 @@ let CALLERS = [
     { cls: 'U', tok: 'tokMxU', userId: 'id-mx-u', isApp: 'n' },
     { cls: 'A', tok: 'tokMxA', userId: 'id-mx-a', isApp: 'n' },
     { cls: 'AU綁一般使用者', tok: 'tokMxAuU', userId: 'id-mx-au-u', isApp: 'y' },
-    { cls: 'AU綁管理員', tok: 'tokMxAuA', userId: 'id-mx-au-a', isApp: 'y' },
+    { cls: 'AU綁系統管理者', tok: 'tokMxAuA', userId: 'id-mx-au-a', isApp: 'y' },
     { cls: 'AS', tok: 'tokMxAs', userId: 'app:key-mx-001', isApp: 'y' },
 ]
 
 //存取表 §3.2（1＝✓放行、0＝✗拒絕；欄序＝CALLERS）。字面值，取自 dspec，不由實作衍生
 let ALL = [1, 1, 1, 1, 1, 1] //靜態檔：公開
-let ANY_USER = [0, 1, 1, 1, 1, 1] //GET /api/getApisList：有效 token 之任何使用者（一般使用者與管理員）
-let ADMIN = [0, 0, 1, 0, 1, 1] //其餘 17 個入口：管理員等級（A、AU綁管理員、AS）
+let ANY_USER = [0, 1, 1, 1, 1, 1] //GET /api/getApisList：有效 token 之任何使用者（一般使用者與系統管理者）
+let ADMIN = [0, 0, 1, 0, 1, 1] //其餘 17 個入口：系統管理者等級（A、AU綁系統管理者、AS）
 let EXPECT = {
     '靜態檔 /{file*}': ALL,
     'GET /api/getUserByToken': ADMIN,
@@ -74,14 +74,14 @@ let isDenied = (r) => r.ok === false && r.data && r.data.error === 'permission d
 
 let seqPoll = 0 //輪詢之 clientId 序號（每次呼叫不同）
 
-//mx-3 為停用列（isActive 'n'）：公開清單不得含它（R-PUBLICAPIS-01）；整列（資料通道 getApisList）管理員等級仍可見
+//mx-3 為停用列（isActive 'n'）：公開清單不得含它（R-PUBLICAPIS-01）；整列（資料通道 getApisList）系統管理者等級仍可見
 let seedRows = () => [
     mkLegacyRow('mx-1', 'mx-group', { name: 'mx-1', tokens: SECRET_ROW[0], authConfigJson: SECRET_ROW[1] }),
     mkLegacyRow('mx-2', 'mx-group', { name: 'mx-2', tokens: SECRET_ROW[0], authConfigJson: SECRET_ROW[1] }),
     mkLegacyRow('mx-3', 'mx-group', { name: 'mx-3-disabled', tokens: SECRET_ROW[0], authConfigJson: SECRET_ROW[1], isActive: 'n' }),
 ]
 
-//snapshot：以管理員讀取整表（依 id 排序之 JSON），供「庫內不變」比對
+//snapshot：以系統管理者讀取整表（依 id 排序之 JSON），供「庫內不變」比對
 let snapshot = async () => JSON.stringify((await S.list('tokMxA')).sort((a, b) => (a.id < b.id ? -1 : 1)))
 
 let noSecret = (text, label) => {
@@ -197,7 +197,7 @@ let MAIN_FUNCS = [
         verify: async (r) => {
             assert.strictEqual(r.state, 'success')
             let row = r.msg.find((x) => x.id === 'mx-1')
-            assert.strictEqual(row.tokens, SECRET_ROW[0], '管理員等級之整列含 tokens（後台編輯所需）')
+            assert.strictEqual(row.tokens, SECRET_ROW[0], '系統管理者等級之整列含 tokens（後台編輯所需）')
             assert.strictEqual(row.authConfigJson, SECRET_ROW[1])
         },
     },
@@ -506,7 +506,7 @@ describe('api-accessMatrix (存取表 §3.2：19 入口 × 6 呼叫者類 = 114 
             assert.strictEqual(n, 114)
         })
 
-        it('MX01 資料通道函數全集：管理員取得之 [sys:getFuncList] 所列函數＝矩陣 main 入口之函數集（伺服端新增函數而矩陣未列即紅）', async function() {
+        it('MX01 資料通道函數全集：系統管理者取得之 [sys:getFuncList] 所列函數＝矩陣 main 入口之函數集（伺服端新增函數而矩陣未列即紅）', async function() {
             let r = await callFun(S.base, 'tokMxA', '[sys:getFuncList]', [])
             assert.strictEqual(r.state, 'success')
             let list = Array.isArray(r.msg) ? r.msg : Object.keys(r.msg)
@@ -545,8 +545,8 @@ describe('api-accessMatrix (存取表 §3.2：19 入口 × 6 呼叫者類 = 114 
 
 
     //--------------------------------------------------------------------------
-    //資料通道兩個 token 交叉（標頭＝連線閘，本體 __sysToken__＝執行身分）：兩道關卡各自須為管理員等級（authToken 共用；R-ADMINONLY-01、R-EXECID-01）。
-    //新呼叫者類 AU／AS 作為本體 token 亦須依其等級（api-adminOnly／api-execIdentity 只涵蓋 U 與管理員）
+    //資料通道兩個 token 交叉（標頭＝連線閘，本體 __sysToken__＝執行身分）：兩道關卡各自須為系統管理者等級（authToken 共用；R-ADMINONLY-01、R-EXECID-01）。
+    //新呼叫者類 AU／AS 作為本體 token 亦須依其等級（api-adminOnly／api-execIdentity 只涵蓋 U 與系統管理者）
     describe('資料通道兩個 token 交叉：標頭（連線閘）× 本體 __sysToken__（執行身分）', function() {
 
         let saveFunc = (tag) => ({
@@ -558,7 +558,7 @@ describe('api-accessMatrix (存取表 §3.2：19 入口 × 6 呼叫者類 = 114 
 
         for (let [hdr, hdrId] of ADMIN_TOKS) {
             for (let [body, bodyId] of ADMIN_TOKS) {
-                it(`標頭 ${hdr}（管理員等級）× 本體 ${body}（管理員等級）→ saveApi 照常；鉤子各被呼叫一次；稽核欄＝本體使用者 ${bodyId}`, async function() {
+                it(`標頭 ${hdr}（系統管理者等級）× 本體 ${body}（系統管理者等級）→ saveApi 照常；鉤子各被呼叫一次；稽核欄＝本體使用者 ${bodyId}`, async function() {
                     let f = saveFunc(`${hdr}-${body}`)
                     let r = await callMain(hdr, f, body)
                     assert.strictEqual(r.state, 'success', JSON.stringify(r.msg))
@@ -572,7 +572,7 @@ describe('api-accessMatrix (存取表 §3.2：19 入口 × 6 呼叫者類 = 114 
 
         for (let hdr of ['tokMxA', 'tokMxAs']) {
             for (let [body, name] of LOW_BODIES) {
-                it(`標頭 ${hdr}（管理員等級）× 本體 ${name} → 函數不執行：errUserIdMissing、ORM 零操作、庫內不變、回應無敏感值`, async function() {
+                it(`標頭 ${hdr}（系統管理者等級）× 本體 ${name} → 函數不執行：errUserIdMissing、ORM 零操作、庫內不變、回應無敏感值`, async function() {
                     let before = await snapshotBefore()
                     let r = await callMain(hdr, saveFunc(`low-${hdr}`), body)
                     assert.deepStrictEqual({ state: r.state, msg: r.msg }, { state: 'error', msg: 'errUserIdMissing' }, r.raw.slice(0, 200))
@@ -583,7 +583,7 @@ describe('api-accessMatrix (存取表 §3.2：19 入口 × 6 呼叫者類 = 114 
         }
 
         for (let hdr of ['tokMxU', 'tokMxAuU']) {
-            it(`標頭 ${hdr}（等級不足）× 本體 tokMxA（管理員）→ 連線閘即拒 permission denied；本體不被驗（鉤子只被呼叫一次）；ORM 零操作`, async function() {
+            it(`標頭 ${hdr}（等級不足）× 本體 tokMxA（系統管理者）→ 連線閘即拒 permission denied；本體不被驗（鉤子只被呼叫一次）；ORM 零操作`, async function() {
                 let before = await snapshotBefore()
                 let r = await callMain(hdr, saveFunc(`hdr-${hdr}`), 'tokMxA')
                 assert.ok(isDenied(r), r.raw.slice(0, 200))
@@ -664,7 +664,7 @@ describe('api-accessMatrix (存取表 §3.2：19 入口 × 6 呼叫者類 = 114 
     //A-1：部署方 verifyAppUser 照舊（先於等級檢查被呼叫；只能再收緊，不能放寬，也不能靠改寫傳入物件升級）
     describe('A-1 部署方 verifyAppUser 照舊：先被呼叫、只能再收緊', function() {
 
-        it('管理員但部署方鉤子拒絕（tokMxDenied）→ errUserNoPermission（不是 errUserNotAdmin）；鉤子恰被呼叫一次；庫內無此列', async function() {
+        it('系統管理者但部署方鉤子拒絕（tokMxDenied）→ errUserNoPermission（不是 errUserNotAdmin）；鉤子恰被呼叫一次；庫內無此列', async function() {
             let before = await snapshotBefore()
             await S.getVerifyAppCalls(true)
             let r = await syncRaw('token=tokMxDenied', 'denied')
@@ -705,8 +705,8 @@ describe('api-accessMatrix (存取表 §3.2：19 入口 × 6 呼叫者類 = 114 
 
 
     //--------------------------------------------------------------------------
-    //應用系統路由之 keyTable 與 srcKey 同步語意不變（不得改變）：管理員等級放行後仍受 keyTable 白名單與整批驗證約束
-    describe('不變：管理員等級放行後之匯入語意（keyTable 白名單、srcKey 必填、不得送 id）', function() {
+    //應用系統路由之 keyTable 與 srcKey 同步語意不變（不得改變）：系統管理者等級放行後仍受 keyTable 白名單與整批驗證約束
+    describe('不變：系統管理者等級放行後之匯入語意（keyTable 白名單、srcKey 必填、不得送 id）', function() {
 
         it('keyTable 非 apis → errKeyTableInvalid（等級檢查前即拒，與呼叫者等級無關）；只送 id 而無 srcKey → errRowInvalid；列帶 id → idNotAllowed', async function() {
             let r1 = await getJson(`${S.base}/syncAndReplaceTabs?token=tokMxAs&keyTable=users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(syncBatch('kt')) })
@@ -717,11 +717,11 @@ describe('api-accessMatrix (存取表 §3.2：19 入口 × 6 呼叫者類 = 114 
             assert.deepStrictEqual({ state: r3.state, msg: r3.msg }, { state: 'error', msg: 'idNotAllowed' })
         })
 
-        it('同一 srcKey 再匯入（管理員等級各類）→ nSame（srcKey 同步語意：新增／不變）；後台改過之本系統擁有欄位（tokens）與 id 保留，外部擁有欄位與 srcKey 不變', async function() {
+        it('同一 srcKey 再匯入（系統管理者等級各類）→ nSame（srcKey 同步語意：新增／不變）；後台改過之本系統擁有欄位（tokens）與 id 保留，外部擁有欄位與 srcKey 不變', async function() {
             let r1 = await syncRaw('token=tokMxA', 'twice')
             assert.strictEqual(get(r1, 'msg.nAdd'), 1, JSON.stringify(r1))
             let row1 = (await S.list('tokMxA')).find((x) => x.name === 'sync-twice')
-            //後台（管理員）改本系統擁有欄位 tokens（外部列只鎖外部擁有欄位，lockExternalRows 預設 'y'）
+            //後台（系統管理者）改本系統擁有欄位 tokens（外部列只鎖外部擁有欄位，lockExternalRows 預設 'y'）
             let rs = await callFun(S.base, 'tokMxA', 'saveApi', [{ ...row1, tokens: 'LOCAL-KEEP-TOKENS' }])
             assert.strictEqual(rs.state, 'success', JSON.stringify(rs.msg))
             let r2 = await syncRaw('token=tokMxAuA', 'twice')
@@ -754,7 +754,7 @@ describe('api-accessMatrix (存取表 §3.2：19 入口 × 6 呼叫者類 = 114 
             }
         })
 
-        it('U、AU綁一般使用者各匯入一次 → 各記 error（err=errUserNotAdmin）；管理員但鉤子拒絕 → errUserNoPermission；log 不含 token、使用者欄位與敏感值', async function() {
+        it('U、AU綁一般使用者各匯入一次 → 各記 error（err=errUserNotAdmin）；系統管理者但鉤子拒絕 → errUserNoPermission；log 不含 token、使用者欄位與敏感值', async function() {
             for (let tok of ['tokMxU', 'tokMxAuU', 'tokMxDenied']) {
                 await getJson(`${SL.base}/syncAndReplaceTabs?token=${tok}&keyTable=apis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(syncBatch(tok)) })
             }

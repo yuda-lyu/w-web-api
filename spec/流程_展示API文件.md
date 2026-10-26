@@ -8,7 +8,7 @@
 
 - **E2E-001**
   - title: 載入顯示 API 樹與第一筆 API 文件
-  - description: 使用者以 `?token=sys` 進入頁面（開發模式自動登入為管理員；進站預設頁為統計資訊頁），點左側主選單「API」切至 API 工作區。預期左側渲染出多筆 seeded API 的樹狀清單、右側預設顯示第一筆 API（取得API清單）的 Docs 分頁。確立「API 工作區就緒」基準畫面。
+  - description: 使用者以 `?token=sys` 進入頁面（開發模式自動登入為系統管理者；進站預設頁為統計資訊頁），點左側主選單「API」切至 API 工作區。預期左側渲染出多筆 seeded API 的樹狀清單、右側預設顯示第一筆 API（取得API清單）的 Docs 分頁。確立「API 工作區就緒」基準畫面。
   - flow:
     - 測試資料：base seed，至少含「取得API清單」（url `http://localhost:11005/getAPIsList`，預設選取）與「取得寵物清單」。
     - 操作：開啟 `<baseUrl>/?token=sys`（cht 輪改開 `<baseUrl>/?token=sys&lang=cht`，以 URL `?lang=` 指定語系、**初始畫面即中文**，不經 UI 切換）→ 點左側主選單「API」切至 API 工作區。
@@ -129,14 +129,14 @@
 003  App.vue beforeMount 初始化語系、呼叫 w-ui-loginout 登入  [src/App.vue:47-98]
          開發模式於 localhost 自動以 query token 'sys' 送出 GET /api/getUserByToken?token=sys  [src/App.vue:92]
 004      後端取 token user：注入之 getUserByToken 經 wrapInjected 包裝，上游拋錯或 reject 視同查無（ADR-033）  [server/WWebApi.mjs:266]
-             token==='sys' 直接回傳管理員 user  [srv.mjs:57-59]
+             token==='sys' 直接回傳系統管理者 user  [srv.mjs:57-59]
              查無使用者（token 非字串，或回傳非非空物件）: reject('errUserNotFound')  [server/WWebApi.mjs:384-401]
              驗證 user 欄位 id/email/name/isAdmin  [server/WWebApi.mjs:351-378]
                  欄位不合: reject('errUserIdMissing'/'errUserEmailMissing'/'errUserNameMissing'/'errUserRoleMissing')  [server/WWebApi.mjs:356,362,368,375]
              部署方授權（注入之 verifyClientUser(user 之拷貝, 'getUserByToken') 同經 wrapInjected，拋錯或 reject 視同無權限）  [srv.mjs:verifyClientUser][server/WWebApi.mjs:505,712]
                  未授權: reject('errUserNoPermission')
-             系統管理員檢查（套件自行強制，assertAdmin：getUserByToken 所回 isAdmin==='y'；2026-10-24，ADR-051、R-ADMINONLY-01）  [server/WWebApi.mjs:450,723]
-                 非系統管理員: reject('errUserNotAdmin')（後台只限系統管理員；一般使用者改用 GET /api/getApisList）
+             系統管理者檢查（套件自行強制，assertAdmin：getUserByToken 所回 isAdmin==='y'；2026-10-24，ADR-051、R-ADMINONLY-01）  [server/WWebApi.mjs:450,723]
+                 非系統管理者: reject('errUserNotAdmin')（後台只限系統管理者；一般使用者改用 GET /api/getApisList）
 005      登入成功: 更新連線態 / token / user  [src/App.vue:60-65]
 006      登入失敗: 導向 ___pmwapi___.urlRedirect  [src/App.vue:loginError]
          例外: 失敗鍵為 errUserNotAdmin → 顯示「無權進入 API 管理後台」（connState csErrNotAdmin），停在該畫面、不轉址（見 流程_初始語系.md E2E-006）  [src/App.vue:loginError][src/components/LayoutState.vue]
@@ -185,7 +185,7 @@
 
 | 概念 | 來源（優先序）| 流程影響 |
 |---|---|---|
-| 登入 token | URL `?token=sys`（w-ui-loginout 於 localhost 自動帶入）| 'sys' 在 srv.mjs 直接回管理員 user，免帳密 |
+| 登入 token | URL `?token=sys`（w-ui-loginout 於 localhost 自動帶入）| 'sys' 在 srv.mjs 直接回系統管理者 user，免帳密 |
 | API 清單 | 前端同步經資料通道呼叫表操作 `apis.select`（只放行已認證者之 select，R-DC-1）→ procOrm → LMDB，結果寫入 `store.state.apis` | 樹與 docs 全部資料源 |
 | 預設選取項 | 保留上次選取 id；否則第一筆 `apis[0]` | 決定載入後右側顯示哪一筆 |
 | 樹過濾 | `search` 字串（搜尋框 v-model）| 比對 name/keywords/url/levels/method（toLowerCase），空字串顯示全部 |
@@ -207,7 +207,7 @@
 - **契約**：
   - token='sys' 僅開發模式捷徑；正式須真實 token 且 isAdmin==='y'。
   - 前端不主動輪詢，資料由後端 syncData 推送驅動重渲染。
-  - 資料通道只開放表讀取：前端同步所用之 `apis.select` 只放行已認證者（userId 非空），表寫入（`apis.insert`／`save`／`del`）不綁定、直打回 `invalid func[apis.<方法>]`；寫入一律經 kpFunExt 之 `saveApi`／`deleteApi`（R-DC-1，ADR-038）。同步把整表（含 `tokens`／`authConfigJson`）給通過驗證的**系統管理員**（`getUserByToken` 所回 `isAdmin` 為 `'y'`；套件自行強制，部署方之 `verifyClientUser` 先被呼叫、可再收緊，2026-10-24，ADR-051、R-ADMINONLY-01）；一般使用者經資料通道一律 `permission denied`，其唯一入口為 `GET /api/getApisList?token=`（啟用中 API 之公開欄位，不含憑證；R-PUBLICAPIS-01）。**資料通道之連線閘（`verifyConn`）＝token 認證＋部署方 `verifyClientUser(user, apiType)`（apiType 為 w-converhp 之入口名，資料通道之函數呼叫為 `'main'`；2026-10-23，ADR-048、R-CONNGATE-01，跨套件規格 `C:\opensrcOper\dspec\w-web呼叫者身分驗證.md` 規則 3）**：被部署方拒絕者（鉤子回 falsy、拋錯或 reject）不論呼叫 kpFunExt、`apis.select` 或系統函數皆在傳輸層回 `permission denied`，函數不執行、零寫入；拒絕記 srLog（`verifyConn`，`err: 'errUserNoPermission'`，含 `apiType`，不含 token 與使用者資料）。**執行身分（C3，2026-10-23，ADR-050、R-EXECID-01）**：函數執行前 w-serv-webdata 以請求本體之 `__sysToken__`（可與標頭 token 不同）呼叫 `getUserIdByToken`，本套件對它做與連線閘同等完整之驗證（token 認證＋`verifyClientUser(user, 'main')`，共用 `authToken`），不通過則函數不執行、回固定鍵 `errUserIdMissing`、srLog `getUserIdByToken` 記原因鍵；兩 token 皆有效而不同者以本體 token 之使用者執行。`Authorization` 須為 `Bearer` 方案（方案名不分大小寫），不符視同未帶 token（ADR-050）。
+  - 資料通道只開放表讀取：前端同步所用之 `apis.select` 只放行已認證者（userId 非空），表寫入（`apis.insert`／`save`／`del`）不綁定、直打回 `invalid func[apis.<方法>]`；寫入一律經 kpFunExt 之 `saveApi`／`deleteApi`（R-DC-1，ADR-038）。同步把整表（含 `tokens`／`authConfigJson`）給通過驗證的**系統管理者**（`getUserByToken` 所回 `isAdmin` 為 `'y'`；套件自行強制，部署方之 `verifyClientUser` 先被呼叫、可再收緊，2026-10-24，ADR-051、R-ADMINONLY-01）；一般使用者經資料通道一律 `permission denied`，其唯一入口為 `GET /api/getApisList?token=`（啟用中 API 之公開欄位，不含憑證；R-PUBLICAPIS-01）。**資料通道之連線閘（`verifyConn`）＝token 認證＋部署方 `verifyClientUser(user, apiType)`（apiType 為 w-converhp 之入口名，資料通道之函數呼叫為 `'main'`；2026-10-23，ADR-048、R-CONNGATE-01，跨套件規格 `C:\opensrcOper\dspec\w-web呼叫者身分驗證.md` 規則 3）**：被部署方拒絕者（鉤子回 falsy、拋錯或 reject）不論呼叫 kpFunExt、`apis.select` 或系統函數皆在傳輸層回 `permission denied`，函數不執行、零寫入；拒絕記 srLog（`verifyConn`，`err: 'errUserNoPermission'`，含 `apiType`，不含 token 與使用者資料）。**執行身分（C3，2026-10-23，ADR-050、R-EXECID-01）**：函數執行前 w-serv-webdata 以請求本體之 `__sysToken__`（可與標頭 token 不同）呼叫 `getUserIdByToken`，本套件對它做與連線閘同等完整之驗證（token 認證＋`verifyClientUser(user, 'main')`，共用 `authToken`），不通過則函數不執行、回固定鍵 `errUserIdMissing`、srLog `getUserIdByToken` 記原因鍵；兩 token 皆有效而不同者以本體 token 之使用者執行。`Authorization` 須為 `Bearer` 方案（方案名不分大小寫），不符視同未帶 token（ADR-050）。
   - 語系切換經 setLang 廣播 forceUpdate，全頁即時重渲染。
   - docs 請求區之 cURL `-X` 動詞經 `src/plugins/mShare.mjs` 之 `methodToHttpVerb` 轉換：資料層 `del` 顯示為 `DELETE`（`DEL` 非 HTTP 動詞，複製貼上即可執行；與測試分頁送出路徑共用同一函式，ADR-030）。樹之 method badge 仍顯示 `DEL`（視覺慣例）。
   - 左樹根節點標籤由語系鍵 `treeRootAll`（eng「All」／cht「全部」）於 template 取值，非烤進樹資料，語系就地切換即時更新；樹資料之根 key 為哨符 `__treeRootAll__`，不與任何 group 名稱相撞（ADR-030）。

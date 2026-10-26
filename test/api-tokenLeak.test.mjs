@@ -1,7 +1,7 @@
 //api-tokenLeak：注入函數上游失敗時之權杖外洩（w-web-sso tmp/sso-token-leak-全盤.md 表 B api 列、W 契約、S7–S9；ADR-033）。
 //直打 127.0.0.1 後端（慣例同 api-http），以 srv.mjs 之測試權杖（NODE_ENV!=='production' 才有效）重現兩種上游失敗：
 //- TOK_REJECT '{token-for-reject}'：getUserByToken 以舊版 w-web-sso helper 形狀之字串 reject（字串內夾完整網址、合成之介接權杖與所送權杖）
-//- TOK_VTHROW '{token-for-verify-throw}'：getUserByToken 回合法管理員，verifyClientUser／verifyAppUser 對其 throw Error(合成秘密)
+//- TOK_VTHROW '{token-for-verify-throw}'：getUserByToken 回合法系統管理者，verifyClientUser／verifyAppUser 對其 throw Error(合成秘密)
 //斷言通道：C1 HTTP 回應（自家 procLang key、不含合成秘密）與 C2 本次後端之 srLog 檔（不含合成秘密；W 契約之 warn 與呼叫點之 error 如數）。
 //「本次 srLog」：以 genTempSettings({ logFd }) 把後端 log 指到本檔專用資料夾後重啟，測完還原 ./settings.json 並刪除該資料夾。
 //C3／C4（後端 stdout 與 error 事件）不在本檔：harness 以 stdio:'ignore' 起後端，另由使用者視角驗收與 V3 探測驗證。

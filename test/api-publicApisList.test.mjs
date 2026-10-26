@@ -1,6 +1,6 @@
 //api-publicApisList：一般使用者以 token 取得 API 清單（GET /api/getApisList?token=；R-PUBLICAPIS-01，ADR-051；使用者 2026-10-24 裁示：
-//「經由指定 token 應該是取得 api 清單，但系統管理員才能取得頁面多表」）。
-//token 須通過完整驗證（有效使用者＋部署方 verifyClientUser(user, 'getApisList')），一般使用者與管理員皆可；只回啟用中（isActive 'y'）之 API，
+//「經由指定 token 應該是取得 api 清單，但系統管理者才能取得頁面多表」）。
+//token 須通過完整驗證（有效使用者＋部署方 verifyClientUser(user, 'getApisList')），一般使用者與系統管理者皆可；只回啟用中（isActive 'y'）之 API，
 //且每列只含公開欄位白名單（src/schema/contracts/apis.mjs 之 fieldsPublic），固定排除 tokens、authConfigJson 等第三方憑證、測試設定與伺服器專有欄位。
 //真後端（隔離子行程：獨立 lmdb、埠 8569；部署方 getUserByToken／verifyClientUser 由 test/tools/apiServerChild.mjs 提供並記錄 { userId, from }；不碰專案 ./db 與 11005）直打。
 //白名單與禁止欄位在本檔以字面值獨立列出（不 import 實作之常數）：實作若把憑證欄位加入白名單，本檔即紅。
@@ -106,7 +106,7 @@ describe('api-publicApisList (一般使用者以 token 取得 API 清單：只�
     })
 
 
-    describe('一般使用者與管理員皆可取得；內容相同（皆為公開視圖）', function() {
+    describe('一般使用者與系統管理者皆可取得；內容相同（皆為公開視圖）', function() {
 
         for (let tok of ['tokNonAdmin', 'tokMutateAdmin', 'tokA', 'sys']) {
             it(`${tok}：state=success；只含啟用中（pa-1、pa-2；停用 n、缺欄、空字串、大寫 Y 者皆不含）；每列恰為公開欄位（依序）；回應全文無 SECRET-`, async function() {
@@ -190,7 +190,7 @@ describe('api-publicApisList (一般使用者以 token 取得 API 清單：只�
             ['查無此 token', 'tok-not-exist-publicapis', 'errUserNotFound', false],
             ['使用者欄位不齊（tokNoEmail）', 'tokNoEmail', 'errUserEmailMissing', false],
             ['使用者欄位不合（tokBadRole：isAdmin 非 y／n）', 'tokBadRole', 'errUserRoleMissing', false],
-            ['部署方鉤子拒絕（tokDenied，管理員）', 'tokDenied', 'errUserNoPermission', true],
+            ['部署方鉤子拒絕（tokDenied，系統管理者）', 'tokDenied', 'errUserNoPermission', true],
             ['部署方鉤子拒絕（tokNonAdminDenied，一般使用者：部署方可再收緊）', 'tokNonAdminDenied', 'errUserNoPermission', true],
             ['部署方鉤子只在 main 放行（tokOnlyMain；from 為 getApisList 被拒）', 'tokOnlyMain', 'errUserNoPermission', true],
             ['部署方鉤子拋錯（tokVThrow）', 'tokVThrow', 'errUserNoPermission', true],
@@ -215,7 +215,7 @@ describe('api-publicApisList (一般使用者以 token 取得 API 清單：只�
         }
 
         //外審 sol R2：token 只認 query；來源衝突或型別錯誤不得借用其他來源
-        it('只有 Authorization: Bearer 標頭（管理員）、無 query token → errTokenNoPermission（不從標頭補），鉤子與 ORM 零呼叫', async function() {
+        it('只有 Authorization: Bearer 標頭（系統管理者）、無 query token → errTokenNoPermission（不從標頭補），鉤子與 ORM 零呼叫', async function() {
             await S.getVerifyCalls(true)
             await S.getOps(true)
             let res = await fetch(`${S.base}/api/getApisList`, { headers: { Authorization: 'Bearer sys' } })
@@ -225,7 +225,7 @@ describe('api-publicApisList (一般使用者以 token 取得 API 清單：只�
             assert.deepStrictEqual(await S.getOps(), [])
         })
 
-        it('標頭為管理員（Bearer sys）、query 為 tokNonAdminDenied → 以 query 為準：errUserNoPermission（不借用標頭之管理員身分）', async function() {
+        it('標頭為系統管理者（Bearer sys）、query 為 tokNonAdminDenied → 以 query 為準：errUserNoPermission（不借用標頭之系統管理者身分）', async function() {
             let res = await fetch(`${S.base}/api/getApisList?token=tokNonAdminDenied`, { headers: { Authorization: 'Bearer sys' } })
             let j = await res.json()
             assert.deepStrictEqual({ state: j.state, msg: j.msg }, { state: 'error', msg: 'errUserNoPermission' })

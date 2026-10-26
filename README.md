@@ -17,26 +17,26 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 **行為變更**。資料通道有三個系統函數：`[sys:getFuncList]`（函數名稱清單）、`[sys:getTableTags]`（同步表時間戳）、`[sys:polling]`（輪詢，取得推播）。w-serv-webdata 之 `sysFuncsPublic` 預設三者皆公開（為相容舊前端），本版起**本套件顯式只公開 `[sys:getFuncList]`**（跨套件原則：只回公開資訊者可公開，其餘須身分）。
 - **相依**：`w-serv-hapi` 升為 `^1.1.8`（連帶 w-serv-webdata 1.1.16、w-serv-broadcast 1.1.12）；前端元件隨升版，**輪詢於請求本體帶 `__sysToken__`**（本套件前端以登入後之使用者 token 提供，`src/main.js` 之 `getToken`；未取得 token 前不連線〔`useWaitToken`〕）。
-- **輪詢須帶有效 token**：輪詢（本體為合法 `clientId` 者；`clientId` 不合法者在身分關卡前即被輪詢層拒絕）帶 `__sysToken__` 者一律反查（與資料通道函數同一完整驗證：token 認證＋您的 `verifyClientUser(user, 'main')`＋系統管理員），不通過被拒（`[sys:polling] permission denied`）；**不帶 `__sysToken__` 鍵者被拒**。輪詢之 `clientId` 與**本體 token 之使用者**（`userId`，非 token 字串，亦與標頭 token 無關）綁定：先到先綁，同一 `clientId` 改以他人身分輪詢被拒；被拒之輪詢不建立、不刷新綁定，也不取走佇列。綁定於該 `clientId` 最後一次成功輪詢後逾約 10 秒（框架之在線逾時）解除；整頁重新載入會產生新的 `clientId`。
+- **輪詢須帶有效 token**：輪詢（本體為合法 `clientId` 者；`clientId` 不合法者在身分關卡前即被輪詢層拒絕）帶 `__sysToken__` 者一律反查（與資料通道函數同一完整驗證：token 認證＋您的 `verifyClientUser(user, 'main')`＋系統管理者），不通過被拒（`[sys:polling] permission denied`）；**不帶 `__sysToken__` 鍵者被拒**。輪詢之 `clientId` 與**本體 token 之使用者**（`userId`，非 token 字串，亦與標頭 token 無關）綁定：先到先綁，同一 `clientId` 改以他人身分輪詢被拒；被拒之輪詢不建立、不刷新綁定，也不取走佇列。綁定於該 `clientId` 最後一次成功輪詢後逾約 10 秒（框架之在線逾時）解除；整頁重新載入會產生新的 `clientId`。
 - **已發布之舊前端建置檔**（本套件舊版 `dist/`、或自行以舊版 w-serv-hapi 元件建置之前端）其**輪詢**不帶 token（舊元件之函數呼叫仍帶 `__sysToken__`），**升版後輪詢被拒——使用者須重新載入頁面**（重新載入即取得新前端；已開啟之舊頁面不再收到推播，若以舊建置檔於升版後重新連線，畫面會停在「已登入」而不載入主畫面——以真瀏覽器剝除輪詢 token 模擬實測）；自行建置前端者須升 w-serv-hapi 至 `^1.1.8` 後重建，並於 `WServHapiClient` 提供 `getToken`。已載入之頁面若中途換身分、或 token 被撤銷／失效，輪詢同樣被拒而不再收到推播，請重新載入頁面（框架語意）。
-- **影響範圍**：本套件之資料通道原已由連線閘（標頭 token，只限系統管理員）與執行身分（`getUserIdByToken`，對空或無效 token 拒絕）把關，故 `[sys:getFuncList]` 雖列為公開，實際仍須有效身分；`[sys:getTableTags]` 本就無法匿名呼叫。本版新增之防線只在**輪詢**（本體不帶 token 鍵者原被放行）。標頭 token 有效之管理員等級呼叫者，其他入口之存取規則不變。
+- **影響範圍**：本套件之資料通道原已由連線閘（標頭 token，只限系統管理者）與執行身分（`getUserIdByToken`，對空或無效 token 拒絕）把關，故 `[sys:getFuncList]` 雖列為公開，實際仍須有效身分；`[sys:getTableTags]` 本就無法匿名呼叫。本版新增之防線只在**輪詢**（本體不帶 token 鍵者原被放行）。標頭 token 有效之系統管理者等級呼叫者，其他入口之存取規則不變。
 - **為何不需如 w-web-sso 另公開 `[sys:polling]`**：sso 之登入頁於登入前（無 token）即須連線，故另公開輪詢；本套件之前端待登入取得 token 後才連線，`getUserIdByToken` 為真實反查，不需公開。
 - 系統函數 × 呼叫者之實測矩陣見 `test/api-sysFuncs.test.mjs`（呼叫者 7 類 × 協定 4 種〔新：本體帶同一 token、舊：不帶 token 鍵、空字串、他人〕× 系統函數 3 個）。
 
-### Behavior change since 1.1.18：應用系統路由（`POST /syncAndReplaceTabs`）由套件自行要求系統管理員等級；後台登入檢查成功只回欄位白名單
+### Behavior change since 1.1.18：應用系統路由（`POST /syncAndReplaceTabs`）由套件自行要求系統管理者等級；後台登入檢查成功只回欄位白名單
 
-**行為變更**（兩處）。token 由 w-web-sso 簽發，本套件經您的 `getUserByToken(token)` 反查：**使用者 token** 代表登入者；**應用系統 token**（反查回 `isApp: 'y'`，選用欄位）分兩種用途——**使用者用途**（綁定使用者，反查回所綁使用者之實際資料，等級＝該使用者之 `isAdmin`）與**系統服務用途**（不綁使用者，反查回虛擬身分：`id` 為 `app:<金鑰主鍵>`、`isAdmin` 為 `'y'`）。本套件不簽發 token、不分辨用途，**一律以反查所回之 `isAdmin` 判等級**（與 1.1.17 之 `assertAdmin` 同一判準）；是否簽發系統服務用途或綁定管理員之應用系統 token、交給誰使用，由您（專案方）評估與負責。
-- **應用系統路由** `POST /syncAndReplaceTabs?token=…&keyTable=apis`（外部匯入）：本版起由套件自行要求呼叫者為**系統管理員等級**，順序為 token 認證 → 您的 `verifyAppUser(user, from)` → 系統管理員等級。
-  - **放行**：使用者 token 之系統管理員、應用系統 token・使用者用途且所綁使用者為系統管理員、應用系統 token・系統服務用途。
+**行為變更**（兩處）。token 由 w-web-sso 簽發，本套件經您的 `getUserByToken(token)` 反查：**使用者 token** 代表登入者；**應用系統 token**（反查回 `isApp: 'y'`，選用欄位）分兩種用途——**使用者用途**（綁定使用者，反查回所綁使用者之實際資料，等級＝該使用者之 `isAdmin`）與**系統服務用途**（不綁使用者，反查回虛擬身分：`id` 為 `app:<金鑰主鍵>`、`isAdmin` 為 `'y'`）。本套件不簽發 token、不分辨用途，**一律以反查所回之 `isAdmin` 判等級**（與 1.1.17 之 `assertAdmin` 同一判準）；是否簽發系統服務用途或綁定系統管理者之應用系統 token、交給誰使用，由您（專案方）評估與負責。
+- **應用系統路由** `POST /syncAndReplaceTabs?token=…&keyTable=apis`（外部匯入）：本版起由套件自行要求呼叫者為**系統管理者等級**，順序為 token 認證 → 您的 `verifyAppUser(user, from)` → 系統管理者等級。
+  - **放行**：使用者 token 之系統管理者、應用系統 token・使用者用途且所綁使用者為系統管理者、應用系統 token・系統服務用途。
   - **拒絕**（`{ state: 'error', msg: 'errUserNotAdmin' }`，固定鍵，不回顯 token 與使用者資料；ORM 零操作、零寫入；記 srLog `api/syncAndReplaceTabs` error）：使用者 token 之一般使用者、應用系統 token・使用者用途且所綁使用者為一般使用者。
   - **欄位檢查**：反查結果須經與瀏覽端（後台登入檢查、資料通道）**相同的欄位檢查**——`id`、`email`、`name` 為非空字串，`isAdmin` 限 `'y'`／`'n'`；不通過回 `errUserIdMissing`／`errUserEmailMissing`／`errUserNameMissing`／`errUserRoleMissing`（您的 `verifyAppUser` 零呼叫）。理由：等級取自 `isAdmin`、稽核欄 `userIdUpdate` 取自 `id`，缺欄或值不合法（如 `'Y'`）是部署設定錯誤，不能被靜默當成一般使用者，也不另寫第二份欄位規則。
   - 您的 `verifyAppUser(user, from)`（`user` 為拷貝，`from` 為 `'syncAndReplaceTabs'`）**照舊先被呼叫、只能再收緊**，不能放寬；鉤子改寫傳入之物件（如把 `isAdmin` 改為 `'y'`）不影響等級判斷。
-  - **影響與遷移**：原本 `isAdmin` 為 `'n'` 而 `verifyAppUser` 放行者（例如 `verifyAppUser` 一律回 `true`）過去可匯入，自此被拒；`getUserByToken` 對應用系統只回 `id`（缺 `email`、`name`、`isAdmin`）之虛擬使用者過去可匯入，自此被拒——請補齊四欄，且 `isAdmin` 為 `'y'`（w-web-sso 系統服務用途之反查已含）。系統管理員等級之行為不變；`verifyAppUser` 不必再以 `isAdmin` 判斷。`srcKey` 同步語意與 `keyTable` 白名單不變。
+  - **影響與遷移**：原本 `isAdmin` 為 `'n'` 而 `verifyAppUser` 放行者（例如 `verifyAppUser` 一律回 `true`）過去可匯入，自此被拒；`getUserByToken` 對應用系統只回 `id`（缺 `email`、`name`、`isAdmin`）之虛擬使用者過去可匯入，自此被拒——請補齊四欄，且 `isAdmin` 為 `'y'`（w-web-sso 系統服務用途之反查已含）。系統管理者等級之行為不變；`verifyAppUser` 不必再以 `isAdmin` 判斷。`srcKey` 同步語意與 `keyTable` 白名單不變。
 - **後台登入檢查** `GET /api/getUserByToken?token=`：成功時 `msg` **只含 `id`、`name`、`email`、`isAdmin` 四個欄位**（單一來源 `server/pickLoginUser.mjs` 之 `fieldsLoginUser`），不再原樣回傳您的 `getUserByToken` 所回物件（`password`、`tokenVerify`、`description`、`isApp` 等不會出現於回應）。前端只用 `name`、`email` 顯示登入者，故不含 `isApp`（等級只看 `isAdmin`）。錯誤回應不變（一般使用者仍回 `errUserNotAdmin`）。
 - **部署方使用者物件含拋錯之取值器（getter）時一律固定鍵拒絕**（順帶修正，適用後台登入檢查、公開清單、外部匯入與資料通道）：額外欄位之取值器拋錯 → 視同您的 `verifyClientUser`／`verifyAppUser` 拒絕（`errUserNoPermission`）；必要欄位（`id`、`name`、`email`、`isAdmin`）之取值器拋錯 → 視同查無使用者（`errUserNotFound`）；例外原文不再出現於回應與 srLog，您的鉤子不被呼叫。
-- **存取表**（驗收依據，測試 `test/api-accessMatrix.test.mjs`，19 個入口 × 6 類呼叫者；U＝使用者 token・一般使用者，A＝使用者 token・系統管理員，AU＝應用系統 token・使用者用途，AS＝應用系統 token・系統服務用途）：
+- **存取表**（驗收依據，測試 `test/api-accessMatrix.test.mjs`，19 個入口 × 6 類呼叫者；U＝使用者 token・一般使用者，A＝使用者 token・系統管理者，AU＝應用系統 token・使用者用途，AS＝應用系統 token・系統服務用途）：
 
-| 入口 | 無 token | U | A | AU 綁一般使用者 | AU 綁管理員 | AS |
+| 入口 | 無 token | U | A | AU 綁一般使用者 | AU 綁系統管理者 | AS |
 |---|---|---|---|---|---|---|
 | 前端靜態檔 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `GET /api/getApisList?token=`（公開欄位清單） | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -48,23 +48,23 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 - **註解**：`getUserByToken` 之使用者物件可另提供選用欄位 `isApp`（`'y'` 表示應用系統 token 之反查結果；本套件不據以判斷等級，僅隨使用者物件之拷貝原樣交給 `verifyClientUser`、`verifyAppUser`）；`verifyAppUser` 之呼叫為 `(user, from)`。範例（`verifyAppUser` 不必再判斷 `isAdmin`，僅示範依 `from` 再收緊）：
 ```alias
 let verifyAppUser = (user, from) => {
-    //套件已自行要求系統管理員等級(getUserByToken 所回 isAdmin 為 'y'；檢查在本函數之後)，此處只能再收緊
+    //套件已自行要求系統管理者等級(getUserByToken 所回 isAdmin 為 'y'；檢查在本函數之後)，此處只能再收緊
     return from === 'syncAndReplaceTabs'
 }
 ```
 
-### Behavior change since 1.1.17：API 管理後台與資料通道只限系統管理員（套件自行強制）；一般使用者以 token 取得 API 清單（`GET /api/getApisList`）
+### Behavior change since 1.1.17：API 管理後台與資料通道只限系統管理者（套件自行強制）；一般使用者以 token 取得 API 清單（`GET /api/getApisList`）
 
-**行為變更**——本套件**無自有使用者表**，**系統管理員＝您的 `getUserByToken(token)` 所回使用者物件之 `isAdmin` 為 `'y'`**（`'n'` 為一般使用者；值域本來就限 `'y'`／`'n'`）。本版起，API 管理後台與資料通道**由套件自行**只限系統管理員，**不論您的 `verifyClientUser` 如何放行**（您的函數照常先被呼叫，仍可再收緊，但不能放寬）：
+**行為變更**——本套件**無自有使用者表**，**系統管理者＝您的 `getUserByToken(token)` 所回使用者物件之 `isAdmin` 為 `'y'`**（`'n'` 為一般使用者；值域本來就限 `'y'`／`'n'`）。本版起，API 管理後台與資料通道**由套件自行**只限系統管理者，**不論您的 `verifyClientUser` 如何放行**（您的函數照常先被呼叫，仍可再收緊，但不能放寬）：
 - **後台登入檢查** `GET /api/getUserByToken?token=`：一般使用者回 `{ state: 'error', msg: 'errUserNotAdmin' }`（固定錯誤鍵，不回顯 token 與使用者資料，記 srLog `api/getUserByToken` error）；前端顯示「無權進入 API 管理後台」（eng：`No permission to enter the API management console`），不進主畫面、不停在連線中、**不轉址**（已通過驗證者轉去登入頁無用，且 SSO 登入後導回本頁會形成轉址迴圈）。
-- **資料通道**（`/api/main` 之全部 `kpFunExt`〔`getWebInfor`、`getApisList`、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`〕、表 `select`、系統函數 `[sys:*]`，以及 w-converhp 其餘五條上傳／下載路由）：連線閘與執行身分（請求本體 `__sysToken__`）**兩個 token 各自**要求 `isAdmin === 'y'`，順序為 token 認證 → 您的 `verifyClientUser(user, from)` → 系統管理員；一般使用者整次連線被拒（`permission denied`；函數不執行、ORM 零操作、零寫入、第三方憑證 `tokens`／`authConfigJson` 零外洩），srLog `verifyConn`／`getUserIdByToken` 記 `err: 'errUserNotAdmin'`。判斷取自 `getUserByToken` 所回之原值（交給 `verifyClientUser` 的是拷貝，鉤子改寫 `isAdmin` 不影響結果）。
-- **影響與遷移**：原本 `isAdmin` 為 `'n'`、持有效 token 且您的 `verifyClientUser` 放行者（例如 `verifyClientUser` 一律回 `true`），過去能登入後台並讀寫全部 API（含 `tokens`、`authConfigJson`）；自此被拒。系統管理員之行為不變。`verifyClientUser` 不必再以 `isAdmin` 判斷（可刪），只需要再收緊時才寫（例如依 `from` 只放行 `'getUserByToken'`、`'getApisList'`、`'main'`，或排除特定帳號）。
-- **新入口** `GET /api/getApisList?token=<token>`（一般使用者**與**系統管理員皆可用）：回 `{ state: 'success', msg: [列…] }`，列為**啟用中**（`isActive` 為 `'y'`）之 API，且每列**只含公開欄位**：`id`、`order`、`name`、`description`、`url`、`method`、`version`、`group`、`levels`、`keywords`、`state`、`creator`、`dataSource`、`mdInputParams`、`inputExample`、`mdOutputParams`、`outputExample`（單一來源 `src/schema/contracts/apis.mjs` 之 `fieldsPublic`）；**固定排除**第三方憑證 `tokens`、`authConfigJson`、測試設定 `testBaseUrl`、`authType`、`defaultHeadersJson`、`defaultQueryJson`、`defaultBodyJson`、`contentType`，與伺服器專有欄位 `timeCreate`、`timeUpdate`、`isActive`、`userIdUpdate`、`srcKey`。token 須通過完整驗證：`getUserByToken` 查得使用者（欄位齊備）＋您的 `verifyClientUser(user, 'getApisList')`（`from` 為 `'getApisList'`；您可以只放行有權取清單者）；未帶 token 回 `errTokenNoPermission`，查無使用者 `errUserNotFound`，欄位不齊 `errUser…Missing`，鉤子拒絕 `errUserNoPermission`，ORM 讀取失敗 `getDataError`（皆為 `state: 'error'`，不含清單、不含憑證）。成功記 srLog `api/getApisList`（只含 `userId`）。此路由取代原已註解而從未對外存在之 `GET /getAPIsList`（改名並加 `/api` 前綴，與 `/api/getUserByToken` 同為瀏覽端以 token 進入之入口，並與資料通道函數同名但不同內容——後者回整列、僅系統管理員），故無相容問題。
+- **資料通道**（`/api/main` 之全部 `kpFunExt`〔`getWebInfor`、`getApisList`、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`〕、表 `select`、系統函數 `[sys:*]`，以及 w-converhp 其餘五條上傳／下載路由）：連線閘與執行身分（請求本體 `__sysToken__`）**兩個 token 各自**要求 `isAdmin === 'y'`，順序為 token 認證 → 您的 `verifyClientUser(user, from)` → 系統管理者；一般使用者整次連線被拒（`permission denied`；函數不執行、ORM 零操作、零寫入、第三方憑證 `tokens`／`authConfigJson` 零外洩），srLog `verifyConn`／`getUserIdByToken` 記 `err: 'errUserNotAdmin'`。判斷取自 `getUserByToken` 所回之原值（交給 `verifyClientUser` 的是拷貝，鉤子改寫 `isAdmin` 不影響結果）。
+- **影響與遷移**：原本 `isAdmin` 為 `'n'`、持有效 token 且您的 `verifyClientUser` 放行者（例如 `verifyClientUser` 一律回 `true`），過去能登入後台並讀寫全部 API（含 `tokens`、`authConfigJson`）；自此被拒。系統管理者之行為不變。`verifyClientUser` 不必再以 `isAdmin` 判斷（可刪），只需要再收緊時才寫（例如依 `from` 只放行 `'getUserByToken'`、`'getApisList'`、`'main'`，或排除特定帳號）。
+- **新入口** `GET /api/getApisList?token=<token>`（一般使用者**與**系統管理者皆可用）：回 `{ state: 'success', msg: [列…] }`，列為**啟用中**（`isActive` 為 `'y'`）之 API，且每列**只含公開欄位**：`id`、`order`、`name`、`description`、`url`、`method`、`version`、`group`、`levels`、`keywords`、`state`、`creator`、`dataSource`、`mdInputParams`、`inputExample`、`mdOutputParams`、`outputExample`（單一來源 `src/schema/contracts/apis.mjs` 之 `fieldsPublic`）；**固定排除**第三方憑證 `tokens`、`authConfigJson`、測試設定 `testBaseUrl`、`authType`、`defaultHeadersJson`、`defaultQueryJson`、`defaultBodyJson`、`contentType`，與伺服器專有欄位 `timeCreate`、`timeUpdate`、`isActive`、`userIdUpdate`、`srcKey`。token 須通過完整驗證：`getUserByToken` 查得使用者（欄位齊備）＋您的 `verifyClientUser(user, 'getApisList')`（`from` 為 `'getApisList'`；您可以只放行有權取清單者）；未帶 token 回 `errTokenNoPermission`，查無使用者 `errUserNotFound`，欄位不齊 `errUser…Missing`，鉤子拒絕 `errUserNoPermission`，ORM 讀取失敗 `getDataError`（皆為 `state: 'error'`，不含清單、不含憑證）。成功記 srLog `api/getApisList`（只含 `userId`）。此路由取代原已註解而從未對外存在之 `GET /getAPIsList`（改名並加 `/api` 前綴，與 `/api/getUserByToken` 同為瀏覽端以 token 進入之入口，並與資料通道函數同名但不同內容——後者回整列、僅系統管理者），故無相容問題。
 - 新語系鍵 `errUserNotAdmin`、`csErrNotAdmin`（`server/procLang.mjs` eng／cht；前端未登入畫面走內建字典）。參考部署 `srv.mjs` 增測試權杖 `{token-for-nonadmin}`（一般使用者，`NODE_ENV === 'production'` 時不生效），其 `verifyClientUser` 改為只依 `from` 收緊、不再以 `isAdmin` 判斷。
 - 範例（您的 `verifyClientUser` 不必再判斷 `isAdmin`，僅示範依 `from` 再收緊，其餘入口預設拒絕）：
 ```alias
 let verifyClientUser = (user, from) => {
-    //套件已自行限制後台('getUserByToken')與資料通道('main')只限系統管理員(getUserByToken 所回 isAdmin 為 'y')，
+    //套件已自行限制後台('getUserByToken')與資料通道('main')只限系統管理者(getUserByToken 所回 isAdmin 為 'y')，
     //此函數先被呼叫、只能再收緊；'getApisList' 為一般使用者取 API 清單之入口
     return from === 'getUserByToken' || from === 'getApisList' || from === 'main'
 }
@@ -143,7 +143,7 @@ let verifyClientUser = (user, from) => {
 - 伺服器專有欄位（`timeCreate`、`timeUpdate`、`isActive`、`userIdUpdate`、`srcKey`）存檔不採用客戶端值（原版 `saveApi` 採客戶端 `timeCreate`）。
 - **`saveApi` 成功時回傳寫入後之列**：回傳仍是 `procOrm` save 之逐筆結果陣列（`id`、`ok` 等鍵不變），第 0 筆另帶 `row`——存檔當下於同一把表鎖內新鮮讀回之整列（新增時含伺服器配的新 `id`；寫入時 `clearXSS` 等改寫過之字串以改寫後為準）。前端存檔成功後立即以此列更新畫面與下次編輯之基準，不必等推播或輪詢（約 2 秒）；否則使用者存檔成功後立即再編輯再存，會被自己上一次之存檔誤判為「已被他人更新」而拒收。讀回失敗或未命中時回原結果（不帶 `row`，寫入已生效；前端退回等推播）。`deleteApi` 之回傳形狀不變。
 - 新增欄位：`userIdUpdate`（最後修改者之使用者 id）與 `srcKey`（匯入之來源鍵）。參考部署之 `w-orm-lmdb` 為無綱要，**免遷移**（舊列於下次被存檔或匯入時補上）；改用 SQL 後端（`w-orm-postgresql`／`w-orm-mdb`／`w-orm-reladb`）者須自行為 `apis` 表加此二欄。
-- 前端草稿保護：編輯既有 API 時，他人更新（無關列、同一列、或原列被刪）之推播不覆寫編輯中之內容並凍結載入時之基準——無未存修改則自動重建；有未存修改則保留並於編輯區上方提示「重新載入」；原列被刪則停留原畫面並提示；於左樹搜尋不再換筆；存檔被拒保留草稿並提示；既有列之載入資料若無法建立基準（舊資料含過深巢狀值等不可摘要之值）則禁止存檔與刪除並提示洽管理者（不降級為不帶基準，否則會靜默覆寫他人更新）。已開啟之舊版頁面須重新整理才有此保護。
+- 前端草稿保護：編輯既有 API 時，他人更新（無關列、同一列、或原列被刪）之推播不覆寫編輯中之內容並凍結載入時之基準——無未存修改則自動重建；有未存修改則保留並於編輯區上方提示「重新載入」；原列被刪則停留原畫面並提示；於左樹搜尋不再換筆；存檔被拒保留草稿並提示；既有列之載入資料若無法建立基準（舊資料含過深巢狀值等不可摘要之值）則禁止存檔與刪除並提示洽系統管理者（不降級為不帶基準，否則會靜默覆寫他人更新）。已開啟之舊版頁面須重新整理才有此保護。
 
 **外部列受保護（行為變更，選項 `lockExternalRows`，預設 `'y'`）**——開了外部同步就以外部為主，後台不得覆蓋外部來源之列：
 - **外部列**＝`srcKey` 為非空字串之列（外部匯入寫入，後台不可寫 `srcKey`）。外部列在後台：**不可刪除**（`deleteExternalRowDenied`）；**不可改 `group`、`srcKey` 與外部擁有欄位**（`order`、`name`、`description`、`url`、`method`、`version`、`levels`、`keywords`、`state`、`creator`、`dataSource`、`mdInputParams`、`inputExample`、`mdOutputParams`、`outputExample`，即 `provideTabs` 白名單去 `srcKey`／`id`；`saveExternalRowChanged`）；**可改本系統擁有欄位**（`tokens`、`authType`、`authConfigJson`、`testBaseUrl`、`defaultHeadersJson`、`defaultQueryJson`、`defaultBodyJson`、`contentType`）。「改」指送來之值與庫內不同，整列原樣送回不算；違規整次拒收、零寫入。前端同步顯示：樹狀清單鎖頭、編輯頁上方唯讀說明、欄位唯讀並標鎖頭、刪除鈕停用並附說明。
@@ -169,13 +169,13 @@ let verifyClientUser = (user, from) => {
 **身分驗證責任**：框架（w-converhp、w-serv-hapi、w-serv-webdata、w-serv-orm）不驗證 token，一律由本套件負責。連線閘（`verifyConn`）與執行身分（`getUserIdByToken`）皆須完整驗證（token 有效、本系統使用者存在且啟用、部署方授權）；hapi `apis` 路由各自驗證；函數層級另檢查角色或成員；公開入口只限列名者。（跨套件原則，見 `C:\opensrcOper\dspec\使用者身分驗證原則.md`。）
 
 本套件之落實：
-- **角色（系統管理員）**：本套件**無自有使用者表**，系統管理員＝您的 `getUserByToken` 所回使用者之 `isAdmin` 為 `'y'`，其餘為一般使用者。判準只有一處（`assertAdmin`），後台與資料通道**一律只限系統管理員，不論您的 `verifyClientUser` 如何放行**（1.1.17 起，見 Upgrade Notes）；一般使用者唯一可用之入口為 `GET /api/getApisList?token=`（啟用中 API 之公開欄位清單，不含 `tokens`、`authConfigJson` 等憑證）。應用系統路由 `POST /syncAndReplaceTabs` 自 1.1.18 起同樣要求系統管理員等級（同一判準，且反查結果須經與瀏覽端相同之欄位檢查；您的 `verifyAppUser` 照舊先被呼叫、只能再收緊）。應用系統 token 之兩種用途（使用者用途、系統服務用途）以反查之 `isAdmin` 自然分流，本套件不另分辨；簽發何種應用系統 token 由專案方負責。
-- **連線閘**（`verifyConn`，資料通道之每個請求，含前端輪詢與同步）：`Authorization` 須為 `Bearer` 方案；token 認證（`getUserByToken` 查得使用者，且 `id`／`email`／`name`／`isAdmin` 齊備）＋您傳入之 `verifyClientUser(user, from)`＋**系統管理員**；任一不通過整次連線被拒（`permission denied`）。token 之有效性、使用者之存在與啟用狀態由您的 `getUserByToken`／`verifyClientUser` 保證（套件檢查者為其回傳之使用者物件欄位齊備、與 `verifyClientUser` 之結果、`isAdmin`；套件不另持有使用者資料）。
-- **執行身分**（`getUserIdByToken`，函數執行前以請求本體之 `__sysToken__` 反查使用者）：與連線閘同等完整（token 認證＋`verifyClientUser(user, 'main')`＋系統管理員），不通過則函數不執行；兩個 token 各自驗證，不因來源不同而放寬。
+- **角色（系統管理者）**：本套件**無自有使用者表**，系統管理者＝您的 `getUserByToken` 所回使用者之 `isAdmin` 為 `'y'`，其餘為一般使用者。判準只有一處（`assertAdmin`），後台與資料通道**一律只限系統管理者，不論您的 `verifyClientUser` 如何放行**（1.1.17 起，見 Upgrade Notes）；一般使用者唯一可用之入口為 `GET /api/getApisList?token=`（啟用中 API 之公開欄位清單，不含 `tokens`、`authConfigJson` 等憑證）。應用系統路由 `POST /syncAndReplaceTabs` 自 1.1.18 起同樣要求系統管理者等級（同一判準，且反查結果須經與瀏覽端相同之欄位檢查；您的 `verifyAppUser` 照舊先被呼叫、只能再收緊）。應用系統 token 之兩種用途（使用者用途、系統服務用途）以反查之 `isAdmin` 自然分流，本套件不另分辨；簽發何種應用系統 token 由專案方負責。
+- **連線閘**（`verifyConn`，資料通道之每個請求，含前端輪詢與同步）：`Authorization` 須為 `Bearer` 方案；token 認證（`getUserByToken` 查得使用者，且 `id`／`email`／`name`／`isAdmin` 齊備）＋您傳入之 `verifyClientUser(user, from)`＋**系統管理者**；任一不通過整次連線被拒（`permission denied`）。token 之有效性、使用者之存在與啟用狀態由您的 `getUserByToken`／`verifyClientUser` 保證（套件檢查者為其回傳之使用者物件欄位齊備、與 `verifyClientUser` 之結果、`isAdmin`；套件不另持有使用者資料）。
+- **執行身分**（`getUserIdByToken`，函數執行前以請求本體之 `__sysToken__` 反查使用者）：與連線閘同等完整（token 認證＋`verifyClientUser(user, 'main')`＋系統管理者），不通過則函數不執行；兩個 token 各自驗證，不因來源不同而放寬。
 - **系統函數**（1.1.19 起，見 Upgrade Notes）：`sysFuncsPublic` 顯式只列 `[sys:getFuncList]`（框架預設三者皆公開）；`[sys:getTableTags]` 與輪詢 `[sys:polling]` 須有效身分，輪詢須於請求本體帶有效 `__sysToken__`（與函數同一完整驗證），不帶 token 之輪詢（已發布之舊前端建置檔）被拒，使用者須重新載入頁面。
 - **資料通道只開 `select`**：表操作只放行 `apis.select`（前端同步用），所有寫入一律經 `saveApi`／`deleteApi`；`apis.insert`／`save`／`del` 直接呼叫回 `invalid func[…]`。
 - **公開入口（逐一列名）**：前端靜態檔（`dist/` 建置檔，不含使用者資料）。其餘皆需 token，見下表。
-- **函數層級**：因資料通道每個函數執行前都經 `getUserIdByToken`（含系統管理員檢查），全部 `kpFunExt`、表 `select`、系統函數皆只限系統管理員，不必（也不應只）靠您的 `verifyClientUser` 把關；`verifyClientUser` 仍可再收緊（依 `from`、自有名單）。
+- **函數層級**：因資料通道每個函數執行前都經 `getUserIdByToken`（含系統管理者檢查），全部 `kpFunExt`、表 `select`、系統函數皆只限系統管理者，不必（也不應只）靠您的 `verifyClientUser` 把關；`verifyClientUser` 仍可再收緊（依 `from`、自有名單）。
 - **測試分頁代發請求**預設拒絕內網與本機位址（見上方 Upgrade Notes〈代發請求預設拒絕內網與本機位址〉）。
 
 **入口盤點**（行號為 1.1.18 之 `server/WWebApi.mjs`；每個入口 × 呼叫者類皆有自動化測試，見 `test/api-accessMatrix.test.mjs` 與 `sgud/rule/rulebook_backend.md` R-ADMINONLY-01、R-APPLEVEL-01）：
@@ -183,14 +183,14 @@ let verifyClientUser = (user, from) => {
 | 入口 | 誰可用 | 於何處檢查（檔:行） |
 |---|---|---|
 | 前端靜態檔（`dist/`） | 公開（不含使用者資料） | `server/WWebApi.mjs:976`（`pathStaticFiles`，由 w-serv-hapi 供應；無檢查） |
-| `GET /api/getUserByToken`（後台登入檢查） | 系統管理員（使用者 token 之管理員、應用系統 token 綁管理員或系統服務用途）；成功只回 `id`、`name`、`email`、`isAdmin` | `server/WWebApi.mjs:752`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getUserByToken')`，定義 `:531`）→ `:763`（`assertAdmin`，定義 `:475`）→ `:768`（`pickLoginUser`：白名單 `server/pickLoginUser.mjs` 之 `fieldsLoginUser`） |
-| `GET /api/getApisList`（以 token 取 API 清單） | 任何通過驗證之使用者（一般使用者與系統管理員）；只得公開欄位、僅啟用中 | `server/WWebApi.mjs:805`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getApisList')`；**不要求系統管理員**）→ `server/procApis.mjs`（`getPublicApisList`）→ `server/pickPublicApis.mjs`（白名單 `src/schema/contracts/apis.mjs` 之 `fieldsPublic`） |
-| `POST /syncAndReplaceTabs`（外部應用匯入） | 系統管理員等級（使用者 token 之管理員、應用系統 token 綁管理員或系統服務用途）；一般使用者與綁一般使用者之應用系統 token 被拒 | `server/WWebApi.mjs:924`（`getAndVerifyAppUser`，定義 `:563`：`getTokenUser` 欄位檢查＋`verifyAppUser(user, 'syncAndReplaceTabs')`＋`:581` `assertAdmin`）；`keyTable` 限 `apis` |
-| `/api/main`：`kpFunExt`（`getWebInfor`、`getApisList`〔整列〕、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`） | 系統管理員 | 連線閘 `server/WWebApi.mjs:980`（`verifyConn`）→ `:516`（`p.checkToken`）→ `:490`（`authToken`）→ `:506`（`assertAdmin`）；執行身分 `:1018`（`getUserIdByToken`）→ `authToken` |
-| `/api/main`：表 `apis.select` | 系統管理員 | 同上兩關，另 `server/getOptDataChannel.mjs:43`（`authorizeExec`：只放行非空 `userId` 之 `select`） |
+| `GET /api/getUserByToken`（後台登入檢查） | 系統管理者（使用者 token 之系統管理者、應用系統 token 綁系統管理者或系統服務用途）；成功只回 `id`、`name`、`email`、`isAdmin` | `server/WWebApi.mjs:752`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getUserByToken')`，定義 `:531`）→ `:763`（`assertAdmin`，定義 `:475`）→ `:768`（`pickLoginUser`：白名單 `server/pickLoginUser.mjs` 之 `fieldsLoginUser`） |
+| `GET /api/getApisList`（以 token 取 API 清單） | 任何通過驗證之使用者（一般使用者與系統管理者）；只得公開欄位、僅啟用中 | `server/WWebApi.mjs:805`（`getAndVerifyClientUser`：token 認證＋`verifyClientUser(user, 'getApisList')`；**不要求系統管理者**）→ `server/procApis.mjs`（`getPublicApisList`）→ `server/pickPublicApis.mjs`（白名單 `src/schema/contracts/apis.mjs` 之 `fieldsPublic`） |
+| `POST /syncAndReplaceTabs`（外部應用匯入） | 系統管理者等級（使用者 token 之系統管理者、應用系統 token 綁系統管理者或系統服務用途）；一般使用者與綁一般使用者之應用系統 token 被拒 | `server/WWebApi.mjs:924`（`getAndVerifyAppUser`，定義 `:563`：`getTokenUser` 欄位檢查＋`verifyAppUser(user, 'syncAndReplaceTabs')`＋`:581` `assertAdmin`）；`keyTable` 限 `apis` |
+| `/api/main`：`kpFunExt`（`getWebInfor`、`getApisList`〔整列〕、`saveApi`、`deleteApi`、`proxyRequest`、`getStaEvent`） | 系統管理者 | 連線閘 `server/WWebApi.mjs:980`（`verifyConn`）→ `:516`（`p.checkToken`）→ `:490`（`authToken`）→ `:506`（`assertAdmin`）；執行身分 `:1018`（`getUserIdByToken`）→ `authToken` |
+| `/api/main`：表 `apis.select` | 系統管理者 | 同上兩關，另 `server/getOptDataChannel.mjs:43`（`authorizeExec`：只放行非空 `userId` 之 `select`） |
 | `/api/main`：表 `apis.insert`／`save`／`del` | 無人（未開放，回 `invalid func[…]`） | `server/getOptDataChannel.mjs:58`（`methodsExec: ['select']`） |
-| `/api/main`：系統函數 `[sys:getFuncList]`、`[sys:getTableTags]`、`[sys:polling]` | 系統管理員（`sysFuncsPublic` 只列 `[sys:getFuncList]`，但連線閘與執行身分先擋，實際仍須有效身分；`[sys:getTableTags]`、輪詢須有效 `__sysToken__`，不帶 token 之輪詢被拒） | 連線閘（同上）→ 函數：執行身分 `:1018`（`getUserIdByToken`）；輪詢：w-serv-webdata 之輪詢關卡（`verifyPolling`）以同一 `getUserIdByToken` 反查本體 `__sysToken__`、不帶鍵者拒絕；設定 `server/WWebApi.mjs:1083`（`sysFuncsPublic`，1.1.19 起） |
-| `/api/ulctr`、`/api/slc`、`/api/dwgfn`、`/api/dwgf`、`/api/dw`（上傳、下載；本套件未註冊監聽，不受理） | 系統管理員（連線閘先擋；通過亦不受理） | 連線閘 `server/WWebApi.mjs:980`（`from` 為各入口名） |
+| `/api/main`：系統函數 `[sys:getFuncList]`、`[sys:getTableTags]`、`[sys:polling]` | 系統管理者（`sysFuncsPublic` 只列 `[sys:getFuncList]`，但連線閘與執行身分先擋，實際仍須有效身分；`[sys:getTableTags]`、輪詢須有效 `__sysToken__`，不帶 token 之輪詢被拒） | 連線閘（同上）→ 函數：執行身分 `:1018`（`getUserIdByToken`）；輪詢：w-serv-webdata 之輪詢關卡（`verifyPolling`）以同一 `getUserIdByToken` 反查本體 `__sysToken__`、不帶鍵者拒絕；設定 `server/WWebApi.mjs:1083`（`sysFuncsPublic`，1.1.19 起） |
+| `/api/ulctr`、`/api/slc`、`/api/dwgfn`、`/api/dwgf`、`/api/dw`（上傳、下載；本套件未註冊監聽，不受理） | 系統管理者（連線閘先擋；通過亦不受理） | 連線閘 `server/WWebApi.mjs:980`（`from` 為各入口名） |
 
 ## Installation
 
@@ -236,7 +236,7 @@ let opt = {
 
 let getUserByToken = async (token) => {
     // return {} //測試無法登入
-    if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者(系統服務用途: 不綁使用者，須為管理員等級才可呼叫 POST /syncAndReplaceTabs)
+    if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者(系統服務用途: 不綁使用者，須為系統管理者等級才可呼叫 POST /syncAndReplaceTabs)
         return {
             id: 'app:id-for-application',
             name: 'application',
@@ -259,7 +259,7 @@ let getUserByToken = async (token) => {
 }
 
 //from: 'getUserByToken'(登入檢查)、'getApisList'(一般使用者以 token 取 API 清單)、'main'(資料通道)、'upload-controller'|'upload-slice'|'download-get-filename'|'download-get-file'|'download'(w-converhp 其餘路由)
-//本套件已自行限制後台('getUserByToken')與資料通道('main' 等)只限系統管理員(getUserByToken 所回 isAdmin 為 'y'; 此函數先被呼叫, 只能再收緊),
+//本套件已自行限制後台('getUserByToken')與資料通道('main' 等)只限系統管理者(getUserByToken 所回 isAdmin 為 'y'; 此函數先被呼叫, 只能再收緊),
 //故不必再以 isAdmin 判斷; 此處示範依 from 收緊: 其餘入口預設拒絕
 let verifyBrowserUser = (user, from) => {
     // return false //測試無法登入
@@ -268,7 +268,7 @@ let verifyBrowserUser = (user, from) => {
 }
 
 //from: 目前只有 'syncAndReplaceTabs'(外部匯入)
-//本套件已自行要求應用系統路由之呼叫者為系統管理員等級(getUserByToken 所回 isAdmin 為 'y'; 此函數先被呼叫, 只能再收緊), 故不必再以 isAdmin 判斷
+//本套件已自行要求應用系統路由之呼叫者為系統管理者等級(getUserByToken 所回 isAdmin 為 'y'; 此函數先被呼叫, 只能再收緊), 故不必再以 isAdmin 判斷
 let verifyAppUser = (user, from) => {
     console.log('verifyAppUser/user', user)
     // return false //測試無法登入

@@ -5,13 +5,13 @@
 //- 二.8 框架改版之傳播：已發布之舊前端建置檔，其輪詢（[sys:polling]）之本體只有 { clientId }（不帶 __sysToken__ 鍵）；新前端元件之輪詢於本體帶 __sysToken__。
 //  收緊後，不帶 token 之輪詢被拒（升版後舊前端建置檔須重新載入）；帶有效 token 者放行。
 //本檔以真後端（隔離子行程：獨立 lmdb、埠 8574；部署方 getUserByToken／verifyClientUser 由 test/tools/apiServerChild.mjs 提供，對 tokMx* 呼叫者一律放行，故「被拒」只能出自套件自己的關卡）直打資料通道 /api/main，
-//逐格斷言（呼叫者 7 類 × 協定 4 種 × 系統函數 3 個＝84 格）。EXPECT 為字面值，取自原則與本套件之存取規則（後台與資料通道限系統管理員、執行身分完整驗證），不由實作衍生：
-//- 呼叫者：無 token（無 Authorization 標頭）、未知 token（反查查無）、U（使用者 token・一般使用者）、A（系統管理員）、AU綁一般使用者（應用系統 token・使用者用途）、AU綁管理員、AS（應用系統 token・系統服務用途）
+//逐格斷言（呼叫者 7 類 × 協定 4 種 × 系統函數 3 個＝84 格）。EXPECT 為字面值，取自原則與本套件之存取規則（後台與資料通道限系統管理者、執行身分完整驗證），不由實作衍生：
+//- 呼叫者：無 token（無 Authorization 標頭）、未知 token（反查查無）、U（使用者 token・一般使用者）、A（系統管理者）、AU綁一般使用者（應用系統 token・使用者用途）、AU綁系統管理者、AS（應用系統 token・系統服務用途）
 //- 協定：新（本體帶 __sysToken__＝標頭同一 token）、缺鍵（本體不帶 __sysToken__ 鍵；**只有輪詢**是已發布之舊前端建置檔之真實形狀——舊元件輪詢為 { clientId }，其函數呼叫仍帶 __sysToken__，
 //  對函數呼叫而言缺鍵是低階封包，外審 sol #8 以舊 bundle 核對）、空（__sysToken__ 為空字串）、他人（__sysToken__ 為未知 token）
 //- 關卡順序：連線閘（標頭 token；一般使用者與無效者即 permission denied）→ 輪詢之身分關卡／執行身分（本體 token）。故：
 //  標頭不通過連線閘者（無、未知、U、AU綁一般）→ 一律 permission denied；
-//  標頭通過者（A、AU綁管理員、AS）＋新協定 → 三個系統函數皆放行；＋舊／空／他人 → 輪詢被拒（'[sys:polling] permission denied'）；
+//  標頭通過者（A、AU綁系統管理者、AS）＋新協定 → 三個系統函數皆放行；＋舊／空／他人 → 輪詢被拒（'[sys:polling] permission denied'）；
 //  [sys:getFuncList] 與 [sys:getTableTags] 被拒：舊（本體不帶鍵）回 'invalid token'（w-serv-webdata 於 getUserIdByToken 之前），空／他人回 errUserIdMissing（getUserIdByToken fail-closed）。
 //註：[sys:getFuncList] 雖列於 sysFuncsPublic（公開），本套件之資料通道一律先經連線閘與 getUserIdByToken（對空／無效 token fail-closed），故實際仍須有效身分（同 w-web-task 之先例）；
 //修前（框架預設三者公開）與修後之差別只在「標頭有效、本體不帶 __sysToken__ 鍵」之輪詢（舊前端建置檔）：修前放行、修後被拒。
@@ -27,14 +27,14 @@ import { startApiServer } from './tools/apiHarness.mjs'
 let PORT = 8574
 let S = null
 
-//呼叫者 7 類：tok 為標頭 token（null＝不帶 Authorization 標頭）；gate 為「通過連線閘」（字面值：僅系統管理員等級〔A、AU綁管理員、AS〕通過）
+//呼叫者 7 類：tok 為標頭 token（null＝不帶 Authorization 標頭）；gate 為「通過連線閘」（字面值：僅系統管理者等級〔A、AU綁系統管理者、AS〕通過）
 let CALLERS = [
     { cls: '無 token', tok: null, gate: false },
     { cls: '未知 token', tok: 'tokMxUnknown', gate: false },
     { cls: 'U 使用者 token・一般使用者', tok: 'tokMxU', gate: false },
-    { cls: 'A 使用者 token・系統管理員', tok: 'tokMxA', gate: true },
+    { cls: 'A 使用者 token・系統管理者', tok: 'tokMxA', gate: true },
     { cls: 'AU 應用系統 token・使用者用途綁一般使用者', tok: 'tokMxAuU', gate: false },
-    { cls: 'AU 應用系統 token・使用者用途綁管理員', tok: 'tokMxAuA', gate: true },
+    { cls: 'AU 應用系統 token・使用者用途綁系統管理者', tok: 'tokMxAuA', gate: true },
     { cls: 'AS 應用系統 token・系統服務用途', tok: 'tokMxAs', gate: true },
 ]
 
@@ -174,7 +174,7 @@ describe('api-sysFuncs (系統函數收緊: sysFuncsPublic 只公開 [sys:getFun
     })
 
     describe('輪詢（[sys:polling]）：舊前端建置檔之輪詢（本體只有 { clientId }）被拒；新前端元件之輪詢（帶有效 __sysToken__）放行', function() {
-        it('標頭為有效系統管理員等級者（A、AU綁管理員、AS），本體只有 { clientId }（不帶 __sysToken__ 鍵）→ 被拒 "[sys:polling] permission denied"，回應不含佇列', async function() {
+        it('標頭為有效系統管理者等級者（A、AU綁系統管理者、AS），本體只有 { clientId }（不帶 __sysToken__ 鍵）→ 被拒 "[sys:polling] permission denied"，回應不含佇列', async function() {
             for (let tok of ['tokMxA', 'tokMxAuA', 'tokMxAs']) {
                 let r = await post(tok, '[sys:polling]', {}, `c-sf-old-${tok}`)
                 assert.strictEqual(r.err, '[sys:polling] permission denied', `${tok}（實得 ${r.raw.slice(0, 200)}）`)
@@ -194,7 +194,7 @@ describe('api-sysFuncs (系統函數收緊: sysFuncsPublic 只公開 [sys:getFun
             assert.deepStrictEqual(r4.out, [], `原身分續輪詢仍放行（實得 ${r4.raw.slice(0, 200)}）`)
         })
 
-        it('帶有效 token 之輪詢：A、AU綁管理員、AS 皆放行（新前端元件之輪詢形狀），身分各自與 clientId 綁定', async function() {
+        it('帶有效 token 之輪詢：A、AU綁系統管理者、AS 皆放行（新前端元件之輪詢形狀），身分各自與 clientId 綁定', async function() {
             for (let tok of ['tokMxA', 'tokMxAuA', 'tokMxAs']) {
                 let cid = `c-sf-new-${tok}`
                 for (let i = 0; i < 2; i++) {
@@ -223,7 +223,7 @@ describe('api-sysFuncs (系統函數收緊: sysFuncsPublic 只公開 [sys:getFun
             assert.strictEqual(r3.err, '[sys:polling] permission denied', `本體換成另一人（標頭不變）應因歸屬而被拒（實得 ${r3.raw.slice(0, 200)}）`)
         })
 
-        it('同一使用者（id 相同）之另一把 token 作本體 → 同一 clientId 放行（綁定單位為 userId，非 token）；另一位使用者（AU 綁管理員）仍被拒', async function() {
+        it('同一使用者（id 相同）之另一把 token 作本體 → 同一 clientId 放行（綁定單位為 userId，非 token）；另一位使用者（AU 綁系統管理者）仍被拒', async function() {
             let cid = 'c-sf-axis-2'
             let r1 = await post('tokMxA', '[sys:polling]', { __sysToken__: 'tokMxA' }, cid)
             assert.deepStrictEqual(r1.out, [], r1.raw.slice(0, 200))
@@ -233,7 +233,7 @@ describe('api-sysFuncs (系統函數收緊: sysFuncsPublic 只公開 [sys:getFun
             assert.strictEqual(r3.err, '[sys:polling] permission denied', `不同 userId（實得 ${r3.raw.slice(0, 200)}）`)
         })
 
-        it('標頭被拒（一般使用者）而本體為有效管理員 token → 連線閘即拒（permission denied），不進輪詢身分關卡', async function() {
+        it('標頭被拒（一般使用者）而本體為有效系統管理者 token → 連線閘即拒（permission denied），不進輪詢身分關卡', async function() {
             let r = await post('tokMxU', '[sys:polling]', { __sysToken__: 'tokMxA' }, 'c-sf-axis-3')
             assert.strictEqual(r.err, 'permission denied', r.raw.slice(0, 200))
         })
@@ -321,7 +321,7 @@ describe('api-sysFuncs (系統函數收緊: sysFuncsPublic 只公開 [sys:getFun
             assert.strictEqual(outcome('[sys:getFuncList]', r3), 'ok', r3.raw.slice(0, 200))
         })
 
-        it('[sys:getTableTags]：標頭有效、本體不帶 token 鍵 → invalid token；空 token、一般使用者之本體 token → errUserIdMissing；管理員之本體 token → 放行', async function() {
+        it('[sys:getTableTags]：標頭有效、本體不帶 token 鍵 → invalid token；空 token、一般使用者之本體 token → errUserIdMissing；系統管理者之本體 token → 放行', async function() {
             let r1 = await post('tokMxA', '[sys:getTableTags]', {})
             assert.strictEqual(outcome('[sys:getTableTags]', r1), 'fn-denied:invalid token', r1.raw.slice(0, 200))
             let r2 = await post('tokMxA', '[sys:getTableTags]', { __sysToken__: '' })
