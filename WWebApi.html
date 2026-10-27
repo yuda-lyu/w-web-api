@@ -157,7 +157,7 @@ let opt = {
 
 let getUserByToken = async (token) => {
     // return {} //測試無法登入
-    if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者(系統服務用途: 不綁使用者，須為管理員等級才可呼叫POST /syncAndReplaceTabs)
+    if (token === '{token-for-application}') { //提供外部應用系統作為存取使用者(系統服務用途: 不綁使用者，須為系統管理者等級才可呼叫POST /syncAndReplaceTabs)
         return {
             id: 'app:id-for-application',
             name: 'application',
@@ -181,20 +181,20 @@ let getUserByToken = async (token) => {
 
 let verifyClientUser = (user, from) => {
     //from: 入口名，'getUserByToken'(登入檢查)、'getApisList'(一般使用者取API清單)、'main'(資料通道，每個請求都會呼叫)等，政策若只允許部分入口請依from區分
-    //本套件已自行限制後台('getUserByToken')與資料通道('main'等)只限系統管理員(getUserByToken所回isAdmin為'y')，此處不必再以isAdmin判斷，只能在其上再收緊
+    //本套件已自行限制後台('getUserByToken')與資料通道('main'等)只限系統管理者(getUserByToken所回isAdmin為'y')，此處不必再以isAdmin判斷，只能在其上再收緊
     // return false //測試無法登入
     if (from === 'getApisList') {
         return true //任何有效使用者皆可取API清單(僅公開欄位)，可依自有名單再收緊
     }
     if (from === 'getUserByToken' || from === 'main') {
-        return true //後台與資料通道: 由本套件限系統管理員，於生產環境時得加入限制瀏覽器使用者身份機制(例如排除特定帳號)
+        return true //後台與資料通道: 由本套件限系統管理者，於生產環境時得加入限制瀏覽器使用者身份機制(例如排除特定帳號)
     }
     return false //上傳下載等其他入口預設拒絕
 }
 
 let verifyAppUser = (user, from) => {
     //from: 入口名，目前只有'syncAndReplaceTabs'(外部匯入)
-    //本套件已自行要求應用系統路由之呼叫者為系統管理員等級(getUserByToken所回isAdmin為'y'；此檢查在本函數之後)，此處不必再以isAdmin判斷，只能在其上再收緊
+    //本套件已自行要求應用系統路由之呼叫者為系統管理者等級(getUserByToken所回isAdmin為'y'；此檢查在本函數之後)，此處不必再以isAdmin判斷，只能在其上再收緊
     console.log('verifyAppUser/user', user)
     // return false //測試無法登入
     console.log('於生產環境時得加入限制應用程式使用者身份機制(例如只放行特定應用系統之id)')
@@ -377,7 +377,7 @@ instWWebApi.on('error', (err) => {
                 </td>
             
 
-            <td class="description last"><p>輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'。本套件無自有使用者表，以此處所回之'isAdmin'判定系統管理員：'y'為系統管理員，'n'為一般使用者。API管理後台（登入檢查GET /api/getUserByToken與全部資料通道，含kpFunExt、表select、系統函數與上傳下載）只限系統管理員，非系統管理員一律被拒（後台登入檢查回固定錯誤鍵'errUserNotAdmin'；資料通道之連線閘回permission denied、請求本體__sysToken__為非系統管理員者回'errUserIdMissing'，函數皆不執行；1.1.17起，見README Upgrade Notes）；一般使用者僅可用GET /api/getApisList?token=取得啟用中API之公開欄位清單。應用系統入口POST /syncAndReplaceTabs同樣以此處所回之'isAdmin'判定等級（1.1.18起，須為系統管理員，且使用者物件須通過與瀏覽端相同之欄位檢查，見README Upgrade Notes）。使用者物件可另提供'isApp'欄位：'y'表示此token為應用系統token之反查結果（使用者用途回所綁使用者之實際資料、系統服務用途回虛擬身分，如id為'app:&lt;金鑰主鍵&gt;'且'isAdmin'為'y'），其餘為'n'或不給；本套件不據以判斷等級（等級只看'isAdmin'），僅隨使用者物件之拷貝原樣交給verifyClientUser與verifyAppUser供您區分。後台登入檢查GET /api/getUserByToken成功時只回'id'、'name'、'email'、'isAdmin'四個欄位（不原樣回傳此處所回之物件，password、description、isApp等不會出現於回應）。拋錯、reject或回傳非物件視同查無使用者</p></td>
+            <td class="description last"><p>輸入處理函數，函數會傳入使用者token，通過此函數處理後並回傳使用者資訊物件，並至少須提供'id'、'email'、'name'、'isAdmin'欄位，且'isAdmin'限輸入'y'或'n'。本套件無自有使用者表，以此處所回之'isAdmin'判定系統管理者：'y'為系統管理者，'n'為一般使用者。API管理後台（登入檢查GET /api/getUserByToken與全部資料通道，含kpFunExt、表select、系統函數與上傳下載）只限系統管理者，非系統管理者一律被拒（後台登入檢查回固定錯誤鍵'errUserNotAdmin'；資料通道之連線閘回permission denied、請求本體__sysToken__為非系統管理者回'errUserIdMissing'，函數皆不執行；1.1.17起，見README Upgrade Notes）；一般使用者僅可用GET /api/getApisList?token=取得啟用中API之公開欄位清單。應用系統入口POST /syncAndReplaceTabs同樣以此處所回之'isAdmin'判定等級（1.1.18起，須為系統管理者，且使用者物件須通過與瀏覽端相同之欄位檢查，見README Upgrade Notes）。使用者物件可另提供'isApp'欄位：'y'表示此token為應用系統token之反查結果（使用者用途回所綁使用者之實際資料、系統服務用途回虛擬身分，如id為'app:&lt;金鑰主鍵&gt;'且'isAdmin'為'y'），其餘為'n'或不給；本套件不據以判斷等級（等級只看'isAdmin'），僅隨使用者物件之拷貝原樣交給verifyClientUser與verifyAppUser供您區分。後台登入檢查GET /api/getUserByToken成功時只回'id'、'name'、'email'、'isAdmin'四個欄位（不原樣回傳此處所回之物件，password、description、isApp等不會出現於回應）。拋錯、reject或回傳非物件視同查無使用者</p></td>
         </tr>
 
     
@@ -413,7 +413,7 @@ instWWebApi.on('error', (err) => {
                 </td>
             
 
-            <td class="description last"><p>輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件之拷貝與入口名from字串，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。瀏覽端以token進入之入口皆會呼叫（外部應用入口POST /syncAndReplaceTabs改走verifyAppUser，前端靜態檔為公開）：登入檢查GET /api/getUserByToken（from為'getUserByToken'）、一般使用者取API清單GET /api/getApisList（from為'getApisList'），以及資料通道（kpFunExt、表select、系統函數與上傳下載，連線閘verifyConn，from為w-converhp之入口名：'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'；1.1.16起，見README Upgrade Notes）。拋錯、reject或回傳falsy值皆視同拒絕。本套件已自行限制後台與資料通道只限系統管理員（getUserByToken所回之isAdmin為'y'者；此檢查在本函數之後，故本函數只能再收緊、不能放寬），本函數不必再以isAdmin判斷；可用來依from或自有名單再收緊，例如只放行'getUserByToken'與'main'，或排除特定帳號。政策若只允許部分入口，請依from區分</p></td>
+            <td class="description last"><p>輸入驗證瀏覽使用者身份之處理函數，函數會傳入使用者資訊物件之拷貝與入口名from字串，通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。瀏覽端以token進入之入口皆會呼叫（外部應用入口POST /syncAndReplaceTabs改走verifyAppUser，前端靜態檔為公開）：登入檢查GET /api/getUserByToken（from為'getUserByToken'）、一般使用者取API清單GET /api/getApisList（from為'getApisList'），以及資料通道（kpFunExt、表select、系統函數與上傳下載，連線閘verifyConn，from為w-converhp之入口名：'main'、'upload-controller'、'upload-slice'、'download-get-filename'、'download-get-file'、'download'；1.1.16起，見README Upgrade Notes）。拋錯、reject或回傳falsy值皆視同拒絕。本套件已自行限制後台與資料通道只限系統管理者（getUserByToken所回之isAdmin為'y'者；此檢查在本函數之後，故本函數只能再收緊、不能放寬），本函數不必再以isAdmin判斷；可用來依from或自有名單再收緊，例如只放行'getUserByToken'與'main'，或排除特定帳號。政策若只允許部分入口，請依from區分</p></td>
         </tr>
 
     
@@ -449,7 +449,7 @@ instWWebApi.on('error', (err) => {
                 </td>
             
 
-            <td class="description last"><p>輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件之拷貝與入口名from字串（目前只有外部匯入POST /syncAndReplaceTabs，from為'syncAndReplaceTabs'），通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。拋錯、reject或回傳falsy值皆視同拒絕。1.1.18起本套件已自行要求應用系統路由之呼叫者為系統管理員等級（getUserByToken所回之isAdmin為'y'者，即使用者token之管理員、綁定管理員之應用系統token、不綁使用者之系統服務用途應用系統token；綁定一般使用者者與一般使用者被拒），並要求使用者物件欄位齊備（'id'、'email'、'name'、'isAdmin'，與瀏覽端同一檢查）；此檢查在本函數之後，故本函數只能再收緊、不能放寬，不必再以isAdmin判斷</p></td>
+            <td class="description last"><p>輸入驗證應用程序使用者身份之處理函數，函數會傳入使用者資訊物件之拷貝與入口名from字串（目前只有外部匯入POST /syncAndReplaceTabs，from為'syncAndReplaceTabs'），通過此函數識別後回傳布林值，允許使用者回傳true，反之回傳false。拋錯、reject或回傳falsy值皆視同拒絕。1.1.18起本套件已自行要求應用系統路由之呼叫者為系統管理者等級（getUserByToken所回之isAdmin為'y'者，即使用者token之系統管理者、綁定系統管理者之應用系統token、不綁使用者之系統服務用途應用系統token；綁定一般使用者者與一般使用者被拒），並要求使用者物件欄位齊備（'id'、'email'、'name'、'isAdmin'，與瀏覽端同一檢查）；此檢查在本函數之後，故本函數只能再收緊、不能放寬，不必再以isAdmin判斷</p></td>
         </tr>
 
     
@@ -1065,7 +1065,7 @@ instWWebApi.on('error', (err) => {
 
         
 <div class="param-desc">
-    <p>系統函數收緊（1.1.19起，w-serv-hapi須^1.1.8）：資料通道之三個系統函數（[sys:getFuncList]、[sys:getTableTags]、[sys:polling]）中，本套件顯式只公開[sys:getFuncList]（sysFuncsPublic），[sys:getTableTags]與輪詢[sys:polling]須有效身分；框架預設三者皆公開，本套件不採預設。輪詢須於請求本體帶有效__sysToken__（新前端元件隨w-serv-hapi 1.1.8起自動帶登入後之token），已發布之舊前端建置檔之輪詢不帶token，升版後被拒，使用者須重新載入頁面（見README Upgrade Notes）。資料通道本就先經連線閘（只限系統管理員）與執行身分驗證（getUserIdByToken，對空或無效token拒絕），故[sys:getFuncList]雖列為公開，實際仍須有效身分。回傳w-serv-hapi之伺服器事件物件，可監聽error事件，並提供ready函數（回傳promise，啟動成功時resolve為hapi伺服器實體）、getServer與getInstWConverServer函數，以及stop函數：依序停止伺服器（w-serv-hapi之stop）、清除本套件之快取計時器、關閉各資料表ORM之連線、關閉後端log，可重複呼叫並回傳同一promise，之後不可再使用本實例。建構於資源建立後失敗時，已建立之資源於拋錯前釋放。資料通道只開放表操作select（同步用），寫入一律經kpFunExt之saveApi與deleteApi。本函數與參考部署皆不註冊process之unhandledRejection與uncaughtException監聽，未處理之rejection會依Node預設終止行程，宜由行程管理器重啟</p>
+    <p>系統函數收緊（1.1.19起，w-serv-hapi須^1.1.8）：資料通道之三個系統函數（[sys:getFuncList]、[sys:getTableTags]、[sys:polling]）中，本套件顯式只公開[sys:getFuncList]（sysFuncsPublic），[sys:getTableTags]與輪詢[sys:polling]須有效身分；框架預設三者皆公開，本套件不採預設。輪詢須於請求本體帶有效__sysToken__（新前端元件隨w-serv-hapi 1.1.8起自動帶登入後之token），已發布之舊前端建置檔之輪詢不帶token，升版後被拒，使用者須重新載入頁面（見README Upgrade Notes）。資料通道本就先經連線閘（只限系統管理者）與執行身分驗證（getUserIdByToken，對空或無效token拒絕），故[sys:getFuncList]雖列為公開，實際仍須有效身分。回傳w-serv-hapi之伺服器事件物件，可監聽error事件，並提供ready函數（回傳promise，啟動成功時resolve為hapi伺服器實體）、getServer與getInstWConverServer函數，以及stop函數：依序停止伺服器（w-serv-hapi之stop）、清除本套件之快取計時器、關閉各資料表ORM之連線、關閉後端log，可重複呼叫並回傳同一promise，之後不可再使用本實例。建構於資源建立後失敗時，已建立之資源於拋錯前釋放。資料通道只開放表操作select（同步用），寫入一律經kpFunExt之saveApi與deleteApi。本函數與參考部署皆不註冊process之unhandledRejection與uncaughtException監聽，未處理之rejection會依Node預設終止行程，宜由行程管理器重啟</p>
 </div>
 
 
@@ -1124,7 +1124,7 @@ instWWebApi.on('error', (err) => {
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sun Oct 25 2026 17:24:12 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Wed Oct 28 2026 00:12:58 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
