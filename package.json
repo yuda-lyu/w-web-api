@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.1.21",
+  "version": "1.1.22",
   "main": "dist/w-web-api.umd.js",
   "dependencies": {
     "json5": "^2.2.3",
@@ -10,7 +10,7 @@
     "w-echarts-vue": "^1.0.20",
     "w-md2html": "^1.1.11",
     "w-serv-hapi": "^1.1.9",
-    "w-serv-orm": "^1.1.19",
+    "w-serv-orm": "^1.1.20",
     "w-syslog": "^1.0.35",
     "w-ui-loginout": "^1.0.34",
     "wsemi": "^1.9.25"
