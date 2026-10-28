@@ -13,7 +13,8 @@ let fpChild = path.resolve(fdTools, 'apiServerChild.mjs')
 
 
 //files: 啟動前寫入子行程 cwd 之檔案（相對路徑 → 內容，如 { 'dist/index.tmp': '…' }），供需要前端靜態檔之測試（子行程以 cwd 下之 dist 供應 /{file*}）
-async function startApiServer({ name, port, opt = null, files = null }) {
+//pipeOut: true 時收集子行程之 stdout／stderr（getOut() 取全文; 預設不收, 同原行為 stdio 'ignore'），供斷言「console 沒有多出（或沒有）某輸出」
+async function startApiServer({ name, port, opt = null, files = null, pipeOut = false }) {
 
     let cwd = path.resolve(fdTools, '..', '_tmp', name)
     fs.rmSync(cwd, { recursive: true, force: true })
@@ -29,7 +30,17 @@ async function startApiServer({ name, port, opt = null, files = null }) {
     if (opt !== null) {
         args.push(JSON.stringify(opt)) //額外之 WWebApi opt（如 { lockExternalRows: 'n' }）
     }
-    let child = fork(fpChild, args, { cwd, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] })
+    let child = fork(fpChild, args, { cwd, stdio: pipeOut ? ['ignore', 'pipe', 'pipe', 'ipc'] : ['ignore', 'ignore', 'ignore', 'ipc'] })
+    let out = ''
+    if (pipeOut) {
+        child.stdout.on('data', (d) => {
+            out += d.toString('utf8')
+        })
+        child.stderr.on('data', (d) => {
+            out += d.toString('utf8')
+        })
+    }
+    let getOut = () => out
 
     //ipc: 以 id 對應請求與回應
     let seq = 0
@@ -141,7 +152,7 @@ async function startApiServer({ name, port, opt = null, files = null }) {
         fs.rmSync(cwd, { recursive: true, force: true })
     }
 
-    return { base, cwd, fun, sync, list, wipe, seed, setDelays, setFails, setFailItems, getOps, getVerifyCalls, getVerifyAppCalls, now, stop }
+    return { base, cwd, fun, sync, list, wipe, seed, setDelays, setFails, setFailItems, getOps, getVerifyCalls, getVerifyAppCalls, getOut, now, stop }
 }
 
 

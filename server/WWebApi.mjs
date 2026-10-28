@@ -27,6 +27,7 @@ import createTargetPolicy from './proxyTargetPolicy.mjs'
 import procApis from './procApis.mjs'
 import createSyncApis from './syncApis.mjs'
 import createLockSave from './lockSave.mjs'
+import createOrmDiagLog from './ormDiagLog.mjs'
 import getLockExternalRows from './getLockExternalRows.mjs'
 import staEvent from './staLogs/staEvent.mjs'
 import srLogInit from './srLog.mjs'
@@ -293,15 +294,19 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     verifyAppUser = wrapInjectedLog('verifyAppUser', verifyAppUser, false)
 
 
-    //WServOrm（不給 opt：w-serv-orm 1.1.10 之 opt 已無設定鍵，原轉交之三鍵已移除，ADR-038）
+    //WServOrm（opt 只給 funLog：w-serv-orm 1.1.10 之 opt 已無設定鍵，原轉交之三鍵已移除，ADR-038；1.1.20 起診斷輸出預設只印不含個資之摘要到 console，
+    //funLog 接管後改寫入本套件 srLog（只收 label 與 safe，不收 detail），行程標準輸出不再有 w-serv-orm 之診斷行；R-ORMDIAG-01，ADR-054）。
+    //須在 srLog 之後建立（funLog 寫入 srLog）；ormLog.close() 須先於每一處釋放 srLog（clear 之後再呼叫 log 方法會使宿主終止，test/unit-ormDiagLog 盤點）
+    let ormLog = createOrmDiagLog(srLog)
     let wp = {}
     try {
-        wp = WServOrm(ds, WOrm, url, db)
+        wp = WServOrm(ds, WOrm, url, db, { funLog: ormLog.funLog })
     }
     catch (err) {
         //ORM 為必要依賴：初始化失敗即 fail-fast，不以 wp={} 帶 undefined woItems/procOrm 殘缺啟動（與建構子其餘必要依賴一致）；
         //拋出前釋放已建立之 srLog（R-RES-1），否則其 log worker 撐住呼叫端之行程
         console.log('WServOrm init failed', err)
+        ormLog.close()
         srLog.clear().catch(() => {})
         throw err
     }
@@ -1092,6 +1097,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         console.log('WServHapiServer init failed', err)
         cst.clear()
         closeAll().catch(() => {})
+        ormLog.close()
         srLog.clear().catch(() => {})
         throw err
     }
@@ -1108,7 +1114,16 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         }
         pmStop = (async () => {
             await stopServ()
-            for (let release of [() => cst.clear(), () => closeProxy(), () => closeAll(), () => srLog.clear()]) {
+            let releases = [
+                () => cst.clear(),
+                () => closeProxy(),
+                () => closeAll(),
+                () => {
+                    ormLog.close() //先於 srLog 釋放: clear 之後再寫 log 會使宿主終止
+                    return srLog.clear()
+                },
+            ]
+            for (let release of releases) {
                 try {
                     await release()
                 }

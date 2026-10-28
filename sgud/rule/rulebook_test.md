@@ -94,6 +94,15 @@
 
 既有測試因外部列受保護而更動(皆為測試鷹架或測試意圖保留、僅改所編輯欄位): ①`api-concurrency`／`api-import` 之 `clean()` 改 `S.wipe('apis')`(原逐列 `deleteApi` 會被外部列拒); ②見 api-run02 報告之逐檔清單.
 
+## w-serv-orm 診斷輸出轉入 srLog 之測試(2026-10-28, api-run01〔任務 20261028054319, 排程第 154 項〕, ADR-054; 規則見 `rulebook_backend.md` R-ORMDIAG-01)
+
+| 檔 | 層 | 守什麼 | 備註 |
+|---|---|---|---|
+| `test/unit-ormDiagLog.test.mjs` | unit | 11 案: ORMDIAG-001~009 `server/ormDiagLog.mjs` 純函數(`label`＋`safe` 寫入形狀且只呼叫 `warn`、無 `safe` 時為空字串、第三引數 `detail`〔含 email、權杖、錯誤原文與可列舉取值器〕不讀取不寫入、`label` 控制字元換 `?`／截 200 字／非字串只給型別、`safe` 序列化／截 500 字／循環與 BigInt 為 `(unserializable)`／函數為 `(function)`、`srLog.warn` 拋錯或缺 `warn` 或 `srLog` 為 `undefined`／`null` 時不上拋、`warn` 回傳 rejected promise 不產生 unhandledRejection、`close()` 之後不寫入、實例互不干擾); ORMDIAG-010 建立 `WServOrm` 之站點全集(恰 `server/WWebApi.mjs` 與 `g_mOrm.mjs`, 新增即轉紅); ORMDIAG-011 `WWebApi.mjs` 內 3 處 `srLog.clear()` 各自緊鄰之前有 `ormLog.close()`、`createOrmDiagLog(srLog)` 先於 `WServOrm` | 變異用 `API_SERVER_MODULE`(指向 `WWebApi.mjs` 副本, 取同夾 `ormDiagLog.mjs`); 站點盤點讀 repo 原始檔, 接線盤點讀副本同夾之 `WWebApi.mjs` |
+| `test/api-ormDiag.test.mjs` | api | 4 案, 真後端隔離子行程(埠 8574, 與 `api-sysFuncs` 同埠循序執行; `pipeOut` 收子行程 stdout／stderr): 001 `saveApi` 修改該筆 `ok:0` → srLog 恰 1 筆 `orm-diag`(`apis.save fail`、`{"n":1,"ks":[0]}`、level 40), 該行不含 email 型主鍵、資料欄位值、`INJECTED-ITEM-FAIL`, console 無 `apis.save fail` 且無主鍵, 回應 `saveWriteFail`、庫內列不變; 002 ORM reject → `apis.save catch`／`{"errType":"Error"}`, 不含 `INJECTED-FAIL`; 003 `deleteApi` 該筆 `ok:0` → `apis.del fail`; 004 成功寫入不產生 `orm-diag`(防噪音, 並驗寫入確實生效) | 既有 R-ERR-1 之 `orm` 欄會含失敗筆主鍵(既有設計), 斷言限定 `event` 為 `orm-diag` 之行; `test/tools/apiHarness.mjs` 增 `pipeOut` 與 `getOut()` |
+
+**改動範圍 → 測試檔(w-serv-orm 診斷輸出轉送, 2026-10-28 api-run01)**: 改 `server/ormDiagLog.mjs`、`server/WWebApi.mjs` 之 `WServOrm` 呼叫或 `srLog` 釋放順序、升 `w-serv-orm` → `unit-ormDiagLog`、`api-ormDiag`、`api-itemFail`、`api-lifecycle`、`unit-wwebapi-lifecycle`、`unit-wwebapi-opt`(建構與釋放)+ api 全部(後端行為不變之回歸); 不涉前端, e2e 不受影響(本輪仍依提示詞跑全套確認標準圖 0 張改變)。
+
 **改動範圍 → 測試檔對照(本批; 非瀏覽器全跑, 瀏覽器依下表)**: 改 `server/procApis.mjs`／`syncApis.mjs`／契約／schema → unit 全部 + api 全部(含 api-concurrency、api-import); 改 `server/WWebApi.mjs` → 另含 `api-tokenLeak`、`unit-wwebapi-*`; 改 `LayoutContent.vue`(genTree/選取/搜尋/樹狀標記) → e2e-display、e2e-edit、e2e-apitest + e2e-concurrent + e2e-external; 改 `LayoutContentEdit.vue`／`ExtMark.vue` → e2e-edit + e2e-concurrent + e2e-external; 改 `src/store/applyRows.mjs`／`mutations.mjs`／`types.mjs`（存檔／刪除成功後立即更新 store）→ unit-applyRows + e2e-edit、e2e-concurrent、e2e-external、e2e-display、e2e-apitest; 改 `procApis.mjs` 之 `attachRow`（存檔回傳 row）→ unit-procApis + api-concurrency + e2e-concurrent; 改 `externalRows.mjs`／`procApis.mjs` 之外部列守門／`WWebApi.mjs` 之 `lockExternalRows` → unit-externalRows、unit-procApis-external、api-externalRows + e2e-external; 改共用基礎(test/tools、樣式、procLang 版面、伺服端核心) → 全部 e2e. 全套僅最末輪由主控於凍結碼跑一次.
 
 **既有 e2e-edit.test.mjs 之 helper(fieldRow/fieldInput/waitSaveModal/clickModalOk/T)與 `test/tools/e2eEditHelpers.mjs` 同一實作而兩份**(本批未動既有 e2e 檔以免擴大範圍); 日後 e2e-edit 可改 import 後收斂.
