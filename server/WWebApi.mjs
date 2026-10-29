@@ -18,6 +18,7 @@ import fsIsFile from 'wsemi/src/fsIsFile.mjs'
 import replace from 'wsemi/src/replace.mjs'
 import cacheSt from 'wsemi/src/cacheSt.mjs'
 import evEmit from 'wsemi/src/evEmit.mjs'
+import genDiagFunLog from 'wsemi/src/genDiagFunLog.mjs'
 import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
 import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
 import checkOptRemoved from 'w-serv-orm/src/checkOptRemoved.mjs'
@@ -27,7 +28,6 @@ import createTargetPolicy from './proxyTargetPolicy.mjs'
 import procApis from './procApis.mjs'
 import createSyncApis from './syncApis.mjs'
 import createLockSave from './lockSave.mjs'
-import createOrmDiagLog from './ormDiagLog.mjs'
 import getLockExternalRows from './getLockExternalRows.mjs'
 import staEvent from './staLogs/staEvent.mjs'
 import srLogInit from './srLog.mjs'
@@ -151,44 +151,49 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let instWServHapiServer = null
 
 
+    //無效建構參數之 console 輸出只給型別、不印值（跨套件規格〈診斷輸出與遮罩〉D2；同 w-serv-orm 1.1.22 對無效參數之處置）：
+    //url 可為含帳密之連線字串, 誤傳含帳密之連線設定物件時, 印出其值即洩漏憑證；其餘參數同一規則（誤傳之字串或物件亦可能帶憑證）
+    let typeOf = (v) => `(${typeof v})`
+
+
     //check WOrm
     if (!isfun(WOrm)) {
-        console.log('invalid WOrm', WOrm)
+        console.log('invalid WOrm', typeOf(WOrm))
         throw new Error('invalid WOrm')
     }
 
 
     //check url
     if (!isestr(url)) {
-        console.log('invalid url', url)
+        console.log('invalid url', typeOf(url))
         throw new Error('invalid url')
     }
 
 
     //check db
     if (!isestr(db)) {
-        console.log('invalid db', db)
+        console.log('invalid db', typeOf(db))
         throw new Error('invalid db')
     }
 
 
     //check getUserByToken
     if (!isfun(getUserByToken)) {
-        console.log('invalid getUserByToken', getUserByToken)
+        console.log('invalid getUserByToken', typeOf(getUserByToken))
         throw new Error('invalid getUserByToken')
     }
 
 
     //check verifyClientUser
     if (!isfun(verifyClientUser)) {
-        console.log('invalid verifyClientUser', verifyClientUser)
+        console.log('invalid verifyClientUser', typeOf(verifyClientUser))
         throw new Error('invalid verifyClientUser')
     }
 
 
     //check verifyAppUser
     if (!isfun(verifyAppUser)) {
-        console.log('invalid verifyAppUser', verifyAppUser)
+        console.log('invalid verifyAppUser', typeOf(verifyAppUser))
         throw new Error('invalid verifyAppUser')
     }
 
@@ -295,9 +300,11 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
 
     //WServOrm（opt 只給 funLog：w-serv-orm 1.1.10 之 opt 已無設定鍵，原轉交之三鍵已移除，ADR-038；1.1.20 起診斷輸出預設只印不含個資之摘要到 console，
-    //funLog 接管後改寫入本套件 srLog（只收 label 與 safe，不收 detail），行程標準輸出不再有 w-serv-orm 之診斷行；R-ORMDIAG-01，ADR-054）。
+    //funLog 接管後改寫入本套件 srLog（只收 label 與安全摘要 safe，不收 detail），行程標準輸出不再有 w-serv-orm 之診斷行；R-ORMDIAG-01，ADR-054、ADR-055）。
+    //funLog 由 wsemi 之 genDiagFunLog 產生（伺服端轉接器，跨套件規格〈診斷輸出與遮罩〉D1、Q1；wsemi R-DIAG-01）：funLog 帶 noDetail，w-serv-orm 不取細節、不做拷貝；
+    //label 控制字元換 ?、safe 正規化為物件；write 同步拋錯與回傳之 rejected promise 皆由 genDiagFunLog 吞下；close() 之後不再寫入。本套件不另寫遮罩或序列化。
     //須在 srLog 之後建立（funLog 寫入 srLog）；ormLog.close() 須先於每一處釋放 srLog（clear 之後再呼叫 log 方法會使宿主終止，test/unit-ormDiagLog 盤點）
-    let ormLog = createOrmDiagLog(srLog)
+    let ormLog = genDiagFunLog((o) => srLog.warn(o))
     let wp = {}
     try {
         wp = WServOrm(ds, WOrm, url, db, { funLog: ormLog.funLog })

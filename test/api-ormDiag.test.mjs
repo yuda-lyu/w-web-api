@@ -52,7 +52,19 @@ describe('api-ormDiag (w-serv-orm funLog → srLog: label＋safe, 不含 id／em
         }
     }
 
-    it('ORMDIAG-API-001 saveApi 修改, 該筆回 ok:0 → srLog 有 orm-diag(label apis.save fail、safe {n:1,ks:[0]}、warn)，不含主鍵／資料值／錯誤原文；console 無 w-serv-orm 診斷行；回應與庫內不變', async function() {
+    //assertSafeShape: orm-diag 行之 safe 為物件（genDiagFunLog 正規化後）、鍵限 w-serv-orm 1.1.22 之 safe 白名單（本套件在 funLog 端不再過濾，白名單由生產者保證；此處釘住契約）、值無巢狀超過 2 層
+    let SAFE_KEYS = ['n', 'ks', 'skipped', 'ok', 'type', 'reason', 'msgs', 'table', 'tables', 'keys', 'nOther', 'errType', 'errCode']
+    let assertSafeShape = (diags) => {
+        for (let d of diags) {
+            assert.strictEqual(typeof d.safe, 'object', `safe 應為物件（實得 ${JSON.stringify(d.safe)}）`)
+            assert.ok(d.safe !== null && !Array.isArray(d.safe))
+            for (let k of Object.keys(d.safe)) {
+                assert.ok(SAFE_KEYS.includes(k), `safe 之鍵 ${k} 不在 w-serv-orm 白名單（${SAFE_KEYS.join(',')}）`)
+            }
+        }
+    }
+
+    it('ORMDIAG-API-001 saveApi 修改, 該筆回 ok:0 → srLog 有 orm-diag(label apis.save fail、safe {n:1,ks:[0]} 物件、warn)，不含主鍵／資料值／錯誤原文；console 無 w-serv-orm 診斷行；回應與庫內不變', async function() {
         let row = await getRow()
         assert.ok(row, '前置: VICTIM 列已 seed')
         let o0 = S.getOut().length
@@ -66,13 +78,15 @@ describe('api-ormDiag (w-serv-orm funLog → srLog: label＋safe, 不含 id／em
 
         let lines = await waitLogs(S.cwd, (ls) => diagOf(ls).length > n0)
         let diags = diagOf(lines).slice(n0)
-        assert.deepStrictEqual(diags.map((d) => ({ level: d.level, label: d.label, safe: d.safe })), [{ level: 40, label: 'apis.save fail', safe: '{"n":1,"ks":[0]}' }], 'srLog 應有恰 1 筆 orm-diag（level 40=warn）')
+        assert.deepStrictEqual(diags.map((d) => ({ level: d.level, label: d.label, safe: d.safe })), [{ level: 40, label: 'apis.save fail', safe: { n: 1, ks: [0] } }], 'srLog 應有恰 1 筆 orm-diag（level 40=warn）；safe 為物件（1.1.23 以前為 JSON 字串）')
         assertNoLeak(diags, ['INJECTED-ITEM-FAIL'])
+        assertSafeShape(diags)
 
         await sleep(300)
         let out = S.getOut().slice(o0)
         assert.ok(!out.includes('apis.save fail'), `console 不得再印 w-serv-orm 之診斷行（實得 ${out.slice(0, 300)}）`)
         assert.ok(!out.includes(VICTIM), 'console 不得含主鍵')
+        assert.ok(!out.includes('INJECTED-ITEM-FAIL'), 'console 不得含逐筆失敗之錯誤原文')
     })
 
     it('ORMDIAG-API-002 ORM 寫入 reject → srLog 有 orm-diag(label apis.save catch、safe {"errType":"Error"})，不含錯誤原文 INJECTED-FAIL；console 無診斷行', async function() {
@@ -87,8 +101,9 @@ describe('api-ormDiag (w-serv-orm funLog → srLog: label＋safe, 不含 id／em
 
         let lines = await waitLogs(S.cwd, (ls) => diagOf(ls).length > n0)
         let diags = diagOf(lines).slice(n0)
-        assert.deepStrictEqual(diags.map((d) => ({ label: d.label, safe: d.safe })), [{ label: 'apis.save catch', safe: '{"errType":"Error"}' }])
+        assert.deepStrictEqual(diags.map((d) => ({ label: d.label, safe: d.safe })), [{ label: 'apis.save catch', safe: { errType: 'Error' } }])
         assertNoLeak(diags, ['INJECTED-FAIL'])
+        assertSafeShape(diags)
 
         await sleep(300)
         let out = S.getOut().slice(o0)
@@ -108,8 +123,9 @@ describe('api-ormDiag (w-serv-orm funLog → srLog: label＋safe, 不含 id／em
 
         let lines = await waitLogs(S.cwd, (ls) => diagOf(ls).length > n0)
         let diags = diagOf(lines).slice(n0)
-        assert.deepStrictEqual(diags.map((d) => ({ label: d.label, safe: d.safe })), [{ label: 'apis.del fail', safe: '{"n":1,"ks":[0]}' }])
+        assert.deepStrictEqual(diags.map((d) => ({ label: d.label, safe: d.safe })), [{ label: 'apis.del fail', safe: { n: 1, ks: [0] } }])
         assertNoLeak(diags, ['INJECTED-ITEM-FAIL'])
+        assertSafeShape(diags)
 
         await sleep(300)
         assert.ok(!S.getOut().slice(o0).includes('apis.del fail'), 'console 不得再印 w-serv-orm 之診斷行')

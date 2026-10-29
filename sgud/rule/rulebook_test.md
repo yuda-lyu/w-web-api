@@ -96,12 +96,22 @@
 
 ## w-serv-orm 診斷輸出轉入 srLog 之測試(2026-10-28, api-run01〔任務 20261028054319, 排程第 154 項〕, ADR-054; 規則見 `rulebook_backend.md` R-ORMDIAG-01)
 
+**現行(2026-10-29 mig-api〔任務 20261029002013〕, ADR-055)**: 遮罩與序列化改由 wsemi 負責, 測試只測接線; 形態類案(label 控制字元、safe 序列化與長度、write 拋錯與 rejected promise、close 閂)改由 wsemi 共用語料 `wsemi/src/_diagCases.mjs` 之 A 組驅動, 舊之形態測試(原 ORMDIAG-004～009)已刪。
+
+| 檔 | 層 | 守什麼(現行) | 備註 |
+|---|---|---|---|
+| `test/unit-ormDiagLog.test.mjs` | unit | 19 案: 001 呼叫點表達式原文為 `genDiagFunLog((o) => srLog.warn(o))`; 002 寫入形狀(`warn` 恰一次、`safe` 物件); 003 無 safe 者無 `safe` 欄; 004 `noDetail` 與 detail 不讀; 005 `close()` 閂; 010～017 語料 A01～A06、A09、A10 經呼叫點原文重跑; 019 語料轉接器案之子集鎖定(排除僅 A07、A08); 020 `ormDiagLog.mjs` 已刪且無殘留字樣; 021 本套件不呼叫 `getDiag`／`maskDiag*`／`getDiagSecrets`／`getDiagBriefErr`; 022 `WServOrm` 站點全集; 023 `srLog.clear()` 前 `ormLog.close()` 與建立順序; 024 依賴下限(wsemi ≥1.9.31、w-serv-orm ≥1.1.22) | 變異用 `API_SERVER_MODULE`(指向 `WWebApi.mjs` 副本; 站點盤點與接線盤點皆讀副本內之 `WWebApi.mjs`) |
+| `test/api-ormDiag.test.mjs` | api | 4 案(埠 8574): `safe` 為物件且鍵 ⊆ w-serv-orm 白名單(`assertSafeShape`); 其餘同下表歷史紀錄 | 舊斷言 `safe` 為 JSON 字串者已改為物件 |
+| `test/api-ormDiagCred.test.mjs` | api | 8 案(埠 8574; 子行程 `test/_tmp/api-ormDiagCred/`): 001 WOrm 建構時拋出含連線字串與密碼之 Error → 拋出之錯誤與 console 不含憑證; 002 `stop()` 之 close reject 含憑證 → `'error'` 事件與 console 不含憑證; 003～008 `WOrm`、`url`、`db`、`getUserByToken`、`verifyClientUser`、`verifyAppUser` 誤傳含帳密之值 → console 只印型別 | 001、002 釘住 w-serv-orm 1.1.22 之遮罩契約(同源 `url`; 本套件不再包第二層); 003～008 為本套件自身之改動 |
+
+**舊制(api-run01)之測試紀錄**(已被上列取代, 留作歷史):
+
 | 檔 | 層 | 守什麼 | 備註 |
 |---|---|---|---|
 | `test/unit-ormDiagLog.test.mjs` | unit | 11 案: ORMDIAG-001~009 `server/ormDiagLog.mjs` 純函數(`label`＋`safe` 寫入形狀且只呼叫 `warn`、無 `safe` 時為空字串、第三引數 `detail`〔含 email、權杖、錯誤原文與可列舉取值器〕不讀取不寫入、`label` 控制字元換 `?`／截 200 字／非字串只給型別、`safe` 序列化／截 500 字／循環與 BigInt 為 `(unserializable)`／函數為 `(function)`、`srLog.warn` 拋錯或缺 `warn` 或 `srLog` 為 `undefined`／`null` 時不上拋、`warn` 回傳 rejected promise 不產生 unhandledRejection、`close()` 之後不寫入、實例互不干擾); ORMDIAG-010 建立 `WServOrm` 之站點全集(恰 `server/WWebApi.mjs` 與 `g_mOrm.mjs`, 新增即轉紅); ORMDIAG-011 `WWebApi.mjs` 內 3 處 `srLog.clear()` 各自緊鄰之前有 `ormLog.close()`、`createOrmDiagLog(srLog)` 先於 `WServOrm` | 變異用 `API_SERVER_MODULE`(指向 `WWebApi.mjs` 副本, 取同夾 `ormDiagLog.mjs`); 站點盤點讀 repo 原始檔, 接線盤點讀副本同夾之 `WWebApi.mjs` |
 | `test/api-ormDiag.test.mjs` | api | 4 案, 真後端隔離子行程(埠 8574, 與 `api-sysFuncs` 同埠循序執行; `pipeOut` 收子行程 stdout／stderr): 001 `saveApi` 修改該筆 `ok:0` → srLog 恰 1 筆 `orm-diag`(`apis.save fail`、`{"n":1,"ks":[0]}`、level 40), 該行不含 email 型主鍵、資料欄位值、`INJECTED-ITEM-FAIL`, console 無 `apis.save fail` 且無主鍵, 回應 `saveWriteFail`、庫內列不變; 002 ORM reject → `apis.save catch`／`{"errType":"Error"}`, 不含 `INJECTED-FAIL`; 003 `deleteApi` 該筆 `ok:0` → `apis.del fail`; 004 成功寫入不產生 `orm-diag`(防噪音, 並驗寫入確實生效) | 既有 R-ERR-1 之 `orm` 欄會含失敗筆主鍵(既有設計), 斷言限定 `event` 為 `orm-diag` 之行; `test/tools/apiHarness.mjs` 增 `pipeOut` 與 `getOut()` |
 
-**改動範圍 → 測試檔(w-serv-orm 診斷輸出轉送, 2026-10-28 api-run01)**: 改 `server/ormDiagLog.mjs`、`server/WWebApi.mjs` 之 `WServOrm` 呼叫或 `srLog` 釋放順序、升 `w-serv-orm` → `unit-ormDiagLog`、`api-ormDiag`、`api-itemFail`、`api-lifecycle`、`unit-wwebapi-lifecycle`、`unit-wwebapi-opt`(建構與釋放)+ api 全部(後端行為不變之回歸); 不涉前端, e2e 不受影響(本輪仍依提示詞跑全套確認標準圖 0 張改變)。
+**改動範圍 → 測試檔(w-serv-orm 診斷輸出轉送, 2026-10-28 api-run01; 2026-10-29 mig-api 更新)**: 改 `server/WWebApi.mjs` 之 `genDiagFunLog` 呼叫、`WServOrm` 呼叫或 `srLog` 釋放順序、無效建構參數之 console 輸出、升 `wsemi`／`w-serv-orm` → `unit-ormDiagLog`、`api-ormDiag`、`api-ormDiagCred`、`api-itemFail`、`api-lifecycle`、`unit-wwebapi-lifecycle`、`unit-wwebapi-opt`(建構與釋放)+ api 全部(後端行為不變之回歸); 不涉前端, e2e 不受影響(mig-api 提示詞要求全套含 e2e 於 `quiet-run --lock` 內一次跑完, 確認標準圖 0 張改變)。
 
 **改動範圍 → 測試檔對照(本批; 非瀏覽器全跑, 瀏覽器依下表)**: 改 `server/procApis.mjs`／`syncApis.mjs`／契約／schema → unit 全部 + api 全部(含 api-concurrency、api-import); 改 `server/WWebApi.mjs` → 另含 `api-tokenLeak`、`unit-wwebapi-*`; 改 `LayoutContent.vue`(genTree/選取/搜尋/樹狀標記) → e2e-display、e2e-edit、e2e-apitest + e2e-concurrent + e2e-external; 改 `LayoutContentEdit.vue`／`ExtMark.vue` → e2e-edit + e2e-concurrent + e2e-external; 改 `src/store/applyRows.mjs`／`mutations.mjs`／`types.mjs`（存檔／刪除成功後立即更新 store）→ unit-applyRows + e2e-edit、e2e-concurrent、e2e-external、e2e-display、e2e-apitest; 改 `procApis.mjs` 之 `attachRow`（存檔回傳 row）→ unit-procApis + api-concurrency + e2e-concurrent; 改 `externalRows.mjs`／`procApis.mjs` 之外部列守門／`WWebApi.mjs` 之 `lockExternalRows` → unit-externalRows、unit-procApis-external、api-externalRows + e2e-external; 改共用基礎(test/tools、樣式、procLang 版面、伺服端核心) → 全部 e2e. 全套僅最末輪由主控於凍結碼跑一次.
 
