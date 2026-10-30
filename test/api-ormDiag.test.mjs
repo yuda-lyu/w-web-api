@@ -4,6 +4,7 @@
 //以使用者識別型主鍵（email）之列模擬「主鍵可能是使用者識別」，以注入錯誤之固定標記字串（INJECTED-ITEM-FAIL／INJECTED-FAIL）代表錯誤原文，
 //斷言限定在 event 為 orm-diag 之 log 行（既有 R-ERR-1 之 orm 欄由 ormFail 另記失敗筆主鍵，屬既有設計，不在本檔斷言範圍）。
 import assert from 'assert'
+import { SAFE_KEYS } from 'w-serv-orm/src/safeKeys.mjs'
 import { startApiServer, sleep, mkLegacyRow, readLogs, waitLogs } from './tools/apiHarness.mjs'
 
 
@@ -52,14 +53,14 @@ describe('api-ormDiag (w-serv-orm funLog → srLog: label＋safe, 不含 id／em
         }
     }
 
-    //assertSafeShape: orm-diag 行之 safe 為物件（genDiagFunLog 正規化後）、鍵限 w-serv-orm 1.1.22 之 safe 白名單（本套件在 funLog 端不再過濾，白名單由生產者保證；此處釘住契約）、值無巢狀超過 2 層
-    let SAFE_KEYS = ['n', 'ks', 'skipped', 'ok', 'type', 'reason', 'msgs', 'table', 'tables', 'keys', 'nOther', 'errType', 'errCode']
+    //assertSafeShape: orm-diag 行之 safe 為物件（genDiagFunLog 正規化後）、鍵限 w-serv-orm 公開之 SAFE_KEYS 與恆保留之 errType、errCode（白名單雙層: 生產者 w-serv-orm 與本套件 funLog 端之 safeKeys; 取公開入口之同一名單, 不手寫第二份）、值無巢狀超過 2 層
+    let SAFE_OK = [...SAFE_KEYS, 'errType', 'errCode']
     let assertSafeShape = (diags) => {
         for (let d of diags) {
             assert.strictEqual(typeof d.safe, 'object', `safe 應為物件（實得 ${JSON.stringify(d.safe)}）`)
             assert.ok(d.safe !== null && !Array.isArray(d.safe))
             for (let k of Object.keys(d.safe)) {
-                assert.ok(SAFE_KEYS.includes(k), `safe 之鍵 ${k} 不在 w-serv-orm 白名單（${SAFE_KEYS.join(',')}）`)
+                assert.ok(SAFE_OK.includes(k), `safe 之鍵 ${k} 不在 w-serv-orm 白名單（${SAFE_OK.join(',')}）`)
             }
         }
     }

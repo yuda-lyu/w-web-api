@@ -14,7 +14,8 @@ let fpChild = path.resolve(fdTools, 'apiServerChild.mjs')
 
 //files: 啟動前寫入子行程 cwd 之檔案（相對路徑 → 內容，如 { 'dist/index.tmp': '…' }），供需要前端靜態檔之測試（子行程以 cwd 下之 dist 供應 /{file*}）
 //pipeOut: true 時收集子行程之 stdout／stderr（getOut() 取全文; 預設不收, 同原行為 stdio 'ignore'），供斷言「console 沒有多出（或沒有）某輸出」
-async function startApiServer({ name, port, opt = null, files = null, pipeOut = false }) {
+//env: 只給子行程的額外環境變數（如 { API_SERVER_MODULE: <被測後端副本> }，不改測試行程本身之 process.env，免影響同一 mocha 行程內後續讀該變數之測試檔）; 預設不給＝繼承
+async function startApiServer({ name, port, opt = null, files = null, pipeOut = false, env = null }) {
 
     let cwd = path.resolve(fdTools, '..', '_tmp', name)
     fs.rmSync(cwd, { recursive: true, force: true })
@@ -30,7 +31,7 @@ async function startApiServer({ name, port, opt = null, files = null, pipeOut = 
     if (opt !== null) {
         args.push(JSON.stringify(opt)) //額外之 WWebApi opt（如 { lockExternalRows: 'n' }）
     }
-    let child = fork(fpChild, args, { cwd, stdio: pipeOut ? ['ignore', 'pipe', 'pipe', 'ipc'] : ['ignore', 'ignore', 'ignore', 'ipc'] })
+    let child = fork(fpChild, args, { cwd, ...(env === null ? {} : { env: { ...process.env, ...env } }), stdio: pipeOut ? ['ignore', 'pipe', 'pipe', 'ipc'] : ['ignore', 'ignore', 'ignore', 'ipc'] })
     let out = ''
     if (pipeOut) {
         child.stdout.on('data', (d) => {

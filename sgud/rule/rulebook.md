@@ -31,7 +31,7 @@
 | 應用系統路由(`POST /syncAndReplaceTabs`)由套件自行要求系統管理者等級＋後台登入檢查成功只回欄位白名單(R-APPLEVEL-01; 存取表 §3.2 逐格 `api-accessMatrix`)(2026-10-24, api-run01〔任務 20261024182736, 排程第 133 項〕, ADR-052) | `rulebook_backend.md` |
 | 系統函數收緊:`sysFuncsPublic` 顯式只公開 `[sys:getFuncList]`、輪詢須帶有效 `__sysToken__`(R-SYSFUNCS-01; 跨套件〈使用者身分驗證原則〉二.7、二.8; `api-sysFuncs`)(2026-10-25, api-run01〔任務 20261025161335, 排程第 128 項〕, ADR-053) | `rulebook_backend.md` |
 | 指系統管理者角色之用詞一律為「系統管理者」(R-TERM-ADMIN-01; 使用者 2026-10-26 裁示, 源自 rddmanager issue #16、#17; 2026-10-26, api-run01〔任務 20261026145816〕) | `rulebook_backend.md` |
-| w-serv-orm 診斷輸出(`opt.funLog`, 1.1.20 起)轉入 srLog:只收 label 與安全摘要 safe、不收 detail(R-ORMDIAG-01; `unit-ormDiagLog`、`api-ormDiag`、`api-ormDiagCred`)(2026-10-28, api-run01〔任務 20261028054319, 排程第 154 項〕, ADR-054; **2026-10-29 mig-api 改用 wsemi `genDiagFunLog`〔排程第 161 項, 跨套件規格 `C:\opensrcOper\dspec\診斷輸出與遮罩.md`、wsemi R-DIAG-01〕, safe 改為物件, ADR-055**) | `rulebook_backend.md` |
+| w-serv-orm 診斷輸出(`opt.funLog`, 1.1.20 起)轉入 srLog:只收 label 與安全摘要 safe、不收 detail(R-ORMDIAG-01; `unit-ormDiagLog`、`api-ormDiag`、`api-ormDiagCred`)(2026-10-28, api-run01〔任務 20261028054319, 排程第 154 項〕, ADR-054; **2026-10-29 mig-api 改用 wsemi `genDiagFunLog`〔排程第 161 項, 跨套件規格 `C:\opensrcOper\dspec\診斷輸出與遮罩.md`、wsemi R-DIAG-01〕, safe 改為物件, ADR-055; 2026-10-30 b-api 呼叫點加 `safeKeys: SAFE_KEYS`〔w-serv-orm 1.1.23 公開〕為第二道防線並盤點對 w-serv-orm 內部檔之 import, 第 198 項, ADR-056; 另有 `api-ormDiagSafeKeys`**) | `rulebook_backend.md` |
 | 〔跨套件規格〕(主控 2026-10-16 依使用者交辦寫入) | `rulebook_backend.md` |
 | 上方標題列 RWD(對照 ADR-032; 機制同 w-web-sso ADR-067) | `rulebook_ui.md` |
 | 計算高度之容器(2026-09-29) | `rulebook_ui.md` |

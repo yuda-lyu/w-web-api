@@ -33,7 +33,6 @@ export { default as openCasePage } from 'w-package-tools-e2e/src/openCasePage.mj
 export { default as overlayImageAt } from 'w-package-tools-e2e/src/overlayImageAt.mjs'
 export { default as overlayRegions } from 'w-package-tools-e2e/src/overlayRegions.mjs'
 export { default as pageHasText } from 'w-package-tools-e2e/src/pageHasText.mjs'
-export { default as parseListenerPids } from 'w-package-tools-e2e/src/parseListenerPids.mjs'
 export { default as pidExists } from 'w-package-tools-e2e/src/pidExists.mjs'
 export { default as pollUntil } from 'w-package-tools-e2e/src/pollUntil.mjs'
 export { default as probeHttp } from 'w-package-tools-e2e/src/probeHttp.mjs'

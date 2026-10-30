@@ -13,6 +13,14 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Upgrade Notes
 
+### Breaking change since 1.1.25：srLog 內 `orm-diag` 之 `safe` 只保留白名單鍵（w-serv-orm 公開之 `SAFE_KEYS`、`errType`、`errCode`）；相依下限升為 `wsemi` ^1.9.33、`w-serv-orm` ^1.1.23
+
+**對外行為變更**（不提供舊格式相容）。本套件把 w-serv-orm 之診斷輸出寫入 srLog 前，另依 w-serv-orm 公開之 `SAFE_KEYS`（`w-serv-orm/src/safeKeys.mjs`，凍結陣列，目前為 `n`、`ks`、`skipped`、`ok`、`type`、`reason`、`msgs`、`table`、`tables`、`keys`、`nOther`）過濾 `safe` 之頂層鍵：
+- **ORM 診斷日誌只保留白名單鍵**：srLog 之 `orm-diag` 行，其 `safe` 只含 `SAFE_KEYS` 內之鍵與恆保留之 `errType`、`errCode`；白名單外之鍵連同其值、巢狀物件一律丟棄、不寫入日誌。這是第二道防線（w-serv-orm 1.1.22 起於產生端已只輸出白名單鍵），使日後產生端新增未登錄之鍵時不會流入伺服器日誌。
+- **正常情況下日誌內容不變**：w-serv-orm 1.1.23 實際產出之鍵皆在白名單內，`label`、`event`、`level: 40`、`safe` 之鍵與值與 1.1.24 相同。依 `safe` 欄位做統計或告警者，只應依賴上列白名單鍵與 `errType`、`errCode`。
+- **相依下限**：`wsemi` ^1.9.33（`genDiagFunLog` 之 `opt.safeKeys`）、`w-serv-orm` ^1.1.23（公開 `SAFE_KEYS`）。本套件從 w-serv-orm 取用者限公開入口：主入口、`safeKeys.mjs`、`baseline.mjs`，不 import 其診斷相關之內部檔（`getDiagBrief.mjs` 等）。
+- **開發相依**：`w-package-tools-e2e` ^1.0.12 移除 `parseListenerPids`，`test/tools/e2eLib.mjs` 同步不再轉出該名；僅影響本套件之測試工具，不影響對外 API 與標準圖。
+
 ### Breaking change since 1.1.24：srLog 內 `orm-diag` 之 `safe` 由 JSON 字串改為物件；診斷輸出之序列化與遮罩改用 wsemi 共用函數；無效建構參數之 console 只印型別
 
 **對外行為變更**（不提供舊格式相容）。w-serv-orm 之診斷輸出（寫入失敗、輸入被拒、ORM 錯誤被攔截）仍寫入 srLog（`logFd`，預設 `./logs`）：每筆一行 `warn`、`event: "orm-diag"`，只有 `label` 與安全摘要 `safe`，不含主鍵、資料值與錯誤原文，console 不輸出。自本版起：
