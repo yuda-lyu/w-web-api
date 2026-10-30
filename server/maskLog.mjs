@@ -64,6 +64,35 @@ let maskQuery = (q) => {
 }
 
 
+//shapeOf：資料值（使用者物件、請求本體、查詢參數、傳入值）之形狀摘要，供 console 診斷改印「形狀」而非「值」（跨套件規格〈診斷輸出與遮罩〉D2「預設不輸出資料值」、
+//〈輸入參數之檢測機制〉V20；ADR-057，取代 ADR-033／048 之「console 印使用者物件，記錄不修」）。只給鍵名、型別，絕不輸出任何值：
+//- 物件 → (keys: a,b,c)：鍵名之控制字元換成 ?（防 log 注入）、單鍵至多 32 字元、至多 20 個鍵（超過接 ,...）；空物件 → (keys: )
+//- 陣列 → (array)；null → (null)；其他型別 → (typeof)，與 maskTok 之型別格式相同
+//- Proxy 之 ownKeys 陷阱拋錯等無法讀鍵者 → (unreadable)；本函數永不拋錯（診斷輸出不得影響被診斷之流程）
+//why 不用 maskTok 同款遮罩：使用者物件之 email、name、id 與請求本體之欄位值皆非權杖，遮前後各 4 字仍會洩漏其片段；規則為「不印值」而非「遮值」。
+let SHAPE_MAX_KEYS = 20
+let SHAPE_MAX_KEYLEN = 32
+let shapeOf = (v) => {
+    try {
+        if (v === null) {
+            return '(null)'
+        }
+        if (isarr(v)) {
+            return '(array)'
+        }
+        if (typeof v !== 'object') {
+            return `(${typeof v})`
+        }
+        let ks = Object.keys(v)
+        let s = ks.slice(0, SHAPE_MAX_KEYS).map((k) => maskCtrl(k.slice(0, SHAPE_MAX_KEYLEN))).join(',')
+        return `(keys: ${s}${ks.length > SHAPE_MAX_KEYS ? ',...' : ''})`
+    }
+    catch (err) {
+        return '(unreadable)'
+    }
+}
+
+
 //maskUrl：http(s) 網址只記 origin + pathname（捨棄 query、fragment、userinfo——權杖與帳密所在）；非 http(s)（ftp:、data:、javascript: 等）
 //只記 protocol（data:／javascript: 之 pathname 即內容本體）；無法解析 → (invalid-url)；陣列逐元素；空值 → ''；其他非字串只給型別
 let maskUrl = (u) => {
@@ -110,10 +139,28 @@ let pickErrCode = (err) => {
 }
 
 
+//errBrief：外來錯誤（ORM、WServHapiServer、檔案系統、使用端取值器）之 console 摘要，只給錯誤名稱與代碼（形狀過濾同 pickErrName／pickErrCode），
+//絕不取 message 與 stack（其中可能夾連線字串、絕對路徑等；跨套件規格〈診斷輸出與遮罩〉D2「不含後端錯誤原文」，ADR-057）。
+//名稱缺或不合形狀時為 Error；無代碼時不輸出代碼，如 `Error`、`Error ENOENT`、`TypeError ECONNREFUSED`。永不拋錯（取值器拋錯回 Error）。
+//why 不用 wsemi 之 getDiagBriefErr：本套件之 wsemi 診斷函數只用 genDiagFunLog（unit-ormDiagLog ORMDIAG-021 盤點鎖定，新增須補共用語料接線案）；
+//errBrief 沿用本檔既有之 K 契約形狀過濾（srv.mjs、provideTabs.mjs 已用），不新增 wsemi 診斷函數之呼叫點。
+let errBrief = (err) => {
+    try {
+        let code = pickErrCode(err)
+        return `${pickErrName(err) || 'Error'}${code ? ` ${code}` : ''}`
+    }
+    catch (e) {
+        return 'Error'
+    }
+}
+
+
 export {
     maskTok,
     maskQuery,
+    shapeOf,
     maskUrl,
     pickErrName,
-    pickErrCode
+    pickErrCode,
+    errBrief
 }

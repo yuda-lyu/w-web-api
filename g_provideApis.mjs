@@ -30,7 +30,7 @@ async function provide() {
             outputExample: '輸出範例數據, json格式',
         },
     ]
-    console.log('rs', rs)
+    console.log('rows', rs.length) //只印筆數, 不印請求本體(列內容含外部系統之描述與範例數據)
 
     //provideTabs 只送出白名單內之描述欄位; 本系統擁有之欄位(tokens、authType、authConfigJson 等)由本站編輯表單管理, 不送、伺服器亦不寫
     let r = await provideTabs(url, keyTable, group, rs)

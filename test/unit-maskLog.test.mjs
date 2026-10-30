@@ -1,7 +1,7 @@
 //unit：server/maskLog.mjs——權杖／憑證寫入 console 與 srLog 前之唯一遮罩出口（M 契約；w-web-sso tmp/sso-token-leak-全盤.md〈六〉「共用契約 M」，
 //四 repo 同一組測資）與錯誤名稱／代碼之形狀過濾（K 契約 helper console 之 errName／errCode 形狀）。每條斷言對應契約之一句；ADR-033。
 import assert from 'assert'
-import { maskTok, maskQuery, maskUrl, pickErrName, pickErrCode } from '../server/maskLog.mjs'
+import { maskTok, maskQuery, maskUrl, pickErrName, pickErrCode, shapeOf, errBrief } from '../server/maskLog.mjs'
 
 
 describe('unit-maskLog', function() {
@@ -135,6 +135,96 @@ describe('unit-maskLog', function() {
             assert.strictEqual(pickErrName(v), '', `pickErrName(${String(v)})`)
             assert.strictEqual(pickErrCode(v), '', `pickErrCode(${String(v)})`)
         }
+    })
+
+    //shapeOf（ADR-057；規格〈診斷輸出與遮罩〉D2「預設不輸出資料值」、〈輸入參數之檢測機制〉V20）：資料值只給形狀（鍵名、型別），絕不給值
+    it('SHAPE-001 shapeOf：物件只給鍵名（保留插入順序），值（含巢狀值）一律不出現', function() {
+        let secret = 'ZZ-secret-9317'
+        let user = { id: secret, email: `${secret}@example.com`, name: secret, isAdmin: secret, nested: { deep: secret }, list: [secret] }
+        let s = shapeOf(user)
+        assert.strictEqual(s, '(keys: id,email,name,isAdmin,nested,list)')
+        assert.ok(!s.includes(secret), '值不得出現')
+        assert.strictEqual(shapeOf({}), '(keys: )')
+    })
+
+    it('SHAPE-002 shapeOf：非物件只給型別；陣列與 null 為固定詞', function() {
+        let secret = 'ZZ-secret-9317'
+        assert.strictEqual(shapeOf(secret), '(string)')
+        assert.strictEqual(shapeOf(12345), '(number)')
+        assert.strictEqual(shapeOf(true), '(boolean)')
+        assert.strictEqual(shapeOf(undefined), '(undefined)')
+        assert.strictEqual(shapeOf(10n), '(bigint)')
+        assert.strictEqual(shapeOf(() => secret), '(function)')
+        assert.strictEqual(shapeOf(Symbol(secret)), '(symbol)')
+        assert.strictEqual(shapeOf([secret, secret]), '(array)')
+        assert.strictEqual(shapeOf(null), '(null)')
+    })
+
+    it('SHAPE-003 shapeOf：鍵名之控制字元換成 ?（防 log 注入）、單鍵至多 32 字元、至多 20 鍵', function() {
+        assert.strictEqual(shapeOf({ 'a\nforged log line\r': 1, 'b\u0000': 2 }), '(keys: a?forged log line?,b?)')
+        let longKey = 'k'.repeat(100)
+        assert.strictEqual(shapeOf({ [longKey]: 1 }), `(keys: ${'k'.repeat(32)})`)
+        let many = {}
+        for (let i = 0; i < 25; i++) {
+            many[`f${i}`] = 1
+        }
+        let s = shapeOf(many)
+        assert.ok(s.endsWith(',...)'), s)
+        assert.strictEqual(s.split(',').length, 21, '20 個鍵＋省略號')
+        assert.ok(!s.includes('f20') && !s.includes('f24'), '第 21 個起之鍵不出現')
+    })
+
+    it('SHAPE-004 shapeOf：Proxy 之 ownKeys 陷阱拋錯、拋錯之取值器——永不拋錯、不執行取值器', function() {
+        let secret = 'ZZ-secret-9317'
+        let handler = {
+            ownKeys() {
+                throw new Error(secret)
+            },
+        }
+        let p = new Proxy({}, handler)
+        assert.strictEqual(shapeOf(p), '(unreadable)')
+        let called = false
+        let g = { id: 'x' }
+        let desc = {
+            enumerable: true,
+            get() {
+                called = true
+                throw new Error(secret)
+            },
+        }
+        Object.defineProperty(g, 'trap', desc)
+        assert.strictEqual(shapeOf(g), '(keys: id,trap)')
+        assert.strictEqual(called, false, '取鍵名不得執行取值器')
+    })
+
+    //errBrief（ADR-057；規格〈診斷輸出與遮罩〉D2「不含後端錯誤原文」）：外來錯誤只給名稱與代碼（形狀過濾同 pickErrName／pickErrCode），絕不取 message 與 stack
+    it('ERRBRIEF-001 errBrief：只給名稱與代碼，message／stack 之內容（連線字串、路徑、識別值）不出現', function() {
+        let secret = 'ZZ-secret-9317'
+        let e1 = Object.assign(new Error(`EISDIR: illegal operation on a directory, open 'C:/${secret}/dist/index.html'`), { code: 'EISDIR' })
+        assert.strictEqual(errBrief(e1), 'Error EISDIR')
+        assert.strictEqual(errBrief(new Error(`connect failed postgres://u:${secret}@h/db`)), 'Error')
+        let refused = new TypeError('fetch failed', { cause: Object.assign(new Error(secret), { code: 'ECONNREFUSED' }) })
+        assert.strictEqual(errBrief(refused), 'TypeError ECONNREFUSED')
+        for (let e of [e1, refused, new Error(secret)]) {
+            assert.ok(!errBrief(e).includes(secret))
+        }
+    })
+
+    it('ERRBRIEF-002 errBrief：名稱或代碼不合形狀、非錯誤值、取值器拋錯——一律回 Error 或只給合形狀之部分，永不拋錯', function() {
+        let secret = 'ZZ-secret-9317'
+        assert.strictEqual(errBrief(Object.assign(new Error('x'), { name: `SYNTH ${secret} http://x`, code: `http://${secret}` })), 'Error')
+        for (let v of [secret, null, undefined, 123, {}, [secret]]) {
+            assert.strictEqual(errBrief(v), 'Error', `errBrief(${String(v)})`)
+        }
+        let getterErr = {}
+        let desc = {
+            get() {
+                throw new Error(secret)
+            },
+        }
+        Object.defineProperty(getterErr, 'name', desc)
+        Object.defineProperty(getterErr, 'code', desc)
+        assert.strictEqual(errBrief(getterErr), 'Error')
     })
 
 })

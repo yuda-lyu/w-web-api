@@ -1012,7 +1012,7 @@ let funTest = () => {
         v = dtpick(v, keys(settings))
         return v
     })
-    console.log(`已產生: {keyTable} 測試資料`, rs)
+    console.log(`已產生: ${keyTable} 測試資料`, rs.length) //只印筆數, 不印資料列
     return rs
 }
 

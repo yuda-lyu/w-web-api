@@ -158,6 +158,18 @@ Object.assign(users, {
 })
 let isMxId = (id) => typeof id === 'string' && (id.startsWith('id-mx-') || id.startsWith('app:'))
 
+//api-logLeak(ADR-057 站點不變式, R-CONSOLE-01): 部署方使用者物件之各欄位（含額外欄位）皆置識別值 ZZ-secret-9317, 驗認證與授權失敗時 console 診斷不印使用者物件之值。
+//tokZzNoId／tokZzNoEmail／tokZzNoName／tokZzBadRole: 認證階段（checkUser）欄位不齊各缺一格（isAdmin 值域錯）; tokZzDenied: id 取 'id-mx-denied' 使 verifyClientUser 與 verifyAppUser 兩支鉤子皆拒絕（授權階段）
+let ZZ = 'ZZ-secret-9317'
+let zzExtra = { account: ZZ, password: ZZ, description: ZZ, tokenVerify: ZZ }
+Object.assign(users, {
+    tokZzNoId: { name: ZZ, email: `${ZZ}@example.com`, isAdmin: 'y', ...zzExtra },
+    tokZzNoEmail: { id: ZZ, name: ZZ, isAdmin: 'y', ...zzExtra },
+    tokZzNoName: { id: ZZ, email: `${ZZ}@example.com`, isAdmin: 'y', ...zzExtra },
+    tokZzBadRole: { id: ZZ, name: ZZ, email: `${ZZ}@example.com`, isAdmin: ZZ, ...zzExtra },
+    tokZzDenied: { id: 'id-mx-denied', name: ZZ, email: `${ZZ}@example.com`, isAdmin: 'y', ...zzExtra },
+})
+
 //mkGetterUser: 部署方使用者物件含「拋錯之取值器」(getter)——prop 為額外欄位('trap')或必要欄位('email'); 套件須固定鍵拒絕且不外洩例外原文(外審 sol #7)
 let GETTER_SECRET = 'SYNTH-GETTER-SECRET-FOR-TEST'
 let mkGetterUser = (id, prop) => {

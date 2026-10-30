@@ -13,6 +13,17 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Upgrade Notes
 
+### Breaking change since 1.1.26：console 診斷不再輸出資料值——使用者物件、請求查詢參數值、傳入參數值與外來錯誤原文改為只印鍵名、型別或錯誤類別
+
+**對外行為變更**（不提供舊格式相容）。伺服器行程之標準輸出（console）內容改變，原因：標準輸出常由 pm2、容器或行程管理器收集成檔，使用者物件之 email、name、id 與請求之查詢參數、連線設定等資料值一旦印出即落入這些擷取檔。自本版起 console 診斷一律不印資料值，只印鍵名、型別或固定詞彙（跨套件規格〈診斷輸出與遮罩〉D2）：
+- **認證與授權失敗不再印使用者物件**：部署方 `getUserByToken` 所回之使用者物件欄位不齊或 `isAdmin` 值域錯誤（`checkUser`），以及部署方 `verifyClientUser`／`verifyAppUser` 拒絕時，原 `console.log('user', user)` 印出整個物件（含 `id`、`email`、`name` 與部署方之額外欄位），現改為只印鍵名，如 `user (keys: id,name,email,isAdmin)`；`user.isAdmin is not y or n` 一行原印 `isAdmin` 之值，現只印型別，如 `(string)`。
+- **請求驗證失敗不再印查詢參數值與請求值**：`token` 缺漏時整包 `req.query` 原只遮 `token` 鍵、其餘參數值照印，現只印鍵名，如 `req.query (keys: foo,keyTable)`；`keyTable` 與 `group` 無效時原印其值，現只印型別，如 `(string)`、`(object)`。請求本體仍只印鍵名與 `rows` 筆數（此項不變）。權杖仍經 `maskTok`（前後各至多 4 字加長度，此項不變）。
+- **無效 `opt.serverPort` 只印型別**：建構時 `opt.serverPort` 無效，console 由 `invalid opt.serverPort <值>` 改為 `invalid opt.serverPort (string)`；其餘無效建構參數 1.1.24 起已只印型別。誤傳之字串或物件亦可能帶連線字串等憑證。
+- **外來錯誤只印類別與代碼**：資料庫 ORM 建構失敗（`WServOrm init failed`）、`WServHapiServer init failed` 與 `dist` 入口檔 `index.html` 產生失敗，console 原印整個錯誤物件（含訊息、stack、絕對路徑），現只印錯誤名稱與代碼（形狀過濾後，如 `WServOrm init failed Error`；`index.html` 產生失敗時於 `can not generate index.html` 之前印一行 `Error ENOENT`，`ENOENT`、`EISDIR` 等為系統錯誤代碼）；入口檔缺失時不再印其路徑，只印 `invalid fpEntryIn`。**錯誤本身仍原樣拋出**（`throw` 之內容與 1.1.25 相同，建構失敗之 fail-fast 與資源釋放不變）。
+- **參考部署與範例**：`srv.mjs` 之 `verifyAppUser` 不再印使用者物件（只印鍵名）、SSO 失敗不印回傳之 `state` 值、`'error'` 事件只印錯誤名稱與代碼；本檔與 `WWebApi` JSDoc 之範例同步改為不印使用者物件與整個錯誤物件，請依樣修改您自己的部署程式。離線工具 `g_provideApis.mjs` 只印送出之筆數，不再印整批資料列；`funTest` 產生測試資料時只印筆數。
+- **不變**：HTTP 回應之錯誤鍵、srLog 之內容（認證失敗之 `err` 鍵、`orm-diag` 等）與 1.1.25 相同；`maskTok`／`maskQuery`／`maskUrl` 等 M 契約函式不動（`maskQuery` 不再被本套件之 console 呼叫，仍保留供四個 web 套件共同之契約測資）。
+- **若您以 stdout 文字做告警或解析**：上列各行格式已變（無資料值）；需要使用者或請求之細節請改讀 srLog（`logFd`，記有 `userId`、入口名與錯誤鍵）。
+
 ### Breaking change since 1.1.25：srLog 內 `orm-diag` 之 `safe` 只保留白名單鍵（w-serv-orm 公開之 `SAFE_KEYS`、`errType`、`errCode`）；相依下限升為 `wsemi` ^1.9.33、`w-serv-orm` ^1.1.23
 
 **對外行為變更**（不提供舊格式相容）。本套件把 w-serv-orm 之診斷輸出寫入 srLog 前，另依 w-serv-orm 公開之 `SAFE_KEYS`（`w-serv-orm/src/safeKeys.mjs`，凍結陣列，目前為 `n`、`ks`、`skipped`、`ok`、`type`、`reason`、`msgs`、`table`、`tables`、`keys`、`nOther`）過濾 `safe` 之頂層鍵：
@@ -288,7 +299,7 @@ let verifyBrowserUser = (user, from) => {
 //from: 目前只有 'syncAndReplaceTabs'(外部匯入)
 //本套件已自行要求應用系統路由之呼叫者為系統管理者等級(getUserByToken 所回 isAdmin 為 'y'; 此函數先被呼叫, 只能再收緊), 故不必再以 isAdmin 判斷
 let verifyAppUser = (user, from) => {
-    console.log('verifyAppUser/user', user)
+    console.log('verifyAppUser/from', from) //勿印使用者物件: 內含 email、name 等個資, 印出即落入 stdout 與行程管理器之擷取檔
     // return false //測試無法登入
     console.log('於生產環境時得加入限制應用程式使用者身份機制(例如只放行特定應用系統之 id)')
     return from === 'syncAndReplaceTabs'
@@ -298,7 +309,7 @@ let verifyAppUser = (user, from) => {
 let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyBrowserUser, verifyAppUser, opt)
 
 instWWebApi.on('error', (err) => {
-    console.log(err)
+    console.log('error', err && err.name) //勿印整個錯誤物件: 其訊息可能含連線字串等憑證
 })
 
 //graceful shutdown: stops the server and releases the cache timer, database connections and log worker

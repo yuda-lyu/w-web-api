@@ -1,6 +1,6 @@
 import WOrm from 'w-orm-lmdb/src/WOrmLmdb.mjs'
 import WWebApi from './server/WWebApi.mjs'
-import { pickErrName, pickErrCode } from './server/maskLog.mjs'
+import { pickErrName, pickErrCode, shapeOf } from './server/maskLog.mjs'
 import getSettings from './g_getSettings.mjs'
 import get from 'lodash-es/get.js'
 import iseobj from 'wsemi/src/iseobj.mjs'
@@ -95,7 +95,7 @@ let getUserByToken = async (token) => {
         let state = get(data, 'state', '')
         let u = get(data, 'msg', null)
         if (state !== 'success' || !iseobj(u)) {
-            console.log('SSO getSsoUserInfor 失敗', state)
+            console.log('SSO getSsoUserInfor 失敗', `(${typeof state})`) //state 為 SSO 回傳值, 只給型別
             return {}
         }
         return { id: u.id, name: u.name, email: u.email, isAdmin: u.isAdmin }
@@ -125,7 +125,7 @@ let verifyAppUser = (user, from) => {
         throw new Error('SYNTH-VERIFY-SECRET-FOR-TEST')
     }
     //本套件已自行要求應用系統路由之呼叫者為系統管理者等級(getUserByToken 所回 isAdmin 為 'y'; 檢查在本函數之後, 本函數只能再收緊), 此處不再以 isAdmin 判斷, 只示範依 from 收緊(目前只有 'syncAndReplaceTabs')
-    console.log('verifyAppUser/user', user)
+    console.log('verifyAppUser/user', shapeOf(user)) //使用者物件含 email、name 等個資, 只給鍵名
     console.log('於生產環境時得加入限制應用程式使用者身份機制')
     // return false //測試無法登入
     return from === 'syncAndReplaceTabs'
@@ -135,7 +135,7 @@ let verifyAppUser = (user, from) => {
 let instWWebApi = WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser, opt)
 
 instWWebApi.on('error', (err) => {
-    console.log(err)
+    console.log('WWebApi error', pickErrName(err), pickErrCode(err)) //錯誤訊息可能含連線字串等憑證, 只給名稱與代碼
 })
 
 //行程層錯誤政策(R-PROC-1, ADR-038): 本參考部署與 WWebApi 皆不註冊 process 之 unhandledRejection / uncaughtException 監聽
