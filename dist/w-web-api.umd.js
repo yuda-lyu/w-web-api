@@ -1,5 +1,5 @@
 /*!
- * w-web-api v1.1.30
+ * w-web-api v1.1.31
  * (c) 2018-2021 yuda-lyu(semisphere)
  * Released under the MIT License.
  */
