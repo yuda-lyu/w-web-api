@@ -19,6 +19,7 @@ import filterVpfsByWindow from './filterVpfsByWindow.mjs'
 //  4. 資料夾項目略過; 單檔讀取錯誤略過該檔 (不入快取、不整體失敗)
 //  輸出形狀與原 staEvent.mjs 一致 (golden test: test/unit-staEvent-golden.test.mjs 以改造前實作產出之 expected 深比較)
 //  刻意差異: 無 time (或 time 無法解析) 之行不計入任何桶 (原實作 ot(undefined) 視為 now 而計入當前桶)
+//  刻意差異 (R-STA-FUTURE-01, ADR-058): 輸出以「現在所屬桶」為上界, 晚於它之未來時間桶不輸出 (原實作無上界); 只在 buildOutput 過濾, 掃描與快取不動
 
 
 //快取: `${fdLog}|${fmt}` → Map(檔名 → { size, mtimeMs, minTimeMs, scanTStartMs, agg })
@@ -261,13 +262,30 @@ function mergeAgg(target, agg) {
 }
 
 
+//label 是否晚於上界桶 labelEnd: 標籤為定寬 YYYY-MM-DD[THH], 字典序即時間序, 故以字串比較;
+//  年份超過 4 位者 (log 之 time 荒謬大, 如 >= 253402300800000) 標籤較長, 字典序卻可能小於上界 ('10000-…' < '2026-…'), 故先比長度;
+//  超出 Date 範圍者標籤為 'Invalid Date', 字典序大於數字開頭之標籤
+function isLaterLabel(label, labelEnd) {
+    return label.length > labelEnd.length || label > labelEnd
+}
+
+
 function buildOutput(merged, kpTime) {
-    //對齊原 merge({}, kpTime, gsLog) + Object.keys().sort(): 窗內桶補零, 資料桶 (含未來時間桶) 聯集
+    //【R-STA-FUTURE-01, ADR-058, Gitea #58】窗內桶補零; 資料桶以「現在所屬桶」(kpTime 最末桶) 為上界, 晚於它之未來時間桶不輸出
+    //  紀錄之 time 取寫入當下之真實時鐘, 而「現在」可由 opt.timeNow 釘住 (或時鐘回撥), 兩者不一致時會有晚於現在之紀錄:
+    //  輸出若含其桶, 圖表多出一格未來刻度, 前端以 slice(-N) 取「最近 N 桶」(LayoutContentStats.vue eventRows) 亦隨之位移
+    //  上界為「桶」非「時刻」: 現在所屬桶內略晚於現在之紀錄 (統計執行期間新寫入者) 照計
+    //  只在輸出層過濾: 掃描 (scanFile) 與檔級快取不依 timeNow 之上界, 故 timeNow 後移至紀錄之後時該桶仍會出現
+    //  (原註解「對齊原 merge({}, kpTime, gsLog)」: legacy 無上界, 重構時連同此缺陷保留, 並非規格; 不得為「對齊 legacy」而恢復聯集)
     let kp = {}
     for (let label of kpTime) {
         kp[label] = { count: 0 }
     }
+    let labelEnd = kpTime.length > 0 ? kpTime[kpTime.length - 1] : null //空 kpTime (genPlan 不會產生) 不設上界
     for (let label in merged) {
+        if (labelEnd !== null && isLaterLabel(label, labelEnd)) {
+            continue
+        }
         let b = merged[label]
         kp[label] = { count: b.count, ...b.kp }
     }

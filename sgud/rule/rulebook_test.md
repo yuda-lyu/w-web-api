@@ -118,3 +118,12 @@
 
 **既有 e2e-edit.test.mjs 之 helper(fieldRow/fieldInput/waitSaveModal/clickModalOk/T)與 `test/tools/e2eEditHelpers.mjs` 同一實作而兩份**(本批未動既有 e2e 檔以免擴大範圍); 日後 e2e-edit 可改 import 後收斂.
 
+## 統計輸出之未來時間桶之測試(2026-11-03, wa58〔任務 20261103123942〕, ADR-058; 規則見 `rulebook_backend.md` R-STA-FUTURE-01; 契約見 `spec/流程_統計資訊.md`〈`getStaEvent` 輸出契約〉FB-1~FB-5)
+
+| 檔 | 層 | 守什麼(對應規格) | 備註 |
+|---|---|---|---|
+| `test/unit-staLogs-futureBucket.test.mjs` | unit | FB-1: 300 天後之紀錄不產生桶(hr／day 輸出與無該紀錄時相同, issue §2.1)、未來紀錄在現在所屬時段之檔內／非 ISO 檔名之檔內亦不輸出、同一筆「現在 +1 小時」之紀錄 hr 不輸出而 day 計入現在所屬日桶、+13 小時 hr／day 皆不輸出、荒謬大之時間(年份 10000／Date 上限／超出上限)不輸出、worker 版(WWebApi 實際路徑)、`buildOutput` 直測(含空 `kpTime` 不設上界); FB-2: 現在所屬桶內略晚於現在者照計(hr／day, issue §2.2)、桶邊界 12:59:59.999 計入與 13:00:00.000 不輸出; FB-3: 快取開啟時 `timeNow` 後移至紀錄之後該桶出現且確由快取沿用、移回後又不輸出(issue §2.3)、同一 `timeNow` 快取與無快取相同; FB-4: 只有未來紀錄時最末列為現在所屬桶之 `{ count: 0 }`、桶數 hr 169／day 8; FB-5: 與依時間值判定之獨立 oracle 全等(3 seed × hr／day × timeLength 0／1／7, 含無未來紀錄之合法輸入) | 不起 server、不用埠; 臨時 log 落 `test/_tmp/_logs-unit-staLogs-futureBucket/`(`after` 清); 環境變數 `STALOGS_CORE_MODULE`(被測 `staLogsCore.mjs` 副本, 同夾須有 `staLogsCore.callWorker.mjs`、`filterVpfsByWindow.mjs`)供修前紅(HEAD 副本)與變異(副本放 `./tmp/`); 須在測試鎖下執行 |
+| `test/unit-staEvent-golden.test.mjs` GOLD-001 | unit | `future-1d` 於 hr／day 皆計 0、`hr`／`day` 末列為現在所屬桶(`2026-08-31T12`／`2026-08-31`); `expected.json` 由 `gen-expected.mjs`(`dropFuture`)自 legacy 輸出剔除 2 列未來桶 | fixture `test/staLogs-golden/logs`(173 檔)不動 |
+
+**改動範圍 → 測試檔(統計輸出)**: 改 `server/staLogs/*` → `unit-staLogs-futureBucket`、`unit-staEvent-golden`、`unit-staEvent`、`unit-resolveShellWorker`、`unit-iterSites`(SITE-API-004 掃 staLogsCore)、`unit-staFreq` + e2e: `e2e-stainfor`(統計頁)、`e2e-init`(進站預設頁即統計頁); 改 `LayoutContentStats.vue` → 另含 `e2e-stainfor`、`e2e-init` 之標準圖比對。標準圖授權範圍僅 `test/pics/stainfor/`。
+

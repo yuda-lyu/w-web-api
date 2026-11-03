@@ -2002,13 +2002,6 @@
         "verifyClientUser": 3,
         "verifyConn": 2
       }
-    },
-    {
-      "time": "2026-09-01T13",
-      "data": {
-        "count": 1,
-        "future-1d": 1
-      }
     }
   ],
   "day": [
@@ -2121,13 +2114,6 @@
         "api/getUserByToken": 27,
         "verifyClientUser": 15,
         "notes-event": 1
-      }
-    },
-    {
-      "time": "2026-09-01",
-      "data": {
-        "count": 1,
-        "future-1d": 1
       }
     }
   ]

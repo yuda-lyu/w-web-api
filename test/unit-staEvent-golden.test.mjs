@@ -2,6 +2,8 @@
 //  fixture: test/staLogs-golden/logs/ (173 檔; 已凍結為資產——原確定性產生器曾落在 ./tmp/ 而隨清除佚失, 擴充時另寫新檔加入 logs/)
 //  expected: test/staLogs-golden/expected.json —— 以「改造前」實作 (test/staLogs-golden/legacy/staEvent.mjs, git 38cd93e 原碼留存) 在假時鐘
 //            FIXED=1788150896789 (2026-08-31 12:34:56.789 +08:00) 下產出, 為本測試之真理來源 (2026-09-01 以此重產, md5 與原檔一致)
+//            【2026-11-03, R-STA-FUTURE-01 / ADR-058】legacy 輸出無上界, 含晚於「現在所屬桶」之未來桶; 現行輸出不含 (見 spec/流程_統計資訊.md 〈getStaEvent 輸出契約〉 FB-1),
+//            故 expected 由產生器自 legacy 輸出剔除之 (hr 之 2026-09-01T13、day 之 2026-09-01, 內容皆僅 fixture 之 future-1d 事件 1 筆); 其餘各列與 legacy 輸出逐筆相同
 //  重產方式: node --import ./test/staLogs-golden/fakeDate.mjs test/staLogs-golden/gen-expected.mjs expected
 import './staLogs-golden/setTz.mjs'
 import assert from 'assert'
@@ -82,7 +84,12 @@ describe('unit-staEvent-golden', function() {
         assert.strict.equal(sumKey(hr, 'boundary-eq'), 0)
         assert.strict.equal(sumKey(hr, 'iso-string-time'), 1)
         assert.strict.equal(sumKey(hr, 'garbage-time'), 0)
-        assert.strict.equal(sumKey(hr, 'future-1d'), 1)
+        //FB-1 (R-STA-FUTURE-01): fixture 內 future-1d 之紀錄時間晚於 FIXED 一天, 其所屬桶 (hr '2026-09-01T13'、day '2026-09-01') 晚於現在所屬桶, 不輸出 (修前: 各計入 1)
+        assert.strict.equal(sumKey(hr, 'future-1d'), 0)
+        assert.strict.equal(sumKey(day, 'future-1d'), 0)
+        //FB-4: 最末一列為現在所屬桶 (FIXED 為 2026-08-31 12:34:56.789 +08:00)
+        assert.strict.equal(hr[hr.length - 1].time, '2026-08-31T12')
+        assert.strict.equal(day[day.length - 1].time, '2026-08-31')
         //第二次 (只重掃邊界檔) 亦一致
         let hr2 = await staEvent(7, 'hr', { fdLog, timeNow: FIXED })
         assert.deepStrictEqual(hr2, expected.hr)

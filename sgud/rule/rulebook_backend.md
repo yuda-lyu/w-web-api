@@ -406,6 +406,21 @@
 - **前端回歸（含真實頁面對照, 2026-10-20 第 93 項）**: 複製 repo 至 `tmp/e2e-fixed/`（現行版）與 `tmp/e2e-head/`（另以 HEAD 版覆蓋 `LayoutContentStats.vue` 與 `mShare.mjs`）各自 `vue-cli-service build`、副本內 `node srv.mjs`; 合成 log 含事件名 `it.dotted.event`（7 筆）、`kpfun-x[0]`（3 筆）: HEAD 版統計表「最近 1 日」兩者皆 0, 現行版為 7 與 3; 副本內 `e2e-stainfor` 6 / 6、`e2e-display` 17 / 17（標準圖零重產）; 副本事後刪除. 原「前端回歸(2026-10-20)」見下條.
 - **前端回歸(2026-10-20)**: 驗前端改動不動 tracked `dist/`——複製 repo 至 `<repo>/tmp/e2e-copy/`(含 db 副本、不含 node_modules; bare import 由副本往上走到 repo 之 node_modules)、副本內 `vue-cli-service build`、副本內 `node srv.mjs`、再以 `mocha` 跑 `e2e-display` 17 + `e2e-apitest` 28 = 45 / 45(標準圖零重產). **注意**: 在 11005 無人時直接跑 `api-*.test.mjs` 會觸發 harness 之 `npm run build` 改寫 tracked `dist/`(2026-10-20 一次失誤, 已以 `git show HEAD:` 寫回); 跑 api 層前先起後端.
 
+## 統計資訊之輸出上界: 桶以「現在所屬桶」為上界, 不輸出未來時間桶(R-STA-FUTURE-01; Gitea #58〔rddmanager〕; 2026-11-03, wa58〔任務 20261103123942〕, ADR-058; 契約見 `spec/流程_統計資訊.md`〈`getStaEvent` 輸出契約〉FB-1~FB-5)
+
+| 規則 | 站點全集(統計模組內輸出或使用時間桶之處, 2026-11-03 盤點) | 判準(已套／未套／刻意不套) | 盤點指令 |
+|---|---|---|---|
+| **輸出之資料桶以 `kpTime` 最末桶(現在所屬桶)為上界**: 所屬桶晚於它之紀錄不產生桶(`hr`、`day` 皆然); 上界為桶非時刻, 現在所屬桶內略晚於現在者照計(FB-1、FB-2); 輸出最末列恆為現在所屬桶(FB-4); **不得為「對齊 legacy」而恢復資料桶聯集**(legacy 無上界屬缺陷, ADR-058) | `server/staLogs/staLogsCore.mjs` `buildOutput`(唯一輸出點; 上界判定 `isLaterLabel`, 年份 ≥ 10000 之長標籤先比長度、`'Invalid Date'` 字典序大於數字開頭) | **已套**(`unit-staLogs-futureBucket` 42 案; 修前〔HEAD 副本〕2 綠 40 紅〔綠者為 FB-2-hr／FB-2-day 之「現在所屬桶內照計」守護案〕, 修後 42 綠; 12 個上界變異全被抓, 見報告) | `git grep -n -E "isLaterLabel\|labelEnd" -- server/staLogs`(應只在 `staLogsCore.mjs`); `git grep -n "buildOutput" -- server test`(輸出點唯一, 呼叫者 `run`) |
+| 過濾**只在輸出層**: 掃描與檔級快取不依 `timeNow` 上界, 使快取之彙總完整、`timeNow` 後移時未來桶得以出現(FB-3) | `staLogsCore.mjs` `scanFile`(只有下界 `tms > tStartMs`)、`run` 之快取分流與 `cacheDir.set`、`staLogsCore.callWorker.mjs`／`staLogsCore.shellWorker.mjs`(只回各檔彙總 `agg`, 輸出仍經 `buildOutput`) | 刻意不套(變異 M11「快取前丟棄未來桶之彙總」被 FB-3 抓) | `git grep -n -E "tStartMs\|scanTStartMs" -- server/staLogs`(掃描只有下界) |
+| 窗內補零之桶序列 `kpTime`(自窗起點所屬桶至現在所屬桶)為上界之唯一來源 | `staLogsCore.mjs` `genPlan`(`tEnd = now.startOf(unit)`) | 已套(本就以現在為止; 變異 M12「`kpTime` 末桶多延伸一桶」被 FB-4 抓) | 同上 |
+| 其他經手時間桶但不產生桶者 | `staEvent.mjs`(薄殼, 回 `r.rs`)、`filterVpfsByWindow.mjs`(檔名層只剔窗前檔, 即下界; 未來檔名照開、由輸出層過濾)、`WWebApi.mjs` `getStaEvent`(不傳 `timeNow`, 用真實現在) | 刻意不套(無輸出未來桶之路徑; 單一擁有者為 `buildOutput`) | `git grep -n -E "staLogs\|staEvent" -- server srv.mjs` |
+| 下游消費者(前端)不另過濾, 依後端上界之保證 | `src/components/LayoutContentStats.vue` `eventRows`(`arr.slice(-N)` 取最近 N 桶, 前提為末桶即現在)、`resampledData`、`allEvents`、`chartOption`; `src/plugins/mShare.mjs` `getFreqVal`(只取值) | 刻意不套(同一契約不在兩處各寫一份; 前端依 FB-4) | `git grep -n -E "slice\(-" -- src` |
+| golden 之 `expected.json` 由產生器自 legacy 輸出剔除未來桶(不手改、不動 legacy 檔) | `test/staLogs-golden/gen-expected.mjs` `dropFuture`、`expected.json`(hr 剔 `2026-09-01T13`、day 剔 `2026-09-01`, 內容皆僅 fixture 之 `future-1d` 1 筆)、`unit-staEvent-golden` GOLD-001 | 已套(與 HEAD 版之差異恰為該 2 列, `tmp` 比對腳本實證, 見報告) | `node --import ./test/staLogs-golden/fakeDate.mjs test/staLogs-golden/gen-expected.mjs expected`(重產後 `git diff --stat test/staLogs-golden/expected.json` 應為 0) |
+| 標準圖不含未來桶 | `test/pics/stainfor/`(合成 log 皆不晚於現在; `_staref` 圖橫軸末端為最後一日) | 已查, 0 張重產(見報告) | 目視 `_staref-*-chart.png` 末端; `e2e-stainfor` 比對 |
+| 同型於 w-web-sso、w-web-perm 之 `staLogsCore` | 兩套件各自之 `server/staLogs/staLogsCore.mjs`(ADR-028 鏡像來源) | 非本套件(另案, 主控派工) | — |
+
+測試對照: `test/unit-staLogs-futureBucket.test.mjs`(FB-1: 300 天後／同檔內／現在 +1 小時 hr 與 day 之歸屬差異／+13 小時／荒謬時間／worker 路徑／`buildOutput` 直測; FB-2: 現在所屬桶內略晚於現在, 桶邊界 ±1 ms; FB-3: 快取開啟時 `timeNow` 後移與移回; FB-4: 只有未來紀錄時之末列與桶數; FB-5: 與依時間值判定之獨立 oracle 全等〔3 seed × hr/day × timeLength 0/1/7〕, 含無未來紀錄之合法輸入); 環境變數 `STALOGS_CORE_MODULE`(被測 `staLogsCore.mjs` 副本, 連同同夾之 `staLogsCore.callWorker.mjs`、`filterVpfsByWindow.mjs`)可指向 `./tmp/` 副本, 供修前紅與變異。`unit-staEvent-golden` GOLD-001(`future-1d` 計 0、末列為現在所屬桶)。
+
 ## 〔跨套件規格〕(主控 2026-10-16 依使用者交辦寫入)
 
 - 資料通道只開 select 屬 w-web-perm、w-web-api、w-web-task 共用之裁決(主控 2026-10-14),規格與審查判準見 `C:\opensrcOper\dspec\w-web資料通道最小權限.md`;本帳本之 R-DC-1 為其落地.要在資料通道重開寫入者,不得自行調整,須經主控或使用者裁示.

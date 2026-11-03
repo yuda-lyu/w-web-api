@@ -299,3 +299,12 @@
 - **api 全套仍須先備份還原 `dist`**: 起手未先讀 `sgud/proc/process.md`, 於變異階段(尚未輪到全套前)才讀到並補 `git archive HEAD dist tableTags-web-api.json` 備份, 未造成損失; 跑完以 `./tmp/api/restore-dist.mjs`(逐檔比對、刪多餘檔含 `dist/index.html`、遇連結即拋錯、逐檔 md5 回驗)還原, `git diff --name-only -- dist tableTags-web-api.json` 為空; `git status` 仍列 `dist/*.js` 為 `M` 屬 `core.autocrlf` 下索引 stat 快取過期(`git hash-object` 與 HEAD 相同)。**下輪起手清單: 先讀 process.md → 跑任何 `api-*` 前備份 dist。**
 - **專案 eslint 規則作用於 `test/` 之 `.mjs`**: `quotes`(單引號, 含雙引號字串)、`no-template-curly-in-string`(字串內含 `${`)、`object-curly-newline`／`object-property-newline`; 測資字串需含 `${` 時以 `'$'` 串接組出; 提交前以 `npx eslint --no-eslintrc -c .eslintrc.js <檔>` 檢查。
 - **瀏覽器端 console 本輪未動**: `src/App.vue:60,67` 印登入者之使用者物件於其自己之瀏覽器 console(不經行程管理器), 任務限伺服端, 列知悉。`provideTabs.mjs:49` 之 reject 訊息 ``invalid keyTable[${keyTable}]`` 回顯呼叫端傳入之 keyTable(V20 之「訊息」部分, 非 console), 亦為範圍外之觀察。
+
+## wa58(2026-11-03, 任務 20261103123942, Gitea #58): 統計輸出之未來時間桶(R-STA-FUTURE-01, ADR-058)
+
+- **「缺陷或設計」之查證順序**: ①legacy 原碼(`test/staLogs-golden/legacy/staEvent.mjs`)有無上界與相關註解; ②重構 ADR(ADR-028)之〈刻意差異〉清單有無列入——重構以「輸出等同 legacy」為目標時, 未列入之行為是連缺陷一併保留, 不是決策; ③`spec`／`sgud`／`README` 有無載明; ④**下游消費端之假設**(前端 `eventRows` 以 `slice(-N)` 取「最近 N 桶」, 隱含末桶即現在)。golden 之特例資料(`future-1d`)與其斷言(`=== 1`)是 legacy 輸出之指紋, 不是規格。結論: 缺陷, 只改輸出層(掃描與快取不動, 免與 P1 之跨 `timeLength` 快取同型風險)。
+- **標籤字串比較之邊角**: 桶標籤定寬, 字典序即時間序, 但年份 ≥ 10000 之標籤較長而**字典序小於** `'2026-…'`(實測 dayjs 對 `253402300800000` 回 `'10000-01-01T08'`, 對超出 Date 範圍者回 `'Invalid Date'`), 純字串比較會漏掉前者, 故 `isLaterLabel` 先比長度; 變異 M02 以此案證明長度守門非多餘。同型之 w-web-sso、w-web-perm 修正時須一併帶入。
+- **golden 之 expected「永遠由 legacy 產出、不手改」之守法**: 不手改 `expected.json`, 也不動 legacy 檔; 在產生器 `gen-expected.mjs` 加 `dropFuture`(以假時鐘「現在」之 `ot(FIXED).format` 取上界標籤, 與被測碼之判定獨立)並於產出時印出被剔除之列; 另以 `tmp` 比對腳本(`git show HEAD:` 對工作樹)證明差異恰為 hr 1 列、day 1 列、其餘逐筆相同。
+- **e2e-stainfor 之標準圖是否含未來桶, 不能由「比對通過」推論**: 該流程之圖／表區以 `_staref` 貼圖覆蓋, 比對時這兩區從不 live 比對, 即使輸出含未來桶亦不影響比對結果。要證明「0 張要重產」須看 `_staref` 圖本身(圖橫軸末端為最後一日 09/13、統計表「最近 1 小時」非 0 → 末桶即現在, 無未來桶)並核對合成 log 之時間(`writeSyntheticLogs` 皆為真實現在往前, 不晚於現在), 再以修前修後輸出差異比對(合成 log 同寫法, 差異 0)補強。
+- **修前紅／變異之取法**: `git archive HEAD server/staLogs | tar -x -C ./tmp/wa58/head`, 新測試以環境變數 `STALOGS_CORE_MODULE` 指向副本(連同同夾之 `staLogsCore.callWorker.mjs`, 故 worker 路徑之案例隨副本變異); 變異含「錯誤層級」(M11: 快取前丟棄未來桶之彙總 → FB-3 抓)與 `kpTime` 末桶延伸(M12), 並以未變異副本為對照(須全綠)證明副本載入路徑本身無誤。
+- **等鎖之作法**: 前景 Bash 逾 600 秒會被移到背景且背景另有時限; 排隊改以 `nohup … quiet-run --lock --lock-wait 14400 … &` 脫離工具呼叫, 一次取鎖跑「差異比對、修前紅、修後綠、變異、全套」之單一鏈(`./tmp/wa58/chain.mjs`), 前三步結果不符預期即中止其後各步並釋放鎖; 全套以內層 `quiet-run`(不帶 `--lock`)產摘要。
