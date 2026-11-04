@@ -1,6 +1,7 @@
 //e2e 共用設施之單一引用點: 指向 w-package-tools-e2e(devDependency, 規格見其 README).
 //2026-09-29 起由姊妹專案 w-web-sso 之 srcPack 改指套件 1.0.2(srcPack 已移入該套件並刪除); 套件依賴(sharp、pixelmatch、pngjs、playwright)自本專案 node_modules 解析.
 //2026-09-30 升 1.0.3: 新增 probeStuckTooltip(原四專案各自手寫於 e2e-setup 之同一實作收斂至套件)、gridContentBox 空表訊息外擴、runIsolatedE2e 之 targets.
+//2026-11-04 升 1.0.20: 新增 resolveE2ePort(E2E_PORT_OFFSET 埠位移, 供 shardE2e 多開之臨時實例; 未設位移時回原基準埠, 一切照舊).
 //共用層與測試檔一律自本檔 import, 不直接引用套件路徑.
 export { default as assertBaselineMatch } from 'w-package-tools-e2e/src/assertBaselineMatch.mjs'
 export { default as assertTextSpec } from 'w-package-tools-e2e/src/assertTextSpec.mjs'
@@ -39,6 +40,7 @@ export { default as probeHttp } from 'w-package-tools-e2e/src/probeHttp.mjs'
 export { default as probeStuckTooltip } from 'w-package-tools-e2e/src/probeStuckTooltip.mjs'
 export { default as registerCleanupHooks } from 'w-package-tools-e2e/src/registerCleanupHooks.mjs'
 export { default as resetAgGridScroll } from 'w-package-tools-e2e/src/resetAgGridScroll.mjs'
+export { default as resolveE2ePort } from 'w-package-tools-e2e/src/resolveE2ePort.mjs'
 export { default as rowBoxSel } from 'w-package-tools-e2e/src/rowBoxSel.mjs'
 export { default as runBaselineCase } from 'w-package-tools-e2e/src/runBaselineCase.mjs'
 export { default as runIsolatedE2e } from 'w-package-tools-e2e/src/runIsolatedE2e.mjs'

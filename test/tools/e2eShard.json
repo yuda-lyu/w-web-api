@@ -1,0 +1,22 @@
+{
+    "ports": [
+        11005
+    ],
+    "instances": 5,
+    "officialOnly": [
+        "e2e-apitest.test.mjs"
+    ],
+    "exclude": [
+        "user_data",
+        "dist"
+    ],
+    "durations": {
+        "e2e-apitest.test.mjs": 6.67,
+        "e2e-concurrent.test.mjs": 6.24,
+        "e2e-edit.test.mjs": 3.54,
+        "e2e-display.test.mjs": 4.55,
+        "e2e-stainfor.test.mjs": 1,
+        "e2e-external.test.mjs": 4.29,
+        "e2e-init.test.mjs": 1.71
+    }
+}

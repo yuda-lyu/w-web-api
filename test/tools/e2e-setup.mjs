@@ -39,6 +39,7 @@ import {
     createTempSettings,
     createServiceManager,
     registerCleanupHooks,
+    resolveE2ePort,
     probeStuckTooltip as pkgProbeStuckTooltip
 } from './e2eLib.mjs'
 
@@ -46,8 +47,16 @@ import {
 //診斷閘門紀律：診斷 env 生效時絕不可寫正式 baseline（技能 references/pixel-mismatch-diagnosis.md §6；getE2eMode 於此拋錯）
 let { regen: REGEN } = getE2eMode()
 
+//後端埠：BACKEND_PORT 為基準埠（亦為 settings.json 之 serverPort）；實際埠經 resolveE2ePort 加上環境變數 E2E_PORT_OFFSET 之位移。
+//未設 E2E_PORT_OFFSET（npm test、逐檔 runner、單檔 mocha）時實際埠＝基準埠，埠、設定、行為與導入前相同；
+//設了位移者為 shardE2e 多開之臨時實例（w-package-tools-e2e README §2.10、§2.11），後端改聽位移後之埠，與正式實例互不相撞。
+//註：種子與使用者輸入之 http://localhost:11005/... 字串是資料不是連線，不隨位移改（改了會使標準圖不符）。
+const BACKEND_PORT = 11005
+let backendPort = resolveE2ePort(BACKEND_PORT)
+let shifted = backendPort !== BACKEND_PORT
+
 //一律 127.0.0.1（避開 Windows IPv6 Happy-Eyeballs 回退延遲，詳全域 CLAUDE.md §6.3）
-let baseUrl = 'http://127.0.0.1:11005'
+let baseUrl = `http://127.0.0.1:${backendPort}`
 
 //瀏覽器 launch 一律帶 chromiumLaunchArgs（確定性渲染六旗標，套件單一來源，與本專案原組逐項相同）。headless Chromium 預設 GPU 光柵化 + subpixel
 //字形 AA 在 byte 級截圖比對下非決定性：同一版面（實測 .op-title 之 DOM top 恆為 166、無位移），eng 拉丁字
@@ -64,10 +73,23 @@ async function launchBrowser() {
 //供 e2e 以不同 server 設定重啟後端（如 init 改 server 初始語系）。
 //落 test/_tmp/ 不落 ./tmp/：後者為 AI 代理暫存區隨時會被整個清除，後端讀不到 settings 會啟動失敗；三專案統一此目錄名。
 //測完即刪：本進程產生者由 cleanup() 一併刪除。
-let { genTempSettings, cleanupTempSettings } = createTempSettings({
+//位移（shifted）時一律補 serverPort＝實際埠：srv.mjs 之埠只由設定檔 serverPort 決定（環境變數與命令列皆不能覆寫），
+//且 restartBackend 帶回之基底設定（./settings.json）其 serverPort 為基準埠。未位移時 overrides 原樣，產出之設定檔與導入前逐位元相同。
+let { genTempSettings: genTempSettingsInner, cleanupTempSettings } = createTempSettings({
     basePath: './settings.json',
     tmpDir: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '_tmp'),
 })
+let genTempSettings = (overrides = {}) => genTempSettingsInner(shifted ? { serverPort: backendPort, ...overrides } : overrides)
+
+//spawn 後端之命令列參數：未位移時 args 原樣（srv.mjs 無參數用 ./settings.json）；位移時，未指定設定檔或指定基底設定檔者改走帶實際埠之臨時設定，
+//已是 genTempSettings 產出者（已含實際埠）照用。測試檔之 restartBackend('./settings.json')（還原預設設定）因此不必改。
+let argsOf = (args) => {
+    if (!shifted) {
+        return args
+    }
+    let a0 = args[0]
+    return [!a0 || a0 === './settings.json' ? genTempSettings({}) : a0, ...args.slice(1)]
+}
 
 
 //服務生命週期（沿用政策 reuse；套件 createServiceManager）：
@@ -81,15 +103,15 @@ let services = createServiceManager({
     services: [
         {
             name: 'backend',
-            port: 11005,
+            port: BACKEND_PORT, //基準埠; 實際埠由套件經 resolveE2ePort 加位移
             readyTimeoutMs: 30000,
             beforeSpawn: ({ phase }) => {
                 if (phase === 'start') {
                     console.log('[e2e-setup] building dist (vue-cli build)...')
-                    execSync('npm run build', { stdio: 'ignore' })
+                    execSync('npm run build', { stdio: 'ignore', windowsHide: true })
                 }
             },
-            spawn: ({ args, env }) => spawn('node', ['srv.mjs', ...args], { stdio: 'ignore', env }),
+            spawn: ({ args, env }) => spawn('node', ['srv.mjs', ...argsOf(args)], { stdio: 'ignore', env, windowsHide: true }),
         },
     ],
     killForeignOnRestart: true,

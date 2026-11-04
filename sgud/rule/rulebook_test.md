@@ -21,7 +21,7 @@
 | 契約 | 本專案實名 / 模式 | 偏離與依據 |
 |---|---|---|
 | C1 launch wrapper | `launchBrowser()`(全專案唯一 launch 出口, 定義於 `test/tools/e2e-setup.mjs`, 2026-09-28 起轉呼叫 srcPack `launchBrowser`: 無頭 + srcPack `chromiumLaunchArgs` 六旗標(與本專案原組逐項相同), 內部 `launchChromium` 缺 Playwright 指定版本之瀏覽器時首次啟動自動下載(與本機同版)) | 已收斂 |
-| C2 server lifecycle | `startServersOnce()` / `cleanup()` = srcPack `createServiceManager`(沿用政策 reuse; 後端 `beforeSpawn` 於首次確定要 spawn 時 `npm run build`; 11005 已被佔用即沿用、不重 build); `cleanup()` 同步殺自建、**重置一次性狀態**(2026-09-28 前不重置)、刪臨時 settings; root `after` 與 exit / SIGINT / SIGTERM 由模組頂層 `registerCleanupHooks` 註冊(ADR-024) | N/A: 無前端 dev server, 不需分拆旗標; 無直跑分支 |
+| C2 server lifecycle | `startServersOnce()` / `cleanup()` = srcPack `createServiceManager`(沿用政策 reuse; 後端 `beforeSpawn` 於首次確定要 spawn 時 `npm run build`; 11005 已被佔用即沿用、不重 build); `cleanup()` 同步殺自建、**重置一次性狀態**(2026-09-28 前不重置)、刪臨時 settings; root `after` 與 exit / SIGINT / SIGTERM 由模組頂層 `registerCleanupHooks` 註冊(ADR-024) | N/A: 無前端 dev server, 不需分拆旗標; 無直跑分支。**埠位移（2026-11-04 起）**: `services[].port` 寫基準埠 `BACKEND_PORT`(11005), 實際埠由套件經 `resolveE2ePort` 加環境變數 `E2E_PORT_OFFSET`（供 `shardE2e` 之臨時實例; 未設時不變）, 後端之埠另經 `genTempSettings`／`argsOf` 寫入設定檔 `serverPort`（R-SHARD-02）; spawn 與 build 皆 `windowsHide: true` |
 | C3 換設定重啟 | `restartBackend(pathSettings)` = `restart('backend', { args })`: 有自建 → 殺樹並**等 11005 釋放**(2026-09-28 前殺自建後不等即 spawn); 無自建而被佔 → 殺監聽者(明文例外, `killForeignOnRestart`)並等釋放; restart 不改一次性狀態(原設 `started=true`, 由沿用判定取代). `genTempSettings(overrides)` → `test/_tmp/settings-e2e-<pid>-<seq>.json`(srcPack `createTempSettings`; `cleanup()` 逐檔刪, 目錄空則移除) | 無 `envOverride` |
 | C4 DB 重置 | `resetToBaseSeed()` 於 `beforeEach`; 異動資料之 flow 於 `after` 再還原 | |
 | C5 進站與語系 | `gotoApiWorkspace(page, lang)`(apitest / display / edit 共用); `?token=sys`; 語系迴圈 `for lang of LANGS`; init 之 `gotoReadyNoLang`、stainfor 之 `gotoStats` 目的不同各自保留 | 缺口: 無共用 `setLang`(語系經 `?lang=` 或 server 注入決定) |
@@ -33,7 +33,7 @@
 | C11 偵測等待 | `waitUntilExist(page, label, fn, { timeout 15000, arg })` = srcPack(保留本專案預設逾時; fn 為 async 時改逐次 evaluate 輪詢——`page.waitForFunction` 會把 async 回傳之 Promise 當 truthy 立即放行) | |
 | C12 settle 訊號 | `waitDrawerReady`(`[state]`); `waitMutationSettled(page)`(內容簽章) | |
 | C13 regen 入口 | (b) mocha: `REGEN = argv.includes('--baseline') \|\| env.E2E_REGEN === '1'`(srcPack `getE2eMode`, 含診斷閘門); `npx mocha test/e2e-<flow>.test.mjs --baseline [--grep …]`. 2026-09-28 起五檔之每個 `it` 呼叫 srcPack `runBaselineCase({ mode: REGEN ? 'regen' : 'compare', gate })`: 流程中每階段截圖後當場斷言、**全部通過才寫檔**(原為各階段 `assertOrRegenBaseline` 當場寫檔, 後段斷言失敗時已寫入半套新圖); 兩案共用一張圖者另一案 `compareOnly`(edit E2E-005 共用 E2E-003-2-confirm, 原被兩案輪流重寫; 案例宣告原樣交 gate, 2026-09-28 刪除為閃避舊 gate 缺陷而剝除 stages 之 `gateCases`); **登錄漂移點**(2026-09-28 全量重產比對): 頁首單點 eng (60,43)、cht (60,27), pixelmatch 計數 0 而 RGBA 不同(同 sso / perm 頁首之 (60,47) 漂移成因), 此類圖不換新(sso ADR-072 決定 5); 計數 > 0 者一律換新; `gate`(`createBaselineGate`)提供 `E2E_BASELINE_OUT_DIR`(寫到暫存目錄做等價驗證)與 `--write-mode missing\|changed`, 各檔 root `after` 呼叫 `gate.finalize()`(`--names` 所列未產出即報錯; 另依宣告靜態檢查 `test/pics/<flow>/` 之孤兒圖, 有即報錯); 針對性重產以 `--grep` 選案; 比對只經 srcPack `assertBaselineMatch`(只比對不寫檔, 計數 > 50 印 `[baseline-headroom]`) | 與 sso / perm 之直跑模式不同 |
-| C14 端點 | `baseUrl` = `http://127.0.0.1:11005` | |
+| C14 端點 | `baseUrl` = `http://127.0.0.1:${resolveE2ePort(11005)}`（基準埠 11005; 未設 `E2E_PORT_OFFSET` 時即 `http://127.0.0.1:11005`; 2026-11-04 起, 見下節 R-SHARD-01~07） | |
 
 ## 多人同時編輯與外部匯入之測試(2026-10-23, ADR-043; 規則見 `rulebook_concurrency.md` §9、`rulebook_backend.md` R-IMPORT-01)
 
@@ -126,4 +126,36 @@
 | `test/unit-staEvent-golden.test.mjs` GOLD-001 | unit | `future-1d` 於 hr／day 皆計 0、`hr`／`day` 末列為現在所屬桶(`2026-08-31T12`／`2026-08-31`); `expected.json` 由 `gen-expected.mjs`(`dropFuture`)自 legacy 輸出剔除 2 列未來桶 | fixture `test/staLogs-golden/logs`(173 檔)不動 |
 
 **改動範圍 → 測試檔(統計輸出)**: 改 `server/staLogs/*` → `unit-staLogs-futureBucket`、`unit-staEvent-golden`、`unit-staEvent`、`unit-resolveShellWorker`、`unit-iterSites`(SITE-API-004 掃 staLogsCore)、`unit-staFreq` + e2e: `e2e-stainfor`(統計頁)、`e2e-init`(進站預設頁即統計頁); 改 `LayoutContentStats.vue` → 另含 `e2e-stainfor`、`e2e-init` 之標準圖比對。標準圖授權範圍僅 `test/pics/stainfor/`。
+
+## e2e 分組多開(`shardE2e`)與全套跑法(2026-11-04, wa302〔任務 20261104071854, 排程第 302 項〕; 工具 `w-package-tools-e2e` 1.0.20 `tools/shardE2e.mjs`, 規格見其 README §2.10、§2.11)
+
+### 全套跑法(本套件唯一建議的「全套」)
+
+| 要什麼 | 指令 | 說明 |
+|---|---|---|
+| 全套(非 e2e 在正式目錄跑 + e2e 多開) | `node C:/opensrcOper/tools/full-suite.mjs C:/opensrc/開源-JS-411-8-w-web-api/w-web-api`(主控工具, 內部自行取鎖: ① `rest`＝非 e2e 檔以單一 mocha 在正式目錄跑〔`--lock`〕;② `e2e`＝`shardE2e` 多開跑〔`--lock-exclusive`〕; 不要自己再包鎖) | 兩段皆跑(前段紅仍跑後段); 預估 `rest` 約 3 分、`e2e` 約 6.5 分(不含等鎖); 長作業以 detached 啟動、分段等待 |
+| 只看分組(不取鎖、不建任何東西) | `node node_modules/w-package-tools-e2e/tools/shardE2e.mjs --plan` | 印分組與預估 |
+| 只跑 e2e 多開 | `node C:/opensrcOper/tools/quiet-run.mjs --lock-exclusive --name <名> -- node node_modules/w-package-tools-e2e/tools/shardE2e.mjs --out-dir <輸出夾>` | 只跑比對、**不寫標準圖**; 離開碼 0 才算綠; 實例在 `./tmp/e2e-shards/`, 工具自行移除 |
+| 取實測耗時回寫 `durations` | 同上加 `--update-durations` | 只在需要時加; 預設不改檔 |
+| 依舊跑法(單一 mocha, 全部在正式目錄) | `npm test`(**指令不變**; 約 21～25 分) | 不使用 `E2E_PORT_OFFSET`, 與導入前相同 |
+| 單檔／逐檔隔離 | `npx mocha test/e2e-<flow>.test.mjs --reporter list --timeout 300000`; `node test/tools/run-e2e-isolated.mjs` | 同上, 正式埠 |
+| 標準圖產製（REGEN） | **只能在正式實例**（`E2E_REGEN=1`／`--baseline`, 不設 `E2E_PORT_OFFSET`）; `shardE2e` 遇 `E2E_REGEN=1` 即拋錯 | `test/pics` 在實例內是指回正式專案之 junction |
+
+注意: `api-*`、`unit-*` 之固定埠（api 8550～8574、echo 11077 等）與多開之 e2e 不同時跑（`full-suite` 兩段循序）; **e2e 多開期間不要同時在正式目錄跑 `e2e-apitest`（固定 echo 埠 11077）**。
+
+### 規則與站點
+
+| 規則 | 站點全集 | 判準 | 盤點指令 |
+|---|---|---|---|
+| **R-SHARD-01 埠只經 `resolveE2ePort(基準埠)` 組成, 基準埠寫死 11005, 不做文字取代** | `test/tools/e2e-setup.mjs`（`backendPort`／`baseUrl`／`services[].port`＝基準埠）、`test/tools/run-e2e-isolated.mjs`（`BACKEND_PORT`）、`test/tools/e2eLib.mjs`（轉出 `resolveE2ePort`） | 已套; 未設 `E2E_PORT_OFFSET` 時 `backendPort`＝11005、`genTempSettings` 之 overrides 原樣、`argsOf` 回 `args` 原樣（`npm test` 之埠、設定、行為與導入前相同; 實測見下） | `git grep -n "resolveE2ePort\|11005" -- test/tools`（`e2e-setup`／`run-e2e-isolated` 之 11005 只出現在基準埠常數與註解） |
+| **R-SHARD-02 後端之埠只由 `settings.json` 之 `serverPort` 決定**（`srv.mjs:26`; 環境變數與命令列皆不能覆寫）, 故位移時 `genTempSettings` 補 `serverPort`＝實際埠、`restartBackend('./settings.json')` 與起手 spawn 經 `argsOf` 改走帶實際埠之臨時設定 | `e2e-setup.mjs` 之 `genTempSettings`（包裝）、`argsOf`; 呼叫端 `restartBackend(...)`: `e2e-apitest`:856,866、`e2e-external`:541,546、`e2e-init`:177~445、`e2e-stainfor`:304,309 | 已套; 測試檔不改 | `git grep -n "restartBackend(\|genTempSettings(" -- test/e2e-*.test.mjs`（測試檔應無 `serverPort`） |
+| **R-SHARD-03 含連線埠之流程只能在正式實例**: `e2e-apitest.test.mjs` 列 `officialOnly`（固定 echo 埠 11077 於 `:108`; 位址列輸入 `http://127.0.0.1:11005/` 於 `:260`, 既是真連線〔E2E-001 送出後打該網址〕又進標準圖 `apitest-*-E2E-001-2-url-changed.png`） | `test/tools/e2eShard.json` `officialOnly` | 已套（固定第 0 組, 位移 0） | `git grep -n "11077\|127.0.0.1:11005" -- test/e2e-*.test.mjs`（命中之檔都須在 `officialOnly`） |
+| **R-SHARD-04 資料裡之網址字串不改**: 種子與使用者輸入之 `http://localhost:11005/…`（`src/schema/tables/apis.mjs:156~722`、`e2e-display:169`、`e2e-external:214,332`、`e2e-concurrent:539`、`e2e-edit:149`）是資料不是連線, 改了標準圖不符 | 同左 | 已套（未改） | `git diff --stat -- src test/e2e-*.test.mjs`（應空） |
+| **R-SHARD-05 實例內每實例各自 build `dist`**: `e2eShard.json` `exclude` 含 `dist`（與 `user_data`: 153 MB 無引用）, 各實例之 `startServersOnce` 於其位移後之埠沒人時自行 `npm run build`; `node_modules` 以 junction 共用（`node_modules/.cache` 因此共用, 見實測） | `test/tools/e2eShard.json`; `e2e-setup.mjs` `beforeSpawn` | 已套; 實跑 5 實例並行 build 全綠（2026-11-04） | `node node_modules/w-package-tools-e2e/tools/shardE2e.mjs --plan` |
+| **R-SHARD-06 `durations` 以實測回寫**: 估計值僅供首跑, 實測後以 `--update-durations` 回寫（單位分; 只用於分組） | `test/tools/e2eShard.json` | 已套（2026-11-04 以實測回寫, 見 `sgud/state/state.md`） | `git diff -- test/tools/e2eShard.json` |
+| **R-SHARD-07 啟動服務隱藏視窗**: `spawn`／`execSync('npm run build')` 皆 `windowsHide: true` | `e2e-setup.mjs` | 已套 | `git grep -n "windowsHide" -- test/tools/e2e-setup.mjs`（應 2） |
+
+**未位移不變之實測（2026-11-04）**: `npx mocha test/e2e-stainfor.test.mjs`（正式埠 11005, 不設 `E2E_PORT_OFFSET`, 含 `restartBackend(genTempSettings({ logFd }))` 路徑）6 passing、離開碼 0, 標準圖比對全過; `e2e-display` 於正式目錄（`E2E_REGEN=1` ＋ `E2E_BASELINE_OUT_DIR`）與位移 +100 實例各產一次, 38 張**位元組全等**（首次等價驗證, 全域技能 `full-run-and-instances.md` §5.2-7; 證據見 `agent-out/wa302-evidence/eqv/result.json`、腳本見 `agent-out/wa302-evidence/scripts/eqv.mjs`）。
+
+**改動範圍 → 測試檔（e2e 多開設施）**: 改 `test/tools/e2e-setup.mjs`／`e2eLib.mjs`／`run-e2e-isolated.mjs`／`test/tools/e2eShard.json`、升 `w-package-tools-e2e` → 全套（`full-suite.mjs`）; 新增或改名 `test/e2e-*.test.mjs` → 先看是否含固定埠或位址列連線（R-SHARD-03）, 再更新 `e2eShard.json`（`--plan` 驗證）。
 

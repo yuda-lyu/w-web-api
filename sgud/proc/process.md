@@ -10,6 +10,12 @@
 - **判斷**: 任何 e2e 或手動驗收皆看 build 後的畫面. `startServersOnce()` 見 11005 已有人即**沿用不重建**——手動起的後端沒關就會測到舊碼且不重 build, 徵狀是「改了前端但截圖沒變」.
 - **處理**: 跑 harness 前確認 11005 空著; 手動起後端做驗收同樣先 `npm run build`; `dist` 由發布流程自動產製, 需要時自行 build, 不列為待辦.
 
+## 跑全套: e2e 多開（`shardE2e`）, 2026-11-04 起
+
+- **關聯**: `test/tools/e2eShard.json`（`ports`、`instances`、`officialOnly`、`exclude`、`durations`）; `test/tools/e2e-setup.mjs`／`run-e2e-isolated.mjs` 之 `resolveE2ePort`; 主控工具 `C:/opensrcOper/tools/full-suite.mjs`; 規則 `rulebook_test.md` R-SHARD-01~07; 工具規格 `w-package-tools-e2e` README §2.10、§2.11.
+- **判斷**: 要「全套」（含 e2e 全部 7 檔、109 案）且想省時間 → 用多開, 約 6.5～7 分（`npm test` 約 21～25 分）。多開只跑**比對**、不寫標準圖; 要產製／重產標準圖一律在正式實例（不設 `E2E_PORT_OFFSET`、`E2E_REGEN=1`）. `npm test` 指令與行為不變, 仍可用.
+- **處理**: `node C:/opensrcOper/tools/full-suite.mjs C:/opensrc/開源-JS-411-8-w-web-api/w-web-api [--log-base <前綴>]`（detached 啟動、分段等待; 內部自行取鎖, 不要再包鎖; 先 `rest`〔非 e2e, 約 3 分〕後 `e2e`〔`--lock-exclusive`, 約 6.5 分, 不含等鎖〕; 離開碼 0＝兩段皆綠）。**多開期間不要在正式目錄同時跑 `e2e-apitest`／`api-*`**（固定埠）。正式目錄跑過 e2e（`npm test`、單檔 mocha、REGEN）會因 `npm run build` 清空 `dist/` 而刪掉**已入版控**之 `dist/index.tmp`、`dist/w-web-api.umd.js(.map)` 並改寫 `tableTags-web-api.json`（多開的實例有自己的 `dist`, 不動正式目錄）; 這是產物, 結束時用 `git cat-file blob HEAD:<檔>` 以原位元組寫回並逐檔比對回驗（不要用 `git archive`: 本機 `core.autocrlf=true`, 其輸出為 CRLF, 會讓 `git status` 標 M）. 新增／改名 e2e 檔後先 `node node_modules/w-package-tools-e2e/tools/shardE2e.mjs --plan` 看分組, 含固定埠或位址列連線者加入 `officialOnly`.
+
 ## 資料初始化與測試 seed
 
 - **關聯**: 測試 seed `g_initialTestData.mjs`(以 `w-serv-orm` 之 genTestData 依 schema `funTest` 重建); 每 case `resetToBaseSeed()`(`woItems.apis.delAll()` + 固定 id seed); 本套件**不用** `g_initialData.mjs`.
