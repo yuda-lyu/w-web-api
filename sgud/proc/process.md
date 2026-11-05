@@ -46,7 +46,7 @@
 
 - **關聯**: `node srv.mjs [settings 路徑]`; `restartBackend(genTempSettings({ ...overrides }))`; `e2e-init`、`e2e-stainfor` 之 `restartBackend`.
 - **判斷**: 改 `server/` 下檔案後須重啟後端; 但 **e2e 進行中不可改 `server/`**——`e2e-init` / `e2e-stainfor` 之 `restartBackend` 會重新 spawn 而載入半成品.
-- **處理**: 起前 `netstat -ano | grep ":11005 " | grep LISTENING`, 殺自己起的用 `cmd //c "taskkill /F /PID <pid> /T"` 並回驗埠已釋放; 換設定重啟由 e2e 之 `restartBackend(genTempSettings(...))` 完成, 臨時設定寫 `test/_tmp/settings-e2e-<pid>-<seq>.json` 測完由 cleanup 刪; 它會殺佔用 11005 者(含手動起的同專案後端), 為 `CLAUDE.md` 明文例外.
+- **處理**: 起前 `netstat -ano | grep ":11005 " | grep LISTENING`, 殺自己起的用 `cmd //c "taskkill /F /PID <pid> /T"` 並回驗埠已釋放; 換設定重啟由 e2e 之 `restartBackend(genTempSettings(...))` 完成, 臨時設定寫 `test/_tmp/settings-e2e-<pid>-<seq>.json` 測完由 cleanup 刪; ~~它會殺佔用 11005 者(含手動起的同專案後端), 為 `CLAUDE.md` 明文例外~~〔2026-11-05 wa309 更正(R-E2E-PORT-01): e2e harness 自此**只殺身分已確認屬本實例者**(`reservation.killOwnListeners`); 11005(或 echo 11077)被別的套件之測試、手動起之同專案後端或任何服務占用時, 測試整組自動位移(如 11105／11177)而不殺占用者; 手動 `E2E_PORT_OFFSET=0`(沿用逃生口)遇他人占用時 `restartBackend` 拋錯、逐檔 runner 於第一檔前中止, 皆不殺. 起手動後端不必再擔心被 e2e 殺掉, 但仍須在跑 e2e 前確認其為最新碼(位移後 e2e 另起自己之後端並重 build `dist/`, 會覆寫手動後端正在 serve 之 `dist/`)〕.
 
 ## 登入、SSO 與權限
 

@@ -4,9 +4,7 @@
 //並對同類寫入路徑 saveApi（修改、新增）與 deleteApi 注入同樣之逐筆 ok:0。
 //每案以操作記錄之 inj 標記證明注入確實命中（非空轉）。
 import assert from 'assert'
-import fs from 'fs'
-import path from 'path'
-import { startApiServer, sleep } from './tools/apiHarness.mjs'
+import { startApiServer, waitLogs } from './tools/apiHarness.mjs'
 
 
 let PORT = 8553
@@ -23,28 +21,6 @@ let nextBatch = () => [mkExt('a', { description: 'chg-a' }), mkExt('b', { descri
 let countsNext = { nAdd: 2, nUpdate: 2, nDel: 2, nSame: 2 }
 
 let hit = async (op) => (await S.getOps()).filter((o) => o.op === op && o.inj === 'item').length
-
-//readLogs: 讀子行程 srLog 寫出之 log 檔全文（cwd/logs 下）
-async function readLogs() {
-    await sleep(600) //srLog 為非同步 worker 寫檔
-    let fd = path.join(S.cwd, 'logs')
-    let txt = ''
-    if (fs.existsSync(fd)) {
-        let walk = (d) => {
-            for (let f of fs.readdirSync(d, { withFileTypes: true })) {
-                let p = path.join(d, f.name)
-                if (f.isDirectory()) {
-                    walk(p)
-                }
-                else {
-                    txt += fs.readFileSync(p, 'utf8') + '\n'
-                }
-            }
-        }
-        walk(fd)
-    }
-    return txt
-}
 
 //mkRow: 後台 UI 路徑 saveApi 新增一列（無 id），回庫內列
 async function mkRow(name) {
@@ -120,8 +96,8 @@ describe('api-itemFail (ORM 逐筆 ok:0 不 reject: 整批全有或全無、補�
             await S.setFailItems({})
             assert.strictEqual(await hit('del'), 2)
             assert.deepStrictEqual({ state: r.state, msg: r.msg }, { state: 'error', msg: 'saveWriteFail' })
-            let txt = await readLogs()
-            assert.ok(txt.includes('syncAndReplaceTabs-restoreFail'), '補償不完整須記錄供人工處置（不可因回讀只比對 id 存在而靜默通過）')
+            let has = (lines) => lines.some((l) => l.includes('syncAndReplaceTabs-restoreFail'))
+            assert.ok(has(await waitLogs(S.cwd, has)), '補償不完整須記錄供人工處置（不可因回讀只比對 id 存在而靜默通過）')
         })
     })
 

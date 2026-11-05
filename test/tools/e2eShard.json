@@ -1,6 +1,7 @@
 {
     "ports": [
-        11005
+        11005,
+        11077
     ],
     "instances": 5,
     "officialOnly": [

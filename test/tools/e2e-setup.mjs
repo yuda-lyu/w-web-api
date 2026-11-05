@@ -42,16 +42,19 @@ import {
     resolveE2ePort,
     probeStuckTooltip as pkgProbeStuckTooltip
 } from './e2eLib.mjs'
+//基準埠與埠保留(排程第 309 項): e2ePorts.mjs 載入時即呼叫 reserveE2ePorts(基準埠有占用時整組位移並寫入 E2E_PORT_OFFSET), 須早於本檔任何 resolveE2ePort／createServiceManager——
+//  ES 模組先評估被匯入者, 故此匯入之副作用先於本檔本體。
+import { BACKEND_PORT, reservation } from './e2ePorts.mjs'
 
 //baseline 產製模式：mocha 帶 --baseline 或 env E2E_REGEN=1 時寫檔；否則 pixelmatch 容差比對。
 //診斷閘門紀律：診斷 env 生效時絕不可寫正式 baseline（技能 references/pixel-mismatch-diagnosis.md §6；getE2eMode 於此拋錯）
 let { regen: REGEN } = getE2eMode()
 
-//後端埠：BACKEND_PORT 為基準埠（亦為 settings.json 之 serverPort）；實際埠經 resolveE2ePort 加上環境變數 E2E_PORT_OFFSET 之位移。
-//未設 E2E_PORT_OFFSET（npm test、逐檔 runner、單檔 mocha）時實際埠＝基準埠，埠、設定、行為與導入前相同；
-//設了位移者為 shardE2e 多開之臨時實例（w-package-tools-e2e README §2.10、§2.11），後端改聽位移後之埠，與正式實例互不相撞。
+//後端埠：BACKEND_PORT（基準埠 11005，亦為 settings.json 之 serverPort）定義於 e2ePorts.mjs，並於該處呼叫 reserveE2ePorts；實際埠經 resolveE2ePort 加上環境變數 E2E_PORT_OFFSET 之位移。
+//沒有占用且未設 E2E_PORT_OFFSET（npm test、逐檔 runner、單檔 mocha）時實際埠＝基準埠，埠、設定、行為與導入前相同；
+//基準埠（後端 11005 或 e2e-apitest 之 echo 11077）被占用時（單開，排程第 309 項，規格 E1～E8）由 reserveE2ePorts 整組位移並寫入 E2E_PORT_OFFSET，其後取埠方式與多開相同（不是第二套解析）；
+//設了位移者亦為 shardE2e 多開之臨時實例（w-package-tools-e2e README §2.10、§2.11、§2.12），後端改聽位移後之埠，與正式實例互不相撞。
 //註：種子與使用者輸入之 http://localhost:11005/... 字串是資料不是連線，不隨位移改（改了會使標準圖不符）。
-const BACKEND_PORT = 11005
 let backendPort = resolveE2ePort(BACKEND_PORT)
 let shifted = backendPort !== BACKEND_PORT
 
@@ -93,9 +96,10 @@ let argsOf = (args) => {
 
 
 //服務生命週期（沿用政策 reuse；套件 createServiceManager）：
-//- startServersOnce：11005 沒人 → 先 build（beforeSpawn phase=start）再 spawn srv.mjs；已被佔用 → 重用（不 spawn 也不負責關；不重 build，
-//  手動起的後端沒關會測到舊碼，見 CLAUDE_process.md）。一次性狀態：之後之呼叫不再偵測；cleanup 後重置。
-//- restartBackend：殺自建並等 11005 釋放；無自建而被佔用（外部 / reuse 之同專案後端）→ 殺其監聽者並等釋放（11005 專屬本專案，CLAUDE.md 明文例外）；
+//- startServersOnce：後端實際埠（基準 11005 經保留後）沒人 → 先 build（beforeSpawn phase=start）再 spawn srv.mjs；已被佔用 → 單開時不會發生（保留已換至空閒之組；保留後才被搶走者拋錯寫明占用者，不沿用）；
+//  僅手動設 E2E_PORT_OFFSET（含 0）鎖定埠者才沿用（不 spawn 也不負責關；不重 build，手動起的後端沒關會測到舊碼，見 CLAUDE_process.md）。一次性狀態：之後之呼叫不再偵測；cleanup 後重置。
+//- restartBackend：殺自建並等後端埠釋放；無自建而被佔用 → 只殺「身分已確認屬本實例」者（reservation.killOwnListeners，規格 E4），其餘占用者（含別的套件之測試、手動起之同專案後端）
+//  不殺、拋錯寫明占用者（2026-11-05 前依埠殺任何監聽者, CLAUDE.md 明文例外, 已實測會殺到別人，見規則帳本 R-E2E-PORT-01）；
 //  之後 spawn `node srv.mjs <pathSettings>` 等 ready。srv.mjs 啟動時依設定注入 dist/index.html；
 //  多次切換 server language 須先建 dist/index.tmp 不可變模板（見 e2e-init 之 ensureIndexTmpl），否則第 2 次起 index.html 已無 {language} 佔位符。
 //- cleanup：同步殺自建、重置一次性狀態、刪臨時 settings。
@@ -114,6 +118,9 @@ let services = createServiceManager({
             spawn: ({ args, env }) => spawn('node', ['srv.mjs', ...argsOf(args)], { stdio: 'ignore', env, windowsHide: true }),
         },
     ],
+    //已導入埠保留(reservation 明確帶入): restart 遇非自建之監聽者時, 管理器只殺「身分已確認屬本實例」者(reservation.killOwnListeners), 其餘占用者拋錯寫明, 不殺(規格 E4);
+    //  killForeignOnRestart 仍須為 true 才會進入該判斷(false 時直接拋錯), 但不再依埠下殺任何人(原依 killPortListeners 殺任何監聽者, 2026-11-05 修前以真實占用者實測會殺到)。
+    reservation,
     killForeignOnRestart: true,
     onCleanup: () => cleanupTempSettings(),
 })

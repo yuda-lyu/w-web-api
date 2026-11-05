@@ -37,10 +37,14 @@ import {
     resetToBaseSeed,
     woItems,
     launchBrowser,
+    baseUrl,
     REGEN
 } from './tools/e2e-setup.mjs'
 import ds from '../src/schema/index.mjs'
-import { runBaselineCase, createBaselineGate, openCasePage } from './tools/e2eLib.mjs'
+import { runBaselineCase, createBaselineGate, openCasePage, resolveE2ePort } from './tools/e2eLib.mjs'
+//基準埠(後端 11005、echo 11077)單一定義於 e2ePorts.mjs(於該處 reserveE2ePorts; e2e-setup 已先匯入之, 故保留早於本檔取埠); 實際埠一律經 resolveE2ePort 解析
+import { BACKEND_PORT, ECHO_PORT, assertPortNotAnswering } from './tools/e2ePorts.mjs'
+import { findPortRegions, overlayPortRegions, recordPortRegions } from './tools/e2ePortOverlay.mjs'
 
 
 let FLOW = 'apitest'
@@ -105,21 +109,30 @@ async function captureResponseCard(page, lang, caseName) {
 //網址指向它，經後端 proxy round-trip 後回應面板即顯示 echo 內容，用語意斷言驗「認證/參數確實隨請求送達」。
 //固定 port（非 ephemeral）：位址列 URL 進 baseline，須決定性。後端(srv.mjs 子進程)以 Node fetch 打 127.0.0.1
 //同機可達；echo server 跑在 mocha 進程內、before 起、after 關（lifecycle 對稱）。
-let ECHO_PORT = 11077
-let ECHO_URL = `http://127.0.0.1:${ECHO_PORT}/echo`
+//埠（排程第 309 項, 規格 E1～E3、E7）：基準埠 ECHO_PORT(11077)定義於 e2ePorts.mjs 並與後端埠一同保留; 被占用而位移時 echo 聽 resolveE2ePort 後之實際埠（不與占用者撞埠、不搶其連線），
+//  位址列之網址隨之為實際埠——該處進標準圖（基準埠之文字），故位移時於比對端以標準圖同座標內容覆蓋（findPortRegions／overlayPortRegions；標準圖不動、產製端原樣寫出），
+//  被覆蓋之值另以語意斷言驗為實際網址（expectAddr）。沒有占用時（實際埠＝基準埠）不量測也不覆蓋，比對與導入前逐位元相同。
+let ECHO_PORT_ACTUAL = resolveE2ePort(ECHO_PORT)
+let BACKEND_PORT_ACTUAL = resolveE2ePort(BACKEND_PORT)
+let PORTS_SHIFTED = ECHO_PORT_ACTUAL !== ECHO_PORT || BACKEND_PORT_ACTUAL !== BACKEND_PORT
+let ECHO_URL = `http://127.0.0.1:${ECHO_PORT_ACTUAL}/echo`
 //固定陣列目標（E2E-009）：回一個決定性 JSON 陣列（元素為物件），驗「陣列型回應顯示為格式化 JSON」；
 //與 echo 不同：內容固定、無 request 回顯，故回應 body 可入 pixel baseline。
-let ARR_URL = `http://127.0.0.1:${ECHO_PORT}/arr`
+let ARR_URL = `http://127.0.0.1:${ECHO_PORT_ACTUAL}/arr`
+//後端自身之網址(E2E-001 把位址列改為本機 server 根, 送出後經後端 proxy 打回自己)
+let BACKEND_ROOT_URL = `${baseUrl}/`
 let ARR_FIXTURE = [{ id: 1, name: 'alpha' }, { id: 2, name: 'beta' }]
 let echoServer = null
 
-function startEchoServer() {
-    return new Promise((resolve, reject) => {
+async function startEchoServer() {
+    //規格 E5: 行程內監聽者於綁定前先做連線檢查——Windows 允許本 echo(127.0.0.1)與已綁萬用位址之占用者並存綁定(不會 EADDRINUSE), 但其後 127.0.0.1 之連線全歸本 echo, 即搶走占用者之連線
+    await assertPortNotAnswering(ECHO_PORT_ACTUAL, 'e2e-apitest 之 echo')
+    return await new Promise((resolve, reject) => {
         echoServer = http.createServer((req, res) => {
             let chunks = []
             req.on('data', (c) => chunks.push(c))
             req.on('end', () => {
-                let u0 = new URL(req.url, `http://127.0.0.1:${ECHO_PORT}`)
+                let u0 = new URL(req.url, `http://127.0.0.1:${ECHO_PORT_ACTUAL}`)
                 if (u0.pathname === '/arr') {
                     res.writeHead(200, { 'Content-Type': 'application/json' })
                     res.end(JSON.stringify(ARR_FIXTURE))
@@ -129,7 +142,7 @@ function startEchoServer() {
                 let body
                 try { body = raw ? JSON.parse(raw) : '' }
                 catch (e) { body = raw }
-                let u = new URL(req.url, `http://127.0.0.1:${ECHO_PORT}`)
+                let u = new URL(req.url, `http://127.0.0.1:${ECHO_PORT_ACTUAL}`)
                 //重複之 query 鍵回顯為陣列（改造前 forEach 覆蓋只留最後一值，無法驗「重複鍵各自送達」；E2E-013）
                 let query = {}
                 for (let k of new Set(u.searchParams.keys())) {
@@ -141,8 +154,11 @@ function startEchoServer() {
                 res.end(JSON.stringify(out))
             })
         })
-        echoServer.on('error', reject)
-        echoServer.listen(ECHO_PORT, '127.0.0.1', () => resolve())
+        echoServer.on('error', (err) => {
+            //連線檢查通過後仍綁定失敗(檢查與綁定之間被別人占走): 寫明埠與原因, 不重選(實際埠已被 resolveE2ePort 常數取用, 重跑即重選)
+            reject(err && err.code === 'EADDRINUSE' ? new Error(`e2e-apitest 之 echo 埠 ${ECHO_PORT_ACTUAL} 於連線檢查後被他人占用(EADDRINUSE), 不下殺; 重跑即重選埠`, { cause: err }) : err)
+        })
+        echoServer.listen(ECHO_PORT_ACTUAL, '127.0.0.1', () => resolve())
     })
 }
 
@@ -157,6 +173,42 @@ function stopEchoServer() {
         }
     })
 }
+
+
+//畫面含實際埠之比對端覆蓋（規格 E7）。位址列（.addr-url）顯示請求網址，其埠進標準圖；實際埠＝基準埠時一切同導入前（不量測、不覆蓋）。
+//實際埠不同於基準埠（單開被占用而自動換埠，或多開位移）時：截圖當下於頁內量測含實際埠之可見區域（findPortRegions）並記在該截圖 Buffer 上，
+//比對端（runBaselineCase 之 compareBuf）以標準圖同座標內容覆蓋之（標準圖不動、產製端原樣寫出）；被覆蓋之值另以 expectAddr 語意斷言驗為實際網址。
+//量不到（被遮蓋、捲出可視範圍）即不覆蓋（不遮蔽未量到之區域）；位數相同之埠數字差異常低於比對容差，量不到不一定使比對失敗，
+//故只預期「位址列 input」含實際埠，量到其他種類（文字行）即拋錯，要求先以語意斷言驗證其值再決定覆蓋方式（不靜默整行覆蓋）。
+let portRegionsOf = new WeakMap() //截圖 Buffer → 該圖含實際埠之區域（截圖當下量測）
+
+async function notePortRegions(page, buf) {
+    if (PORTS_SHIFTED) {
+        let regions = await findPortRegions(page, [BACKEND_PORT_ACTUAL, ECHO_PORT_ACTUAL])
+        let unexpected = regions.filter((r) => r.kind !== 'input')
+        assert.strictEqual(unexpected.length, 0, `畫面出現未預期之含實際埠文字(${JSON.stringify(unexpected.map((r) => ({ kind: r.kind, text: r.text })))}): 本流程只預期位址列(input)含實際埠; 新增之含埠文字須先以語意斷言驗證其值, 再決定覆蓋方式(規格 E7)`)
+        portRegionsOf.set(buf, regions)
+        recordPortRegions(buf, regions) //平時關閉(僅 E2E_PORT_REGIONS_OUT 給定時記錄, 供等價驗證)
+    }
+    return buf
+}
+
+//被覆蓋之值之語意斷言: 位址列之值須為實際網址（含實際埠）
+async function expectAddr(page, expectUrl) {
+    let v = await page.locator('.addr-url').first().inputValue()
+    assert.strictEqual(v, expectUrl, `位址列應為實際網址「${expectUrl}」（實得「${v}」）`)
+}
+
+//所有含位址列之截圖之唯一入口（原 captureStableWithBox 呼叫處）: expectUrl 給定時先驗位址列之值; 截圖後記錄含實際埠之區域
+async function shotBox(page, target, expectUrl = null) {
+    if (expectUrl !== null) {
+        await expectAddr(page, expectUrl)
+    }
+    return await notePortRegions(page, await captureStableWithBox(page, target))
+}
+
+//比對端覆蓋函數（只在位移時掛入 runBaselineCase; 未位移時為 null, 比對路徑與導入前相同）
+let comparePortBuf = async (buf, baselinePath) => await overlayPortRegions(buf, baselinePath, portRegionsOf.get(buf))
 
 
 //建立本檔特化之認證 API（疊加於 base seed 之上；levels='API' 使其在左樹頂層可見、可點）。
@@ -257,8 +309,8 @@ async function runE2E001(page, lang) {
     shots['E2E-001-1-seeded'] = await captureStableWithBox(page, '.addr-bar')
 
     //步驟2：把 URL 改為本機 server 根（送出前）→ 紅框標 address bar（已改的 URL，從什麼變成什麼）
-    await typeIntoInput(page, urlInp, 'http://127.0.0.1:11005/')
-    shots['E2E-001-2-url-changed'] = await captureStableWithBox(page, '.addr-bar')
+    await typeIntoInput(page, urlInp, BACKEND_ROOT_URL) //本機後端根(實際後端埠; 位移時與標準圖之 11005 不同, 該處比對端覆蓋, 規格 E7)
+    shots['E2E-001-2-url-changed'] = await shotBox(page, '.addr-bar', BACKEND_ROOT_URL)
 
     //步驟3：點送出（經後端 proxy 繞過 CORS）→ 等回 200
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
@@ -281,7 +333,8 @@ async function runE2E001(page, lang) {
             body.innerHTML = body.innerHTML.replace(/\.[0-9a-f]{8}\.(js|css)/g, '.HASH.$1')
         }
     })
-    shots['E2E-001-3-response'] = await captureResponseCard(page, lang, 'E2E-001-3-response')
+    await expectAddr(page, BACKEND_ROOT_URL) //送出後位址列仍為實際後端網址(位址列於回應卡截圖時多半已捲出可視範圍, 值以語意斷言驗)
+    shots['E2E-001-3-response'] = await notePortRegions(page, await captureResponseCard(page, lang, 'E2E-001-3-response'))
     return shots
 }
 
@@ -378,7 +431,7 @@ async function runE2E004(page, lang) {
     assert.strictEqual(authRow.value, `Bearer ${token}`, `Authorization 值應為「Bearer ${token}」（實得「${authRow ? authRow.value : ''}」）`)
 
     //視覺：送出前種子態、紅框標 Headers 表（第 2 個 kv-table）
-    shots['E2E-004-bearer-header'] = await captureStableWithBox(page, page.locator('.kv-table').nth(1))
+    shots['E2E-004-bearer-header'] = await shotBox(page, page.locator('.kv-table').nth(1), ECHO_URL)
 
     //act：送出（網址已為 echo 種子）→ 等回應回顯 Bearer token
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
@@ -406,7 +459,7 @@ async function runE2E005(page, lang) {
     assert.ok(keyRow, `Headers 應帶入一列 ${keyName}`)
     assert.strictEqual(keyRow.value, keyVal, `${keyName} 值應為「${keyVal}」（實得「${keyRow ? keyRow.value : ''}」）`)
 
-    shots['E2E-005-apikey-header'] = await captureStableWithBox(page, page.locator('.kv-table').nth(1))
+    shots['E2E-005-apikey-header'] = await shotBox(page, page.locator('.kv-table').nth(1), ECHO_URL)
 
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
     await waitEchoValue(page, keyVal)
@@ -433,7 +486,7 @@ async function runE2E006(page, lang) {
     assert.ok(authRow, 'Headers 應帶入一列 Authorization')
     assert.strictEqual(authRow.value, basicVal, `Authorization 值應為「${basicVal}」（實得「${authRow ? authRow.value : ''}」）`)
 
-    shots['E2E-006-basic-header'] = await captureStableWithBox(page, page.locator('.kv-table').nth(1))
+    shots['E2E-006-basic-header'] = await shotBox(page, page.locator('.kv-table').nth(1), ECHO_URL)
 
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
     await waitEchoValue(page, basicVal)
@@ -472,7 +525,7 @@ async function runE2E007(page, lang) {
     await typeIntoInput(page, urlInp, ECHO_URL)
 
     //視覺：送出前編輯態、紅框標 Query 與 Headers 兩表
-    shots['E2E-007-kv-edit'] = await captureStableWithBox(page, [qTable, hTable])
+    shots['E2E-007-kv-edit'] = await shotBox(page, [qTable, hTable], ECHO_URL)
 
     //act（刪列）：再新增第三列 query 填鍵值（勾選態）→ 點該列「×」刪除 → 表回到兩列（x 勾選、y 未勾選）。
     //（.kv-del-btn 為建構器唯一未被任何 case 點過之可點元素；列 :key 改為列 id 後刪列不錯位——ADR-031）
@@ -515,7 +568,7 @@ async function runE2E008(page, lang) {
     await typeIntoInput(page, urlInp, ECHO_URL)
 
     //視覺：送出前編輯態、紅框標 address bar（含方法 POST + 網址）與請求內容區
-    shots['E2E-008-post-body'] = await captureStableWithBox(page, ['.addr-bar', '.body-textarea'])
+    shots['E2E-008-post-body'] = await shotBox(page, ['.addr-bar', '.body-textarea'], ECHO_URL)
 
     //act：送出 → 等 echo 回顯 body 值
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
@@ -554,7 +607,8 @@ async function runE2E009(page, lang) {
 
     //視覺（spec E2E-009 驗證 2）：回應卡紅框；durationMs（右對齊固定寬）與 headers pre（含 date）貼參考片；
     //固定陣列 body 為決定性、保留比對
-    shots['E2E-009-array-response'] = await captureResponseCard(page, lang, 'E2E-009-array-response')
+    await expectAddr(page, ARR_URL)
+    shots['E2E-009-array-response'] = await notePortRegions(page, await captureResponseCard(page, lang, 'E2E-009-array-response'))
     return shots
 }
 
@@ -572,7 +626,7 @@ async function runE2E010(page, lang) {
     await typeIntoInput(page, urlInp, ECHO_URL)
 
     //視覺（spec E2E-010 驗證 2）：送出前編輯態、紅框標 address bar 與請求內容區
-    shots['E2E-010-invalid-json-body'] = await captureStableWithBox(page, ['.addr-bar', '.body-textarea'])
+    shots['E2E-010-invalid-json-body'] = await shotBox(page, ['.addr-bar', '.body-textarea'], ECHO_URL)
 
     //act：送出 → 等 echo 回顯
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
@@ -601,7 +655,7 @@ async function runE2E011(page, lang) {
     await typeIntoInput(page, urlInp, ECHO_URL)
 
     //視覺（spec E2E-011 驗證 2）：送出前清空態、紅框標 address bar 與請求內容區
-    shots['E2E-011-empty-body'] = await captureStableWithBox(page, ['.addr-bar', '.body-textarea'])
+    shots['E2E-011-empty-body'] = await shotBox(page, ['.addr-bar', '.body-textarea'], ECHO_URL)
 
     //act：送出 → 等 echo 回應（以 echo 固定欄位 "ok": true 作為 round-trip 完成訊號）
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
@@ -631,7 +685,7 @@ async function runE2E012(page, lang) {
     await typeIntoInput(page, urlInp, ECHO_URL)
 
     //視覺（spec E2E-012 驗證 2）：送出前態、紅框標 address bar（方法欄 DEL + echo 網址）
-    shots['E2E-012-del-method'] = await captureStableWithBox(page, '.addr-bar')
+    shots['E2E-012-del-method'] = await shotBox(page, '.addr-bar', ECHO_URL)
 
     //act：送出 → 等 echo 回顯 method
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
@@ -672,7 +726,7 @@ async function runE2E013(page, lang) {
     await typeIntoInput(page, urlInp, ECHO_URL)
 
     //視覺（spec E2E-013 驗證 2）：送出前編輯態（兩表各含兩列同鍵）、紅框標 Query 與 Headers 兩表
-    shots['E2E-013-dup-keys'] = await captureStableWithBox(page, [qTable, hTable])
+    shots['E2E-013-dup-keys'] = await shotBox(page, [qTable, hTable], ECHO_URL)
 
     //act：送出 → 等 echo 回顯
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
@@ -703,7 +757,7 @@ async function runE2E014(page, lang) {
     assert.strictEqual(ctRows[0].value, 'text/plain', '明給之 Content-Type 值應優先')
 
     //視覺（spec E2E-014 驗證 2）：送出前種子態、紅框標 Headers 表
-    shots['E2E-014-content-type-single'] = await captureStableWithBox(page, page.locator('.kv-table').nth(1))
+    shots['E2E-014-content-type-single'] = await shotBox(page, page.locator('.kv-table').nth(1), ECHO_URL)
 
     //act：送出（POST、請求內容空）→ 等 echo 回顯
     await page.getByText(T[lang].send, { exact: true }).first().click({ timeout: 8000 })
@@ -841,6 +895,8 @@ async function runCase(lang, c) {
         pathOf,
         labelOf: (lg, key) => `${FLOW}-${lg}-${key}`,
         gate,
+        //位移時含實際埠之區域比對端覆蓋(規格 E7); 未位移為 null＝比對路徑與導入前相同。產製端原樣寫出(標準圖保留基準埠之真實畫面)
+        compareBuf: PORTS_SHIFTED ? comparePortBuf : null,
     })
 }
 
@@ -850,6 +906,11 @@ describe('e2e-apitest (API 測試 / proxy)', function() {
 
     before(async function() {
         this.timeout(180000)
+        //畫面含埠之流程: 位移時之截圖含實際埠(與標準圖之基準埠文字不同), 不得寫入正式標準圖(只能在基準埠產製; 規格 E7、技能 §1.5)。
+        //  等價驗證等以 E2E_BASELINE_OUT_DIR 導向隔離目錄者不受限(不動 test/pics)。
+        if (REGEN && PORTS_SHIFTED && !process.env.E2E_BASELINE_OUT_DIR) {
+            throw new Error(`e2e-apitest 之畫面含埠: 標準圖只能在基準埠產製(目前實際埠 後端 ${BACKEND_PORT_ACTUAL}／echo ${ECHO_PORT_ACTUAL}, 基準 ${BACKEND_PORT}／${ECHO_PORT}); 請待基準埠空閒再產製, 或以 E2E_BASELINE_OUT_DIR 導向隔離目錄`)
+        }
         await startServersOnce()
         //代發目標為本機（127.0.0.1 之 echo 與後端自身）：內建目標位址政策預設拒絕本機位址（P1, ADR-049；拒絕行為由 api-proxyTarget 驗），
         //故以暫時設定令後端放行 127.0.0.1（after 還原預設設定之後端，同 e2e-external）

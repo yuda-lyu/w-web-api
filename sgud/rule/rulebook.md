@@ -36,6 +36,7 @@
 | console 診斷不輸出資料值:只印鍵名、型別、固定詞彙或錯誤類別(R-CONSOLE-01; 跨套件規格〈診斷輸出與遮罩〉D2、〈輸入參數之檢測機制〉V20; `unit-consoleSites`、`api-logLeak`、`unit-maskLog` SHAPE)(2026-10-31, api〔任務 20261031023204, 第 191、165 項〕, ADR-057, 取代 ADR-033／048 之「console 印使用者物件, 記錄不修」) | `rulebook_backend.md` |
 | 〔跨套件規格〕(主控 2026-10-16 依使用者交辦寫入) | `rulebook_backend.md` |
 | e2e 分組多開(`shardE2e`)與全套跑法(R-SHARD-01~07; 埠只經 `resolveE2ePort`、`e2e-apitest` 列 `officialOnly`、`dist` 排除各實例自 build、`durations` 以實測回寫; 全套指令 `node C:/opensrcOper/tools/full-suite.mjs <repo>`)(2026-11-04, wa302〔任務 20261104071854, 排程第 302 項〕) | `rulebook_test.md` |
+| e2e 單開自動換埠與只動本實例之下殺(R-E2E-PORT-01; 基準埠 11005／echo 11077 集中於 `test/tools/e2ePorts.mjs` 並 `reserveE2ePorts`; 被占用整組位移絕不殺占用者; echo 綁定前連線檢查; 畫面含埠〔e2e-apitest 位址列〕比對端覆蓋; 逐檔 runner 改 `killOwnListeners` 且查不到監聽者即中止; 測試 `unit-e2ePortReserve`、`unit-e2ePortOverlay`)(2026-11-05, wa309〔任務 20261105000800, 排程第 309 項〕, ADR-059) | `rulebook_test.md` |
 | 上方標題列 RWD(對照 ADR-032; 機制同 w-web-sso ADR-067) | `rulebook_ui.md` |
 | 計算高度之容器(2026-09-29) | `rulebook_ui.md` |
 | 按鈕雙擊防護(對照 ADR-034; 機制同 w-web-sso ADR-074; 2026-09-29) | `rulebook_ui.md` |
