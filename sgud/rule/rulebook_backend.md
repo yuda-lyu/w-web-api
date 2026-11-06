@@ -263,7 +263,7 @@
   - `verifyClientUser` 之傳入不得是使用者物件本體: `git grep -n "verifyClientUser(" -- server/WWebApi.mjs`(`authToken`、`getAndVerifyClientUser` 皆為 `{ ...user }`).
 - **驗證**: `test/api-adminOnly.test.mjs`(埠 8566／8567〔srLog 案〕／8568〔echo〕; 隔離子行程; 一般使用者情境 `tokNonAdmin`〔isAdmin 'n'、鉤子放行〕、`tokMutateAdmin`〔isAdmin 'n'、鉤子把拷貝改寫為 'y' 再放行〕、`tokNonAdminDenied`〔鉤子拒絕〕): 後台登入檢查(一般使用者固定鍵且回應無 token／使用者資料、鉤子先被呼叫一次、系統管理者照常、鉤子拒絕者仍 `errUserNoPermission`、認證先於授權先於角色); 資料通道 14 個函數 × 2 種一般使用者皆 `permission denied`＋ORM 零操作＋鉤子恰一次且 `from='main'`＋代發零命中＋回應無憑證＋庫內不變; 系統管理者對照組; 六路由 × 2 種一般使用者之 `from`; 執行身分(標頭系統管理者＋本體一般使用者 → 全函數不執行 `errUserIdMissing`、ORM 零操作; 標頭一般使用者＋本體系統管理者 → 連線閘即拒; 兩位系統管理者照常); srLog 白名單與 `errUserNotAdmin`. 另 `api-connGate`／`api-execIdentity` 翻轉原「`tokNonAdmin` 通過」案; `e2e-init` E2E-006(前端畫面與不轉址; 標準圖 2 張). **修前紅**: HEAD 版後端(`git archive HEAD` 於 `./tmp/`)對新增與翻轉之 4 檔 206 案 80 紅(`api-adminOnly` 50／75、`api-publicApisList` 28／29、`api-connGate` 1、`api-execIdentity` 1). **變異**(拷貝上 21 個後端／純函數變異 20 個被抓、1 個等價; 前端 5 個皆被抓): 等價者為 `findTokenUser` 之 `isestr(token)` 放寬——資料通道之本體 token 由 w-serv-webdata 以 `cstr` 正規化為字串(非字串 → 空字串)、hapi 路由先 `isestr`、連線閘取自 Bearer 字串, 該處為縱深防禦, 現行入口不可達; 端到端行為(本體 token 為陣列／物件／數字／null／布林 → `errUserIdMissing`)仍由 `api-adminOnly` 釘住.
 
-### R-TERM-ADMIN-01 指系統管理者角色之用詞一律為「系統管理者」(使用者 2026-10-26 裁示, 源自 rddmanager issue #16、#17; 同時套用於 w-web-sso、w-web-perm、w-web-api、w-web-task; 2026-10-26, api-run01〔任務 20261026145816〕)
+### R-TERM-ADMIN-01 指系統管理者角色之用詞一律為「系統管理者」(使用者 2026-10-26 裁示, 源自使用端 issue #16、#17; 同時套用於 w-web-sso、w-web-perm、w-web-api、w-web-task; 2026-10-26, api-run01〔任務 20261026145816〕)
 
 - **規則**: 畫面、訊息、README、`spec/`、JSDoc 與程式註解、`sgud/`、測試之期望文字中, 指系統管理者角色之詞只用「系統管理者」; 其餘寫法(員字結尾之「系統管理＋員」「單獨管理＋員」, 以及未冠「系統」而指此角色之「管理＋者」)一律改「系統管理者」(避免同一角色兩種詞混用; 本檔不寫出被禁之字面, 以免盤點指令自身命中)。其他角色或語意之詞不動; 英文等其他語系、欄位鍵名(`isAdmin` 等)、程式識別字、資料不動。
 - **盤點指令**(應為 0 或僅列明之例外):
@@ -406,7 +406,7 @@
 - **前端回歸（含真實頁面對照, 2026-10-20 第 93 項）**: 複製 repo 至 `tmp/e2e-fixed/`（現行版）與 `tmp/e2e-head/`（另以 HEAD 版覆蓋 `LayoutContentStats.vue` 與 `mShare.mjs`）各自 `vue-cli-service build`、副本內 `node srv.mjs`; 合成 log 含事件名 `it.dotted.event`（7 筆）、`kpfun-x[0]`（3 筆）: HEAD 版統計表「最近 1 日」兩者皆 0, 現行版為 7 與 3; 副本內 `e2e-stainfor` 6 / 6、`e2e-display` 17 / 17（標準圖零重產）; 副本事後刪除. 原「前端回歸(2026-10-20)」見下條.
 - **前端回歸(2026-10-20)**: 驗前端改動不動 tracked `dist/`——複製 repo 至 `<repo>/tmp/e2e-copy/`(含 db 副本、不含 node_modules; bare import 由副本往上走到 repo 之 node_modules)、副本內 `vue-cli-service build`、副本內 `node srv.mjs`、再以 `mocha` 跑 `e2e-display` 17 + `e2e-apitest` 28 = 45 / 45(標準圖零重產). **注意**: 在 11005 無人時直接跑 `api-*.test.mjs` 會觸發 harness 之 `npm run build` 改寫 tracked `dist/`(2026-10-20 一次失誤, 已以 `git show HEAD:` 寫回); 跑 api 層前先起後端.
 
-## 統計資訊之輸出上界: 桶以「現在所屬桶」為上界, 不輸出未來時間桶(R-STA-FUTURE-01; Gitea #58〔rddmanager〕; 2026-11-03, wa58〔任務 20261103123942〕, ADR-058; 契約見 `spec/流程_統計資訊.md`〈`getStaEvent` 輸出契約〉FB-1~FB-5)
+## 統計資訊之輸出上界: 桶以「現在所屬桶」為上界, 不輸出未來時間桶(R-STA-FUTURE-01; Gitea #58〔使用端〕; 2026-11-03, wa58〔任務 20261103123942〕, ADR-058; 契約見 `spec/流程_統計資訊.md`〈`getStaEvent` 輸出契約〉FB-1~FB-5)
 
 | 規則 | 站點全集(統計模組內輸出或使用時間桶之處, 2026-11-03 盤點) | 判準(已套／未套／刻意不套) | 盤點指令 |
 |---|---|---|---|
