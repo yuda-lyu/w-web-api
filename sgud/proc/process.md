@@ -42,6 +42,12 @@
 - **判斷**: 標準圖之逐張審查與「可否凍結為 baseline」之判定由 agent 負責, 審畢即可跑 mocha; 產圖本身(重產 / 新產)仍須授權(技能 §7.9). 業主裁示限於設計取捨或產品介面變更.
 - **處理**: 以使用者視角判斷「照圖能否操作、畫面有無被改壞」: 與 git HEAD 版逐像素比(差異須落在預期區域)、逐張對照 spec 框住句與操作順序、紅框像素掃描(同色連續 ≥ 20px)、兩語系對稱、抽張重產逐位元比對; 審圖紀錄落檔供業主隨時查閱.
 
+## TIME_WAIT 偏高(主控監看 `[ports] HIGH`、同機他測試 `connect EADDRINUSE`)(2026-11-07 pa347)
+
+- **關聯**: `vue.config.js` 之 `devServer.proxy['/api'].agent`(R-E2E-PROXY-01, `rulebook_test.md`); `sgud/exp/experience.md`〈dev server proxy 重用連線之量測〉.
+- **判斷**: 先回原始紀錄看**本機埠與遠端埠兩欄**(伺服端先關者本機埠為服務埠). 本套件 e2e 打 11005 直接 serve 之 `dist`, **不經 dev server proxy**, 單開 e2e 之 11005 TIME_WAIT 峰值約 10～25(瀏覽器與後端本即重用連線), 不是本套件 e2e 造成上萬 TIME_WAIT 的來源; 若見 `8080` 為本機埠之大量 TIME_WAIT, 是有人在 `npm run serve` 開發階段打 `/api` 且 proxy 的 agent 被拿掉.
+- **處理**: 查 `vue.config.js` 之 `/api` 是否仍帶 `agent: proxyAgent`(`rg -n "new http\.Agent|agent:" vue.config.js` 應 2 處); 看到 PID 0 的 `LISTENING` 幽靈監聽(TIME_WAIT 殘留)不要當殘留行程去殺, 等約 2 分鐘自行消失.
+
 ## 後端重啟時機
 
 - **關聯**: `node srv.mjs [settings 路徑]`; `restartBackend(genTempSettings({ ...overrides }))`; `e2e-init`、`e2e-stainfor` 之 `restartBackend`.

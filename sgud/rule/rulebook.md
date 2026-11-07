@@ -8,7 +8,7 @@
 
 | 分冊 | 類型 | 內容 |
 |---|---|---|
-| `rulebook_test.md` | 測試 | 測試配置、e2e 落地映射、**e2e 分組多開與全套跑法(R-SHARD-01~07)** |
+| `rulebook_test.md` | 測試 | 測試配置、e2e 落地映射、**e2e 分組多開與全套跑法(R-SHARD-01~07)**、**e2e 單開自動換埠(R-E2E-PORT-01)**、**dev server `/api` proxy 重用連線(R-E2E-PROXY-01)** |
 | `rulebook_backend.md` | 後端與外部同步 | 後端錯誤契約、w-serv-orm 設定／資料通道／外部同步／生命週期、打包後之可用性、權杖外洩防護、外部同步契約、**統計資訊之輸出上界(R-STA-FUTURE-01)**、**console 診斷不輸出資料值(R-CONSOLE-01)**、**呼叫者身分驗證(資料通道連線閘 R-CONNGATE-01、執行身分 R-EXECID-01、Authorization 方案 R-AUTHSCHEME-01)**、**後台與資料通道只限系統管理者(R-ADMINONLY-01)**、**應用系統路由之系統管理者等級與後台登入檢查回應欄位白名單(R-APPLEVEL-01)**、**一般使用者以 token 取 API 清單之公開欄位白名單(R-PUBLICAPIS-01)**、**系統函數收緊(`sysFuncsPublic` 只公開 `[sys:getFuncList]`、輪詢須帶 token; R-SYSFUNCS-01)**、**代發請求之內建目標位址政策(R-PROXYTARGET-01)**、**w-serv-orm 診斷輸出轉入 srLog(`opt.funLog`; R-ORMDIAG-01)**、迭代使用端傳入之物件、〔跨套件規格〕 |
 | `rulebook_ui.md` | 前端 UI | 上方標題列 RWD、計算高度之容器、按鈕雙擊防護 |
 | `rulebook_gaps.md` | 已知缺口與待辦 | 已知缺口 / 待辦(現況摘要見 `../state/state.md`) |
@@ -37,6 +37,7 @@
 | 〔跨套件規格〕(主控 2026-10-16 依使用者交辦寫入) | `rulebook_backend.md` |
 | e2e 分組多開(`shardE2e`)與全套跑法(R-SHARD-01~07; 埠只經 `resolveE2ePort`、`e2e-apitest` 列 `officialOnly`、`dist` 排除各實例自 build、`durations` 以實測回寫; 全套指令 `node C:/opensrcOper/tools/full-suite.mjs <repo>`)(2026-11-04, wa302〔任務 20261104071854, 排程第 302 項〕) | `rulebook_test.md` |
 | e2e 單開自動換埠與只動本實例之下殺(R-E2E-PORT-01; 基準埠 11005／echo 11077 集中於 `test/tools/e2ePorts.mjs` 並 `reserveE2ePorts`; 被占用整組位移絕不殺占用者; echo 綁定前連線檢查; 畫面含埠〔e2e-apitest 位址列〕比對端覆蓋; 逐檔 runner 改 `killOwnListeners` 且查不到監聽者即中止; 測試 `unit-e2ePortReserve`、`unit-e2ePortOverlay`)(2026-11-05, wa309〔任務 20261105000800, 排程第 309 項〕, ADR-059) | `rulebook_test.md` |
+| dev server `/api` proxy 以 keep-alive agent 重用連線(R-E2E-PROXY-01; 本套件 e2e 不經此 proxy, 效果只在 `npm run serve`; 單元測試 `unit-devProxyKeepAlive` PX-001～003; 真實 dev server 量測後端連線 600 → 1; 判讀 TIME_WAIT 本機埠 / 遠端埠兩欄都看)(2026-11-07, pa347〔任務 20261107181536, 排程第 347 項〕, ADR-060; 姊妹套件 w-web-sso ss324 同名規則) | `rulebook_test.md` |
 | 上方標題列 RWD(對照 ADR-032; 機制同 w-web-sso ADR-067) | `rulebook_ui.md` |
 | 計算高度之容器(2026-09-29) | `rulebook_ui.md` |
 | 按鈕雙擊防護(對照 ADR-034; 機制同 w-web-sso ADR-074; 2026-09-29) | `rulebook_ui.md` |

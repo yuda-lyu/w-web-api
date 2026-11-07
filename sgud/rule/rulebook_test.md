@@ -183,3 +183,19 @@
   ```
 - **已知限制**: ①位移後若占用 11005 者為「同專案手動後端」, e2e 另起自己之後端並重 build `dist/`(覆寫手動後端正在 serve 之檔), 兩者共用 `./db`; 同專案依序執行之規定(`quiet-run --lock`)不涵蓋手動起之後端。②套件 `createServiceManager.restart` 於 `killOwnListeners` 回 null(查不到監聽者)時只記錄就續行(新後端因埠被占而結束, `waitReady` 仍以占用者之回應放行), 僅在「手動 `E2E_PORT_OFFSET=0` 鎖基準埠且基準埠有他人服務」時可能發生, 屬套件層, 不在本套件改。
 
+## dev server proxy 重用連線(2026-11-07 pa347〔任務 20261107181536〕, 排程第 347 項; 姊妹套件 w-web-sso 同名規則〔ss324, ADR-105〕為範本)
+
+### R-E2E-PROXY-01 dev server 之 `/api` proxy 以 keep-alive agent 重用至後端之連線, 免每請求兩段各留 TIME_WAIT
+
+起因: 姊妹套件 w-web-sso 查得 dev server `/api` proxy 未給 agent 時每個請求新開連線並送 `Connection: close`, 其分拆 e2e 之全機 TIME_WAIT 峰值上萬, 同機他測試可能偶發 `connect EADDRINUSE`. 本套件 `vue.config.js` 為同型寫法, 比照修. **本套件 e2e 不經此 proxy**(後端 11005 直接 serve build 後之 `dist`, 不起 dev server, 見 `sgud/proc/process.md`〈e2e 打 build 後之後端〉、`e2e-setup.mjs` 檔頭), 故效果只在 `npm run serve` 之開發階段; e2e 之 TIME_WAIT 不受影響(實測見 `sgud/state/state.md`〈第 347 項〉)。
+
+| 規則 | 內容 | 盤點 / 驗證 |
+|---|---|---|
+| 1. `/api` proxy 以 keep-alive agent 重用至後端之連線 | `vue.config.js` 之 `devServer.proxy['/api']` 帶 `agent: proxyAgent`(`vue.config.js:14`; 模組層單一 `new http.Agent({ keepAlive: true })`, `vue.config.js:5`). 理由: http-proxy 1.18.1 未給 agent 時 `outgoing.agent = false` 並強制送 `Connection: close`(`node_modules/http-proxy/lib/http-proxy/common.js:62-73`), 後端回應之 `connection: close` 又被原樣轉回瀏覽器(`passes/web-outgoing.js:33-46`), 使每個 `/api` 請求於「瀏覽器→dev server」「dev server→後端」兩段各新開一條連線, 皆由伺服端先關而留 TIME_WAIT. vue-cli 之 `prepareProxy` 以 `Object.assign({}, defaultConfig, config, entry)` 合併(`@vue/cli-service/lib/util/prepareProxy.js:133`), 故 `agent` 原樣傳到 http-proxy; `onProxyReq` 之 Origin 改寫條件 `!proxyReq.agent`(同檔:96)在 Node 下本就恆不成立(`agent:false` 時 Node 另建 Agent), 加 agent 不改其行為. `target` 維持固定 `http://localhost:11005`(本套件 dev server 之 `target` 未帶 `E2E_PORT_OFFSET`, 本輪不動) | `unit-devProxyKeepAlive` PX-001(N 請求後端只 1 條)、PX-002(回應不帶 `Connection: close`、用戶端只 1 條)、PX-003(路徑 / 方法 / 狀態 / 內文不變); 修前 PX-001〔後端 20 條〕/ PX-002〔20 / 20 帶 close〕紅、PX-003 綠, 修後 3 / 3 綠 |
+| 2. 新增 proxy 路徑沿用同一 agent | 日後 `devServer.proxy` 加其他路徑時同帶 `agent: proxyAgent`; 只影響開發階段之 dev server(正式部署與 e2e 由後端直接 serve `dist`, 無 proxy) | `rg -n "new http\.Agent|agent:" vue.config.js`(應 2 處: `vue.config.js:5` 建立、`:14` `/api` 設定) |
+| 3. 效果以真實 dev server 量測, 不以 e2e 量測 | e2e 不經 proxy, 修前 / 修後 e2e 之 TIME_WAIT 理應相同, 不能證明本修正之效果. 直接證據: 起真實 `vue-cli-service serve`(埠 8080), `target` 11005 由探測自起之極簡 http 服務代替(計其接受連線數), 以 keep-alive 用戶端依序送 600 個 `/api` 請求: 修前後端接受 600 條連線、600 / 600 回應帶 `Connection: close`、請求後 TIME_WAIT 本機埠 8080 為 592 / 11005 為 586; 修後後端接受 1 條、0 / 600 帶 close、TIME_WAIT 8080 為 1 / 11005 為 0. 同時證明 dev server(webpack-dev-server 之 proxy 設定驗證)接受 `agent` 選項而起得來 | 探測腳本與數據副本在任務夾 `agent-out/pa347-evidence/dev-server-probe/`(repo 內 `tmp/pa347/` 已清); 作法見 `sgud/exp/experience.md`〈dev server proxy 重用連線之量測〉 |
+| 4. 判讀 TIME_WAIT 方向 | 伺服端先關之 TIME_WAIT 其**本機埠**為服務埠(遠端為臨時埠); 只看「遠端埠」會漏掉主體. 判讀時本機埠 / 遠端埠兩欄都看 | — |
+| 5. 已知限制 | ①`target` 固定 11005, 未隨 `E2E_PORT_OFFSET` 位移(e2e 本就不起 dev server, 位移與否無影響); 11005 被占用時 `npm run serve` 之 proxy 仍指向 11005(既有行為, 不改). ②agent 之閒置連線依後端 `Keep-Alive: timeout=5` 提示約 4 秒後由用戶端關閉, 請求間隔較長時仍會新開一條. ③後端重啟時池中連線隨對端關閉而移除, 理論上存在「剛好送在將被關閉之連線上」之毫秒級窗口(開發階段可重新整理) | — |
+
+**改動範圍 → 測試檔(dev server proxy)**: 改 `vue.config.js` 之 `devServer.proxy` → `unit-devProxyKeepAlive`(PX-001～003)＋unit／api 全跑; e2e 不需跑(不經 proxy; 若同時改了 `vue.config.js` 之建置選項〔`publicPath` 等〕才依「建置設定」擴大為全部 e2e). 本輪實測 `vue.config.js` 修前 / 修後各建置一次, `dist/` 6 個檔逐檔 md5 相同。
+
