@@ -19,6 +19,10 @@ let ksRedirectStatus = [301, 302, 303, 307, 308]
 let MAX_REDIRECTS = 20
 let ksBodyHeader = ['content-encoding', 'content-language', 'content-location', 'content-type']
 
+//https 之預設 Accept-Encoding：undici 8.x 之預設為 'br, gzip, deflate, zstd'（7.x 為 'br, gzip, deflate'；http 兩者皆為 'gzip, deflate'）；
+//維持改造前目標端所見之值（見 proxyRequest 之逐跳補值）
+let DEFAULT_ACCEPT_ENCODING_HTTPS = 'br, gzip, deflate'
+
 
 //toPairs：headers／query 之輸入 → 有序鍵值對 [[name, value], ...]。
 //接受兩種形狀：①物件（向後相容其他呼叫端；值為陣列即同鍵多值）②有序鍵值對陣列（本前端請求建構器：重複鍵各自保留）。
@@ -79,11 +83,13 @@ function procProxy(opt = {}) {
 
     //dispatcher：連線池，其 connect.lookup 為 guarded lookup——於「連線當下」解析主機名並檢查全部結果，通過者即連線所用之位址（不二次解析），
     //故 DNS 於檢查後換答案（rebinding）無從生效；IP 字面值不經 lookup，由 targetPolicy.checkUrl 於連線前檢查（每跳）。
-    //用 undici 套件之 Agent 與 fetch（Node 內建 fetch 不提供 per-request 之 lookup 注入點；兩者須同版以免 dispatcher 介面不合）
+    //用 undici 套件之 Agent 與 fetch（Node 內建 fetch 不提供 per-request 之 lookup 注入點；兩者須同版以免 dispatcher 介面不合）。
+    //allowH2:false：undici 8.x 起對 TLS 預設經 ALPN 協商 h2（7.x 預設關閉）；h2 無原因詞（statusText 變空字串）、回應無連線層標頭、目標所見之協定版本亦變，
+    //故固定 HTTP/1.1 以維持改造前之請求與回應格式（連線仍由 connect.lookup 之 guarded lookup 建立，與協定協商無關）
     let dispatcher = null
     let getDispatcher = () => {
         if (dispatcher === null) {
-            dispatcher = new Agent({ connect: { lookup: createGuardedLookup(targetPolicy, dnsLookup) } })
+            dispatcher = new Agent({ allowH2: false, connect: { lookup: createGuardedLookup(targetPolicy, dnsLookup) } })
         }
         return dispatcher
     }
@@ -115,6 +121,8 @@ function procProxy(opt = {}) {
     //  方法／body 改寫依 Fetch 標準 §4.4（301/302 之 POST 與 303 之非 GET/HEAD 改 GET 並丟 body 與 content-* 標頭；307/308 保留）；
     //  跨來源（origin 不同）剝除 Authorization；上限 20 跳；3xx 無 Location 視為最終回應；整條鏈共用同一 timeout。
     //- 目標位址政策（P1）：預設拒絕內網與本機位址（見上 targetPolicy／dispatcher 說明與 proxyTargetPolicy.mjs），連線所用之位址即檢查過之位址。
+    //- 傳輸（undici 8.x，須 Node >= 22.19.0）：固定 HTTP/1.1（allowH2:false，見 dispatcher 說明）；https 之預設 Accept-Encoding 逐跳補回 'br, gzip, deflate'（見迴圈內 hopHeaders）；
+    //  其餘（預設 user-agent、標頭名大小寫、轉址、回應解碼）經 7.28.0／8.12.3 並排探測無差異。
     let proxyRequest = async (inp = {}) => {
 
         //method
@@ -220,9 +228,17 @@ function procProxy(opt = {}) {
                     throw denyTarget(reason, hops)
                 }
 
+                //預設 Accept-Encoding（逐跳，依該跳之 scheme）：https 且使用者未給 accept-encoding、也未給 Range（undici 依 Fetch 標準另補 identity，不得再補預設）時，
+                //補回改造前之值（undici 8.x 預設多了 zstd）；使用者自給者與 http 不動。headers 為各跳共用，故補在複本上
+                let hopHeaders = headers
+                if (curUrl.protocol === 'https:' && !headers.has('accept-encoding') && !headers.has('range')) {
+                    hopHeaders = new Headers(headers)
+                    hopHeaders.set('accept-encoding', DEFAULT_ACCEPT_ENCODING_HTTPS)
+                }
+
                 res = await fetch(curUrl, {
                     method: curMethod,
-                    headers,
+                    headers: hopHeaders,
                     body: curBody,
                     signal,
                     redirect: 'manual',
