@@ -3,7 +3,7 @@
 //依據：套件維護者 2026-11-09 裁示「請升 undici」（7.28.0 → 8.12.3；8.x 之 engines.node 為 >=22.19.0）；既有契約見 spec/流程_測試API.md 規則摘要、
 //規則帳本 R-PROXYTARGET-01（位址檢查之時點、每跳、全部解析結果、不二次解析、stop 立即釋放）、sgud/exp/experience.md（改換傳輸要先量「目標端所見之請求」）。
 //本檔每條斷言對應：
-//- UD8-01 相依與執行環境：package.json 之 undici 為 ^8.12.3、engines.node 為 >=22.19.0，且已安裝之 undici 主版本為 8
+//- UD8-01 相依與執行環境：package.json 之 undici 為 ^8.12.4(2026-11-14 由 ^8.12.3 升)、engines.node 為 >=22.19.0，且已安裝之 undici 主版本為 8
 //- UD8-02 位址檢查於「連線當下」：解析函數於建連時被呼叫（hostname 字串、options.all 為 true、callback 函式），解析未回覆前不建立 TCP 連線
 //- UD8-03 全部解析結果皆檢查：任一位址不被允許即整次拒絕，目標零連線；放行表只涵蓋部分位址者亦拒絕
 //- UD8-04 每跳檢查：轉址到解析結果含不被允許位址之主機名即於該跳拒絕
@@ -199,13 +199,14 @@ describe('unit-procProxyTransport（代發傳輸 undici 8.x 之契約釘住）',
 
 
     describe('UD8-01 相依與執行環境', function() {
-        it('package.json：dependencies.undici 為 ^8.12.3、engines.node 為 >=22.19.0；已安裝之 undici 主版本為 8 且不低於 8.12.3；執行之 Node 符合 engines', function() {
+        it('package.json：dependencies.undici 為 ^8.12.4、engines.node 為 >=22.19.0；已安裝之 undici 主版本為 8 且不低於 8.12.4；執行之 Node 符合 engines', function() {
+            //2026-11-14 主控:undici 8.12.3 → 8.12.4(每日外部依賴檢查之升級)後同步提高釘住之下限
             let pkg = JSON.parse(fs.readFileSync(path.join(dirRepo, 'package.json'), 'utf8'))
-            assert.strictEqual(pkg.dependencies.undici, '^8.12.3')
+            assert.strictEqual(pkg.dependencies.undici, '^8.12.4')
             assert.strictEqual(pkg.engines.node, '>=22.19.0')
             let inst = JSON.parse(fs.readFileSync(path.join(dirRepo, 'node_modules', 'undici', 'package.json'), 'utf8'))
             assert.strictEqual(numTuple(inst.version)[0], 8, `已安裝 ${inst.version}`)
-            assert.ok(cmpTuple(numTuple(inst.version), [8, 12, 3]) >= 0, `已安裝 ${inst.version}`)
+            assert.ok(cmpTuple(numTuple(inst.version), [8, 12, 4]) >= 0, `已安裝 ${inst.version}`)
             assert.ok(cmpTuple(numTuple(process.versions.node), [22, 19, 0]) >= 0, `Node ${process.versions.node}`)
         })
     })

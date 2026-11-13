@@ -119,7 +119,7 @@ let verifyClientUser = (user, from) => {
   - 設定不合法（`proxyAllowInternal` 非 `'y'`／`'n'`／布林；`proxyAllowList` 非陣列或項格式錯誤〔含末段為數字或十六進位之寫法，如 `0x7f000001`：URL 會把它當 IPv4，列了也永不命中〕）建構即拋 `invalid opt.proxyAllowInternal`／`invalid opt.proxyAllowList`，不退回預設；兩者未給或給 `undefined`、`null` 時採預設（拒絕、空清單），`proxyAllowInternal` 之 `null` 與 `undefined` 同義。
 - **與 `opt.isAllowTarget` 並存時兩者皆須通過**：每一跳先呼叫 `isAllowTarget(url)`（您自訂之網址層檢核），再做內建位址檢查（解析後之位址層）。`isAllowTarget` 回 `true` **不能**放寬內建拒絕；`proxyAllowList` 之放行亦不繞過 `isAllowTarget`（它仍可回 `false` 拒絕）。要連內網目標請用 `proxyAllowList`（或 `proxyAllowInternal: 'y'`），不要只靠 `isAllowTarget`。`isAllowTarget` 收到之網址即**實際將送出者**（首跳為 `query` 列併入後、經 URL 正規化之網址；轉址跳為 `Location` 解析後之網址）；可為同步或非同步函數，回傳 `false`（或 Promise 解析為 `false`）拒絕，**拋錯或 reject 視同拒絕**（fail-closed；回應仍為固定鍵 `errReqTargetNotAllowed`，不外洩拋出之內容）。（1.1.15 及之前：只有同步回 `false` 才拒絕，非同步函數之 `false` 被當成放行、拋錯原樣外送，且首跳收到之網址不含 `query` 列。）
 - **影響與遷移**：代發目標原為內網或本機者（如測試分頁連 `http://localhost:…`、內部 API 主機）自此被拒，請依需要加入放行清單，例如 `proxyAllowList: ['127.0.0.1', '10.20.0.0/16', 'api.internal']`。
-- 代發改以 `undici`（新增相依，現為 `^8.12.3`，須 Node.js `>=22.19.0`，見 Installation）之 `fetch` 與連線池發出，以便在連線當下檢查位址（Node 內建 `fetch` 無此注入點）；請求內容、標頭（預設 `User-Agent` 仍為 `node`；https 之預設 `Accept-Encoding` 仍為 `br, gzip, deflate`）、轉址、回應格式不變——傳輸固定 HTTP/1.1（`undici` 8.x 對 TLS 預設協商 h2，其 `statusText` 為空字串、回應無連線層標頭，故不採）。
+- 代發改以 `undici`（新增相依，現為 `^8.12.4`，須 Node.js `>=22.19.0`，見 Installation）之 `fetch` 與連線池發出，以便在連線當下檢查位址（Node 內建 `fetch` 無此注入點）；請求內容、標頭（預設 `User-Agent` 仍為 `node`；https 之預設 `Accept-Encoding` 仍為 `br, gzip, deflate`）、轉址、回應格式不變——傳輸固定 HTTP/1.1（`undici` 8.x 對 TLS 預設協商 h2，其 `statusText` 為空字串、回應無連線層標頭，故不採）。
 ```alias
 let opt = {
     // proxyAllowInternal: 'n', //'y' 整體關閉內網與本機位址拒絕（僅限可信任網路）
