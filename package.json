@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.1.51",
+  "version": "1.1.52",
   "main": "dist/w-web-api.umd.js",
   "engines": {
     "node": ">=22.19.0"
@@ -8,9 +8,9 @@
   "dependencies": {
     "json5": "^2.2.3",
     "undici": "^8.12.4",
-    "w-component-vue": "^2.5.59",
+    "w-component-vue": "^2.5.60",
     "w-data-collector": "^1.0.68",
-    "w-echarts-vue": "^1.0.39",
+    "w-echarts-vue": "^1.0.40",
     "w-md2html": "^1.1.35",
     "w-serv-hapi": "^1.1.33",
     "w-serv-orm": "^1.1.43",
@@ -34,7 +34,7 @@
     "w-orm-lmdb": "^1.0.68",
     "w-package-tools": "^1.1.28",
     "w-package-tools-e2e": "^1.0.38",
-    "w-screenctl": "^1.0.51"
+    "w-screenctl": "^1.0.52"
   },
   "scripts": {
     "serve": "vue-cli-service serve",
