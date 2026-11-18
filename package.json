@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.1.54",
+  "version": "1.1.55",
   "main": "dist/w-web-api.umd.js",
   "engines": {
     "node": ">=22.19.0"
@@ -8,15 +8,15 @@
   "dependencies": {
     "json5": "^2.2.3",
     "undici": "^8.12.4",
-    "w-component-vue": "^2.5.62",
-    "w-data-collector": "^1.0.70",
-    "w-echarts-vue": "^1.0.42",
-    "w-md2html": "^1.1.37",
-    "w-serv-hapi": "^1.1.35",
-    "w-serv-orm": "^1.1.45",
-    "w-syslog": "^1.0.58",
-    "w-ui-loginout": "^1.0.57",
-    "wsemi": "^1.9.66"
+    "w-component-vue": "^2.5.63",
+    "w-data-collector": "^1.0.71",
+    "w-echarts-vue": "^1.0.43",
+    "w-md2html": "^1.1.38",
+    "w-serv-hapi": "^1.1.36",
+    "w-serv-orm": "^1.1.46",
+    "w-syslog": "^1.0.59",
+    "w-ui-loginout": "^1.0.58",
+    "wsemi": "^1.9.67"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^5.0.8",
@@ -31,10 +31,10 @@
     "eslint-plugin-vue": "^9.10.0",
     "vue": "^2.7.16",
     "vuex": "^3.6.2",
-    "w-orm-lmdb": "^1.0.71",
+    "w-orm-lmdb": "^1.0.72",
     "w-package-tools": "^1.1.28",
-    "w-package-tools-e2e": "^1.0.40",
-    "w-screenctl": "^1.0.54"
+    "w-package-tools-e2e": "^1.0.41",
+    "w-screenctl": "^1.0.55"
   },
   "scripts": {
     "serve": "vue-cli-service serve",
