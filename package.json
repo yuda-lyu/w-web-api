@@ -1,6 +1,6 @@
 {
   "name": "w-web-api",
-  "version": "1.1.58",
+  "version": "1.1.59",
   "main": "dist/w-web-api.umd.js",
   "engines": {
     "node": ">=22.19.0"
@@ -12,8 +12,8 @@
     "w-data-collector": "^1.0.74",
     "w-echarts-vue": "^1.0.46",
     "w-md2html": "^1.1.41",
-    "w-serv-hapi": "^1.1.39",
-    "w-serv-orm": "^1.1.49",
+    "w-serv-hapi": "^1.1.40",
+    "w-serv-orm": "^1.1.51",
     "w-syslog": "^1.0.62",
     "w-ui-loginout": "^1.0.61",
     "wsemi": "^1.9.70"
@@ -31,7 +31,7 @@
     "eslint-plugin-vue": "^9.10.0",
     "vue": "^2.7.16",
     "vuex": "^3.6.2",
-    "w-orm-lmdb": "^1.0.75",
+    "w-orm-lmdb": "^1.0.78",
     "w-package-tools": "^1.1.28",
     "w-package-tools-e2e": "^1.0.44",
     "w-screenctl": "^1.0.58"
