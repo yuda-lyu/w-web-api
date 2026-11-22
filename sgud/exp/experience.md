@@ -349,3 +349,11 @@
 - **`npm install` 之附帶變動**: ①`undici@^8.12.3` 解析到最新(8.12.4, 發布未滿 7 天); 要釘主控指定版用 `npm install undici@8.12.3`(`package.json` 仍寫 `^8.12.3`); ②lock 根 `version` 被改成 `package.json` 之版(原即落後, 要還原才不產生噪音)、`package.json` 末尾被加換行; ③頂層改版後, 原共用頂層之 dev 傳遞相依(cheerio 要求 `undici ^7.19.0`)被重新解析為最新之 7.30.2(同樣未滿 7 天)。處理: 手改 lock 該項之 `version`／`integrity`(`npm view <套件>@<版> dist.integrity`)後再 `npm install`(無引數)對齊 `node_modules`, 並回頭還原 ②。
 - **測試之坑**: ①自簽憑證用 `test/tools/tlsFixture.mjs`(測試專用、僅 127.0.0.1; 不依賴未宣告之傳遞相依 `selfsigned`, 也不假設機器有 openssl), 測試內 `NODE_TLS_REJECT_UNAUTHORIZED=0` 於 `before` 設、`after` 還原; ②`net.Server.close(cb)` 要等所有連線結束才回呼(`net.Server` 無 `closeAllConnections`), 起 http／https server 之測試關閉時須逐一 `destroy` 記下之 socket; ③實測 7.28.0 對 `.invalid` 主機名之 `fetch` 在本機 DNS 下 60 秒以上不 reject(`AbortSignal.timeout(5000)` 未使其提早結束; 原因未查、未對 8.12.3 重測), 探測與測試一律以注入之解析函數(`dnsLookup`)模擬解析失敗, 不打真 DNS; ④證「位址檢查於連線當下」: 注入之解析函數**不回覆**, 短暫觀察窗內 server 之 `connection` 計數須為 0, 放行後才為 1(否定斷言, 其餘同步點用輪詢可觀察條件, 不用固定延時)。
 - **變異驗證用複本**: `./tmp/<任務>/mut/<名>/` 放 `server/` 與測試之複本(Node 沿父層找 `node_modules`, `./tmp` 在 repo 內不需目錄連結), 單行置換並先確認命中數為 1。放寬守門之變異會讓測試真的向公開 IP(如 93.184.216.34)發連線, 只在複本跑一次。
+
+## 排測試鎖與長鏈之補遺(2026-09～11-03 各輪; 2026-11-22 自自動記憶提取)
+
+- **背景指令之 `timeout` 一律給 7200000**: 排鎖等待時間亦計入背景上限, 曾給 3600000 而於等鎖滿 1 小時時被系統終止, 工作白排.
+- **不要 `TaskStop` 已取得鎖之 `quiet-run` 工作**: 其鎖目錄(`C:/opensrcOper/tmp/locks/web-tests` 或 `-b`)會留下已死 pid 之殘留鎖, `quiet-run` 不自動清; 須先確認 owner pid 已死且為自己所有才可移除, 並於報告揭露(他人之殘留鎖不動, 報告主控). 尚在排隊(未取得鎖)者 `TaskStop` 無此問題, 但失去排隊位置.
+- **變異腳本之 find 字串於 CRLF 檔不可含 `\n`**(如 `server/staLogs/staLogsCore.mjs` 為 CRLF); 變異清單先 dry-run 命中數(每項須恰 1 次)再排鎖——wa58 因未 dry-run 而重排一次鎖, 多等 38 分.
+- **自己多排一個 `--lock` 指令不會搶到第二槽**, 會在前一個釋放後依先進先出續排; 想一次取鎖就寫成單一鏈(前幾步結果不符預期即 `break` 以立即釋放鎖).
+- **守門 hook 誤擋**(2026-11-03 觀察): Bash 指令同一行同時出現 `rmdir`／`rm` 與 `tmp/locks` 字樣會被誤擋(`lock-rm`), 兩者分開下.

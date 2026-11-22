@@ -120,3 +120,9 @@
 - **關聯**: `./db`(LMDB)、`./logs`、`tableTags-web-api.json`(w-serv-hapi 依 `fpTableTags` 寫出; 舊名 `tableTags.json` 已廢)、`./testPending`、`test/_tmp`、`dist`.
 - **判斷**: 皆為執行期產生, 不當成待辦, 不入版控.
 - **處理**: `tableTags-web-api.json` 勿手動編輯; `dist` 需要時自行 `npm run build`.
+
+## 套件審計之範疇: 套件本體與整合者責任之分界(業主 2026-06 裁示; 2026-11-22 自自動記憶提取)
+
+- **關聯**: 對本套件做審計、資安審查、外審之簡報與報告; 隨套件附之範例入口 `srv.mjs`(含 `sys` 捷徑與示範 `verifyClientUser`／`verifyAppUser`／`getUserByToken`)、範例設定 `settings.json` 與 `g_getSettings.mjs`、測試／種子資料 `db/**`(含其 git 歷史); 帳本見 `sgud/rule/rulebook_backend.md`.
+- **判斷**: 審計對象是**套件本體**(`WWebApi.mjs`／`proc*`／前端元件／`g_*` 工具之邏輯、對外 API 之 safe-by-construction 與所提供之鉤子、流程文件與 ADR、套件函式之測試覆蓋、i18n 衛生). 下列三類屬引用此套件之系統(整合者)之責任, 不是套件之資安發現, 不列為待修, 連「待確認」亦不列, 更不丟給業主判斷: ①範例入口 `srv.mjs` 與範例設定(`settings.json`、`g_getSettings.mjs` 含佔位用之明文機密欄位)、測試／種子資料 `db/*.mdb` 之內容與其 git 歷史; ②機密如何保存; ③部署面之選擇(CORS、速率限制、權杖經網址傳遞等). 套件對資安之職責＝提供鉤子＋以 ADR 界定使用者責任. **不在排除之列**: 連線閘與身分驗證(R-CONNGATE-01、R-ADMINONLY-01)及代打請求之內網位址政策(R-PROXYTARGET-01, 1.1.16 起預設拒絕)自 2026-10 起由套件自行強制, 屬套件範疇——排除的只是整合者「如何設定與接線」.
+- **處理**: ①審計前先對每個發現分層, 落在上述三類者直接歸「引用系統之責任」靜默排除, 至多於文件註明一句「使用者部署責任」, 絕不列為套件缺陷或待決事項; ②只有套件本體程式碼、文件、測試、i18n 之缺陷才是真發現; ③殷鑑: 審計反覆把範例入口、範例設定、種子 db 及其 git 歷史當成套件資安發現, 業主糾正「開發者引用套件後如何使用、如何保存資料、怎麼接線授權不能反算成套件漏洞」, 屬誤報噪音且把判斷外包給業主. 原自動記憶另將「連線端點授權政策(`verifyConn` 是否驗 isAdmin)」與「內網 SSRF」列為排除項, 與現行 R-CONNGATE-01／R-ADMINONLY-01／R-PROXYTARGET-01 衝突, 不採.
