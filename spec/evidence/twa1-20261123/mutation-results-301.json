@@ -1,0 +1,263 @@
+{
+  "results": [
+    {
+      "id": "M301-01",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 5,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-002 無效 timeLength 於各層入口皆被拒(固定鍵, 不回顯值, 不卡住)",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-02",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-001 parseTimeLength: 0～3650 之整數與其數字字串有效(回轉換後 number); 其餘一律 null(不拋錯):",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-03",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 1,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-004 single-flight: staLogs(7) 與 staLogs('7')、staLogs(' 7 ') 共用同一 promise(K4):",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-04",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 3,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-004c staLogs: genPlan 拋出非 errTimeLengthInvalid 之錯誤時, 回 rejected Promise 且原因為原 Error(不",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-05",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 55,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-005 opt.timeNow 為無效時刻者視為未給(退回現在), 不使迴圈無窮; 範圍內者照常使用",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-06",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-001 parseTimeLength: 0～3650 之整數與其數字字串有效(回轉換後 number); 其餘一律 null(不拋錯):",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-07",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-001 parseTimeLength: 0～3650 之整數與其數字字串有效(回轉換後 number); 其餘一律 null(不拋錯):",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-08",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 56,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-005 opt.timeNow 為無效時刻者視為未給(退回現在), 不使迴圈無窮; 範圍內者照常使用",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-09",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 2,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-004b single-flight: 無效之 timeNow(含 BigInt、循環物件、toJSON 拋錯者)已退回現在, 與未給同鍵, 且不使 staLogs 同步",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-10",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 5,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-002 無效 timeLength 於各層入口皆被拒(固定鍵, 不回顯值, 不卡住)",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-11",
+      "file": "server/procLang.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 4,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-007 procLang 有 errTimeLengthInvalid 之 eng 與 cht 文字:",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-12",
+      "file": "server/WWebApi.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 66,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-006 站點不變式(全部入口皆經檢測)",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-13",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-001 parseTimeLength: 0～3650 之整數與其數字字串有效(回轉換後 number); 其餘一律 null(不拋錯):",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-14",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 8,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-002 無效 timeLength 於各層入口皆被拒(固定鍵, 不回顯值, 不卡住)",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-15",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 2,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-004b single-flight: 無效之 timeNow(含 BigInt、循環物件、toJSON 拋錯者)已退回現在, 與未給同鍵, 且不使 staLogs 同步",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-16",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-001 parseTimeLength: 0～3650 之整數與其數字字串有效(回轉換後 number); 其餘一律 null(不拋錯):",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-17",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/unit-staLogs-timeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 3,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕) |        TL-004c staLogs: genPlan 拋出非 errTimeLengthInvalid 之錯誤時, 回 rejected Promise 且原因為原 Error(不",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M301-A1",
+      "file": "server/staLogs/staLogsCore.mjs",
+      "tests": [
+        "test/api-staEventTimeLength.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "api-staEventTimeLength (getStaEvent 之 timeLength 入口, 排程第 301 項〔api 側〕) |        ATL-001 有效值: 7、數字字串 '7'、' 7 '、'1e1' 照常回統計; 桶數 = 天數 × 24 + 1:",
+      "restoredSha256Same": true
+    }
+  ],
+  "summary": {
+    "total": 18,
+    "killed": 18,
+    "survived": [],
+    "undetermined": [],
+    "allRestored": true
+  }
+}

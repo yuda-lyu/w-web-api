@@ -1,0 +1,33 @@
+[quiet-run] Mon Nov 23 2026 09:14:10 GMT+0800 (台北標準時間)
+[quiet-run] cwd: C:\opensrc\開源-JS-411-8-w-web-api\w-web-api
+[quiet-run] cmd: node spec/evidence/twa1-20261123/measure570.mjs
+
+{"wServOrmVersion":"1.1.52"}
+apis.insert invalid id { n: 1, ks: [ 1 ] }
+{"id":"NaN","fn":"insert","rejected":true,"msg":"failed to insert data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+apis.save invalid id { n: 1, ks: [ 1 ] }
+{"id":"NaN","fn":"save","rejected":true,"msg":"failed to save data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+{"id":"NaN","checkRowIds":null,"afterJsonRoundTrip":null}
+apis.insert invalid id { n: 1, ks: [ 1 ] }
+{"id":"Infinity","fn":"insert","rejected":true,"msg":"failed to insert data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+apis.save invalid id { n: 1, ks: [ 1 ] }
+{"id":"Infinity","fn":"save","rejected":true,"msg":"failed to save data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+{"id":"Infinity","checkRowIds":null,"afterJsonRoundTrip":null}
+apis.insert invalid id { n: 1, ks: [ 1 ] }
+{"id":"-Infinity","fn":"insert","rejected":true,"msg":"failed to insert data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+apis.save invalid id { n: 1, ks: [ 1 ] }
+{"id":"-Infinity","fn":"save","rejected":true,"msg":"failed to save data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+{"id":"-Infinity","checkRowIds":null,"afterJsonRoundTrip":null}
+apis.insert invalid id { n: 1, ks: [ 1 ] }
+{"id":"true","fn":"insert","rejected":true,"msg":"failed to insert data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+apis.save invalid id { n: 1, ks: [ 1 ] }
+{"id":"true","fn":"save","rejected":true,"msg":"failed to save data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+{"id":"true","checkRowIds":null,"afterJsonRoundTrip":true}
+apis.insert invalid id { n: 1, ks: [ 1 ] }
+{"id":"{}","fn":"insert","rejected":true,"msg":"failed to insert data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+apis.save invalid id { n: 1, ks: [ 1 ] }
+{"id":"{}","fn":"save","rejected":true,"msg":"failed to save data, invalid id: data[1]","tableSize":0,"insertCalls":0,"saveCalls":0}
+{"id":"{}","checkRowIds":null,"afterJsonRoundTrip":{}}
+{"id":"undefined","fn":"insert","resolved":true,"tableSize":1}
+{"id":"null","fn":"insert","resolved":true,"tableSize":1}
+{"id":"","fn":"insert","resolved":true,"tableSize":1}

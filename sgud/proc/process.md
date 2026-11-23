@@ -68,6 +68,12 @@
 - **判斷**: 測「server 注入語系」時**不可帶 `?lang=`**(會蓋掉注入值, 變成假測試); 首次載入即應為注入之語系.
 - **處理**: 以 `restartBackend(genTempSettings({ language }))` 換後端初始語系; 新增可見文字一律走 `$t('key')` 並於 `procLang.mjs` 同時加 eng 與 cht.
 
+## 統計資訊 `timeLength`／`timeNow` 之輸入檢測與前端 console 摘要(2026-11-23, twa1)
+
+- **關聯**: R-STA-TIMELENGTH-01、R-CONSOLE-NOVAL-01(`rulebook_backend.md`); ADR-061／062; `unit-staLogs-timeLength`、`api-staEventTimeLength`、`unit-consoleNoValuesFront`、`e2e-consoleNoValues`.
+- **判斷**: `timeLength` 之檢測單一擁有者為 `staLogsCore.mjs` 之 `parseTimeLength`(wsemi `iseint`, 與 w-web-perm、w-web-sso 同判準); 呼叫端(`WWebApi.mjs` 之 `getStaEvent`、`staEvent`、worker 版)只轉交原值, **不得**另寫檢測或先轉型(TL-006c 守護). 前端 console 一律只印 `describeShape`／`describeErr` 之摘要或固定詞彙; 新增 console 站點先判定其引數, 再更新 `unit-consoleNoValuesFront` 之 `SITES`.
+- **處理**: ①測 `timeLength`／`timeNow` 之無效值**必以子行程加逾時**(`test/tools/timeLengthChild.mjs`; 修前之同步無窮迴圈使同行程內 mocha 之逾時計時器亦無法觸發); 修前紅以 `git archive HEAD server src test/tools` 解開之鏡像根重現(補載入 shim, 見 R-STA-TIMELENGTH-01〈修前紅〉); ②改 `src/describeShape.mjs` 時, 該單一模組日後由 wsemi 共用函數取代(主控排程第 603 項), 取代時以 CNVF-003／004／004c 為等價驗證語料, 並同步移除 `unit-ormDiagLog` ORMDIAG-021 之 `ALLOWED_BRIEF` 例外; ③**跑 e2e 之副作用**: `npm run build` 會重建 `dist/`(hash 檔名隨前端碼改變), 使已入版控之 `dist/` 檔被刪、產生未追蹤之新 hash 檔; 工作樹既有之 `dist/index.tmp`、`dist/w-web-api.umd.js(.map)` 刪除與 `tableTags-web-api.json` 為測試產物(依派工不還原); 其餘 `dist/` 檔於本輪結束時依 `git show HEAD:<檔>` 還原並刪除新產生之未追蹤檔(發布時由主控之發布流程重新產製).
+
 ## 統計資訊頁之資料來源
 
 - **關聯**: `logFd` 下之 srLog 檔(`getStaEvent(7,'hr')`); 掃描核心 ADR-028; `unit-staEvent` / `unit-staEvent-golden`; experience「統計頁只凍圖表漏表」.
@@ -81,7 +87,7 @@
 - **關聯**: 端點 `POST /syncAndReplaceTabs?token=<appToken>&keyTable=apis`, payload `{ group, rows }`; 外部推送端 `server/provideTabs.mjs`; err-key `errRowInvalid` / `errRowsInvalid`; 契約見 rulebook「外部同步契約」與 ADR-031.
 - **判斷**: `keyTable` 白名單只有 `apis`; 語意為「以 rows 取代該 group 全部列」(delAll group → insert); 逐列檢核(含主鍵, 見下)在 delAll **之前**——任一列無效整批拒且既有資料不動. delAll→insert 非原子(ADR-016): insert 之非確定性失敗(I/O 等)可能部分寫入, 回 `saveWriteFail` 後外部重送即可補回.
 - **處理**: 推送端只投影 API 描述資料欄位(id、order、name、description、url、method、version、group、levels、keywords、state、creator、dataSource、md*、*Example); 認證與測試設定欄位(tokens、authType、authConfigJson、testBaseUrl、default*Json、contentType)不同步, 由本站編輯表單管理, 時間欄位由 ORM 補. 每列須為物件且 name、url 非空, 否則回 `errRowInvalid`; 陣列層非空陣列不成立回 `errRowsInvalid`. 回呼叫端只給 err-key(`{ state: 'success'|'error', msg }`), 列索引與欄位名入 srLog; 外部端要顯示文字自行以 lang 查 `procLang`.
-- **主鍵(2026-10-14 起, R-SYNC-1, ADR-038)**: 有給 id 之列另須——不含 HTML 標記、UTF-8 ≤ 1978 位元組(LMDB 主鍵上限)、同批不重複、不屬他群組; 違反即整批 `errRowInvalid`(srLog 之 `reason` 為 `xss` / `bytes` / `dup` / `group`), 一律在 delAll 之前. 不帶 id(或 NaN／±Infinity)之列照舊由 w-serv-orm 補. 數字 id(有限數字)自 w-serv-orm 1.1.11 起存為其字串形式(123 → '123'), 回應之 id 亦為字串; 123 與 '123' 為同一主鍵(重複與跨群組皆以 `String(id)` 判定; `pickRowIds` 一律回傳字串, 因跨群組查詢直呼 woItems 不經 procOrm 之轉型——勿改回保留數字, ADR-040). 檢核通過後 ORM 之失敗回 `saveWriteFail`(delAll / insert)或 `getDataError`(查他群組之 select), 原文入 srLog(R-ERR-1).
+- **主鍵(2026-10-14 起, R-SYNC-1, ADR-038)**: 有給 id 之列另須——不含 HTML 標記、UTF-8 ≤ 1978 位元組(LMDB 主鍵上限)、同批不重複、不屬他群組; 違反即整批 `errRowInvalid`(srLog 之 `reason` 為 `xss` / `bytes` / `dup` / `group`), 一律在 delAll 之前. 不帶 id(`undefined`／`null`／`''`)之列照舊由 w-serv-orm 補; NaN／±Infinity 於本檢核視為未給(不檢查)——〔2026-11-23 第 570 項更正: 原稱「由 w-serv-orm 補」不成立, 上游 1.1.52 對之整批 reject 而非補主鍵; 本套件之呼叫端〔`syncApis` 傳入已驗證之非空字串 srcKey〕不可達, 判定不改, 見 ADR-040 Update、`unit-syncRows` SR-570a／b／c〕. 數字 id(有限數字)自 w-serv-orm 1.1.11 起存為其字串形式(123 → '123'), 回應之 id 亦為字串; 123 與 '123' 為同一主鍵(重複與跨群組皆以 `String(id)` 判定; `pickRowIds` 一律回傳字串, 因跨群組查詢直呼 woItems 不經 procOrm 之轉型——勿改回保留數字, ADR-040). 檢核通過後 ORM 之失敗回 `saveWriteFail`(delAll / insert)或 `getDataError`(查他群組之 select), 原文入 srLog(R-ERR-1).
 
 ## 資料通道之表操作(2026-10-14 起)
 

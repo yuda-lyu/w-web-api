@@ -18,6 +18,7 @@
         "e2e-display.test.mjs": 4.55,
         "e2e-stainfor.test.mjs": 1,
         "e2e-external.test.mjs": 4.29,
-        "e2e-init.test.mjs": 1.71
+        "e2e-init.test.mjs": 1.71,
+        "e2e-consoleNoValues.test.mjs": 1.87
     }
 }

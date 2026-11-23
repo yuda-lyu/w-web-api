@@ -1,0 +1,39 @@
+{
+  "results": [
+    {
+      "id": "M570-01",
+      "file": "server/checkSyncRows.mjs",
+      "tests": [
+        "test/unit-syncRows.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 7,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-syncRows（同步之主鍵檢核：R-SYNC-1） |        SR-570a NaN、±Infinity 於本函數視為未給主鍵（判定不改）：checkRowIds 不檢查；0 與負數為有限數字照常:",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M570-02",
+      "file": "server/checkSyncRows.mjs",
+      "tests": [
+        "test/unit-syncRows.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 7,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-syncRows（同步之主鍵檢核：R-SYNC-1） |        SR-570a NaN、±Infinity 於本函數視為未給主鍵（判定不改）：checkRowIds 不檢查；0 與負數為有限數字照常:",
+      "restoredSha256Same": true
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "killed": 2,
+    "survived": [],
+    "undetermined": [],
+    "allRestored": true
+  }
+}

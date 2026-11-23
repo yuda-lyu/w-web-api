@@ -7,14 +7,18 @@ import clearXSS from 'wsemi/src/clearXSS.mjs'
 let maxIdBytesDef = 1978
 
 
-//hasId: 是否為「有給主鍵」——非空字串或有限數字; NaN、±Infinity 與其他型別視為未給(同 w-serv-orm 1.1.11 之補值規則: 由其補主鍵)
+//hasId: 是否為「有給主鍵」——非空字串或有限數字; NaN、±Infinity 與其他型別於本函數視為未給(不檢查; 判定不改)
+//  2026-11-23 更正(排程第 570 項): 原註稱「同 w-serv-orm 1.1.11 之補值規則: 由其補主鍵」於 w-serv-orm 第 568 項(2026-11-20)後不再成立——已安裝之 1.1.52 對 procOrm insert／save 之主鍵
+//  「給了而無效」(NaN、±Infinity、布林、物件)整批 reject(`invalid id: data[k]`, 零寫入, 不補主鍵), 只有 undefined／null／'' 才補主鍵(實測 spec/evidence/twa1-20261123/measure570.mjs; 守護 unit-syncRows 之 SR-570)。
+//  行為不改的理由: 本函數唯一呼叫端 syncApis 以 { id: srcKey } 傳入已驗證為非空字串之 srcKey(缺／空／非字串整批 errRowInvalid 在前), NaN、±Infinity 不可達; 外部匯入為 JSON, NaN、±Infinity 序列化為 null
 let hasId = (id) => isestr(id) || (typeof id === 'number' && Number.isFinite(id))
 
 
 /**
  * 外部同步(syncAndReplaceTabs)之來源鍵檢核(R-SYNC-1 第③項; 2026-10-23 起對象為 srcKey 值, 以 { id: srcKey } 形狀傳入), 純函數, 不讀寫資料庫
  *
- * 只檢查「有給主鍵」之列: 主鍵為非空字串或有限數字者; 空字串、未給、NaN、±Infinity 或其他型別視為未給, 由 w-serv-orm 補主鍵, 不在此限.
+ * 只檢查「有給主鍵」之列: 主鍵為非空字串或有限數字者; 空字串、未給、NaN、±Infinity 或其他型別於本函數視為未給, 不在此限.
+ * (註: 其中空字串、未給〔undefined／null〕於寫入時由 w-serv-orm 補主鍵; NaN、±Infinity、布林、物件則於 w-serv-orm 1.1.52 之 procOrm 整批 reject 而非補主鍵——見上方 hasId 註與 SR-570; 本套件之呼叫端不會送入後者)
  * 依序檢查, 回報第一個違反: (a) xss: 字串主鍵經 wsemi clearXSS 會被改寫(同 w-serv-orm getMapOrm.mjs 之 getItemsIdXSS 判準; 其於 insert 時整批拒絕, 而同步已先 delAll)
  * (b) bytes: UTF-8 位元組超過 maxIdBytes (c) dup: 同批已出現同一主鍵 (d) group: 資料庫中同主鍵之列屬他群組(insert 為主鍵已存在即略過, 不會搬移).
  * 重複與群組之比對以 String(id) 正規化: w-serv-orm 1.1.11 起字串型主鍵欄之有限數字主鍵存為其字串形式(123 存為 '123'、回應之 id 為 '123'),
@@ -36,7 +40,7 @@ function checkRowIds(rows, opt = {}) {
     for (let k = 0; k < rows.length; k++) {
         let id = rows[k] ? rows[k].id : undefined
         if (!hasId(id)) {
-            continue //未給主鍵, 由 w-serv-orm 補
+            continue //本函數視為未給主鍵, 不檢查(未給／空者之後由 w-serv-orm 補; NaN 等見 hasId 註)
         }
         let sid = String(id)
         if (isestr(id) && clearXSS(id) !== id) {

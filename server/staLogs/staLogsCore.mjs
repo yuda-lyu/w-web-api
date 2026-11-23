@@ -5,6 +5,7 @@ import ot from 'dayjs'
 import get from 'lodash-es/get.js'
 import isfun from 'wsemi/src/isfun.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
+import iseint from 'wsemi/src/iseint.mjs'
 import fsTreeFolder from 'wsemi/src/fsTreeFolder.mjs'
 import filterVpfsByWindow from './filterVpfsByWindow.mjs'
 
@@ -33,6 +34,11 @@ let kpInflight = new Map()
 //timeLength×24（hr 粒度），10 年約 87600 筆仍可接受；再大則單是建陣列即造成長時間 CPU 阻塞。
 let MAX_TIME_LENGTH_DAY = 3650
 
+//opt.timeNow 之有效範圍(ms): 1970-01-01T00:00:00.000Z(epoch 0; log 之 time 為 epoch ms 非負數值) ～ 2100-01-01T00:00:00.000Z(含)；實務範圍，遠小於 Date 之 ±8.64e15，
+//使其後 subtract(3650 天)／逐桶 add 皆不溢位，且桶標籤年份恆為四位數(任何時區)。與 w-web-perm、w-web-sso 之同名核心相同。
+let TIME_NOW_MIN = 0
+let TIME_NOW_MAX = 4102444800000
+
 
 function normTimeInterval(timeInterval) {
     //非 'day' 一律視同 'hr' (原以 ==='day' 決定 fmt、==='hr' 決定 unit, 傳其他值時兩者不一致, 此處收斂為單一判斷)
@@ -40,7 +46,42 @@ function normTimeInterval(timeInterval) {
 }
 
 
+/**
+ * 檢測並轉換 timeLength (往回統計之天數；規格〈輸入參數之檢測機制〉: 個數類之必須參數，N2 非負整數，範圍 0～MAX_TIME_LENGTH_DAY；單一擁有者，genPlan 為其唯一呼叫點)
+ * - 有效: 0～3650 之整數，或其數字字串(含頭尾空白，如 '7'、' 7 '；其後只用轉換後之數值，K4)；回傳轉換後之 number
+ * - 無效(回傳 null): NaN、±Infinity、負數、小數、超過上限、非數字字串、null、布林、物件、陣列、包裝物件、BigInt 等
+ * - 為什麼須在 dayjs subtract 之前擋: dayjs 對 NaN、±Infinity、非數字字串、超出 Date 範圍之值回 Invalid Date，其 isAfter 恆為 false，
+ *   使 genPlan 之 `while (!tCurr.isAfter(tEnd))` 成為同步無窮迴圈(佔死主執行緒，整個後端停止回應)；過大之有效值(如 100000)則建出數百萬筆 kpTime 而長時間阻塞
+ * - 永不拋錯、不回顯輸入值；呼叫端依回傳 null 以固定鍵 errTimeLengthInvalid 失敗(K9)
+ * - 2026-11-23 起以 wsemi iseint 判定(原 Number.isInteger 拒數字字串 '7'，與 w-web-perm、w-web-sso 之寬嚴不一，依規格 K4／K7 收斂；前端固定送數字 7，無影響)
+ *
+ * @param {*} timeLength 輸入待檢測之值
+ * @returns {Number|null} 回傳有效之天數(number)，無效回傳 null
+ */
+function parseTimeLength(timeLength) {
+    try {
+        if (!iseint(timeLength, { min: 0, max: MAX_TIME_LENGTH_DAY })) {
+            return null
+        }
+        return (typeof timeLength === 'string' ? Number(timeLength.trim()) : timeLength) + 0 //+ 0: -0 與 '-0' 正規化為 +0(0 天)，使轉換後之值恆為規格 N2 之唯一表示(plan.timeLength 不為 -0)
+    }
+    catch (err) {
+        return null //讀取即拋錯之值(已撤銷之 Proxy 等)視為無效，本函數永不拋錯(規格 V11)
+    }
+}
+
+
 function genPlan(timeLength = 7, timeInterval = 'hr', opt = {}) {
+
+    //timeLength 驗證（必須在任何以之計算之前：下方 subtract 與 kpTime 迴圈）；其後一律用轉換後之 nDay（K4）。
+    //why：dayjs 對非數字、NaN、或超出 Date 可表示範圍之極大值會回 Invalid Date，而 Invalid Date 之 isAfter 恆為
+    //false，使下方 `while (!tCurr.isAfter(tEnd))` 成為**同步無窮迴圈**。該迴圈位於 staLogs 之第一行（早於 worker
+    //派工），會佔死主執行緒使整個伺服器停止回應、需重啟。getStaEvent 為對外 kpFunExt，資料通道雖只限系統管理者，
+    //參數仍由呼叫端傳入而可為任意型別，故此處為必要之輸入閘。允許 0（測試以 timeLength=0 取「現在起算」）至 MAX_TIME_LENGTH_DAY。
+    let nDay = parseTimeLength(timeLength)
+    if (nDay === null) {
+        throw new Error('errTimeLengthInvalid')
+    }
 
     //fdLog
     let fdLog = get(opt, 'fdLog')
@@ -53,21 +94,14 @@ function genPlan(timeLength = 7, timeInterval = 'hr', opt = {}) {
     let fmt = ti === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM-DDTHH'
     let unit = ti === 'day' ? 'day' : 'hour'
 
-    //now, 測試可由 opt.timeNow (epoch ms) 釘住
+    //now, 測試可由 opt.timeNow (epoch ms) 釘住；須為 1970～2100 年內之有限毫秒時刻(TIME_NOW_MIN～TIME_NOW_MAX)，其餘(NaN、±Infinity、超出範圍、非 number)視為未給改用現在(規格 K3)。
+    //  why 範圍而非只檢 isValid: timeNow 本身為有效 Date(如 8.64e15)時，其後之 subtract(nDay)／add(1, unit) 仍會溢位成 Invalid Date，isAfter 恆為 false，使下方 kpTime 迴圈無窮
     let timeNow = get(opt, 'timeNow')
-    let now = (typeof timeNow === 'number') ? ot(timeNow) : ot()
-
-    //timeLength 驗證（必須在 subtract 之前）。
-    //why：dayjs 對非數字、NaN、或超出 Date 可表示範圍之極大值會回 Invalid Date，而 Invalid Date 之 isAfter 恆為
-    //false，使下方 `while (!tCurr.isAfter(tEnd))` 成為**同步無窮迴圈**。該迴圈位於 staLogs 之第一行（早於 worker
-    //派工），會佔死主執行緒使整個伺服器停止回應、需重啟。getStaEvent 為對外 kpFunExt，資料通道雖只限系統管理者，
-    //參數仍由呼叫端傳入而可為任意型別，故此處為必要之輸入閘。允許 0（測試以 timeLength=0 取「現在起算」）至 MAX_TIME_LENGTH_DAY。
-    if (!Number.isInteger(timeLength) || timeLength < 0 || timeLength > MAX_TIME_LENGTH_DAY) {
-        throw new Error('errTimeLengthInvalid')
-    }
+    let isNowOk = typeof timeNow === 'number' && timeNow >= TIME_NOW_MIN && timeNow <= TIME_NOW_MAX
+    let now = isNowOk ? ot(timeNow) : ot()
 
     //tStart
-    let tStart = now.subtract(timeLength, 'day')
+    let tStart = now.subtract(nDay, 'day')
     let tStartMs = tStart.valueOf()
 
     //kpTime, 產生完整的時間區間 (無資料時段亦補 { count: 0 }, 圖表 x 軸不留空洞)
@@ -79,7 +113,7 @@ function genPlan(timeLength = 7, timeInterval = 'hr', opt = {}) {
         tCurr = tCurr.add(1, unit)
     }
 
-    return { fdLog, timeInterval: ti, fmt, unit, tStart, tStartMs, kpTime, timeNow: now.valueOf() }
+    return { fdLog, timeInterval: ti, fmt, unit, tStart, tStartMs, kpTime, timeNow: now.valueOf(), timeNowPinned: isNowOk, timeLength: nDay }
 }
 
 
@@ -430,18 +464,19 @@ async function run(plan, opt = {}) {
 function staLogs(timeLength = 7, timeInterval = 'hr', opt = {}) {
     //非 async: 併發呼叫須回傳同一個 promise 物件
 
-    //plan（genPlan 對非法 timeLength 同步 throw Error；此處轉為 reject 字串 err-key，
-    //使前端 $transErr 能依 lang 反查文字，並讓 wrapErrLog 記到的是 key 而非 Error 物件）
+    //plan（genPlan 對無效 timeLength 同步 throw Error('errTimeLengthInvalid')；本入口回傳 Promise，依規格〈輸入參數之檢測機制〉§5.1 一律 reject 固定鍵字串，
+    //不同步 throw、不回顯值，使前端 $transErr 能依 lang 反查文字，並讓 wrapErrLog 記到的是 key 而非 Error 物件）
     let plan
     try {
         plan = genPlan(timeLength, timeInterval, opt)
     }
     catch (err) {
-        return Promise.reject(get(err, 'message', 'errTimeLengthInvalid'))
+        return Promise.reject(get(err, 'message') === 'errTimeLengthInvalid' ? 'errTimeLengthInvalid' : err)
     }
 
-    //single-flight
-    let key = JSON.stringify([path.resolve(plan.fdLog), timeLength, plan.timeInterval, get(opt, 'timeNow', null)])
+    //single-flight（key 全用 genPlan 檢測並轉換後之值，K4: timeLength 之 7 與 '7' 為同一查詢；timeNow 只在被採用(timeNowPinned)時入鍵——
+    //  無效之 timeNow 已退回現在，與未給同鍵，且 BigInt、循環物件等原值不會使 JSON.stringify 同步拋錯）
+    let key = JSON.stringify([path.resolve(plan.fdLog), plan.timeLength, plan.timeInterval, plan.timeNowPinned ? plan.timeNow : null])
     if (kpInflight.has(key)) {
         return kpInflight.get(key)
     }
@@ -455,5 +490,5 @@ function staLogs(timeLength = 7, timeInterval = 'hr', opt = {}) {
 }
 
 
-export { staLogs, genPlan, listFiles, scanFile, scanFiles, mergeAgg, buildOutput, clearCache, getCacheSize, normTimeInterval }
+export { staLogs, genPlan, parseTimeLength, MAX_TIME_LENGTH_DAY, listFiles, scanFile, scanFiles, mergeAgg, buildOutput, clearCache, getCacheSize, normTimeInterval }
 export default staLogs

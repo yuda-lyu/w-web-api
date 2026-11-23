@@ -1,0 +1,59 @@
+{"name":"v-0","hang":false,"layers":["genPlan:ok:kpTime(1)","staLogs:ok:array(1)","staLogsWorker:ok:array(1)","staEvent:ok:array(1)"]}
+{"name":"v-negzero","hang":false,"layers":["genPlan:ok:kpTime(1)","staLogs:ok:array(1)","staLogsWorker:ok:array(1)","staEvent:ok:array(1)"]}
+{"name":"v-1","hang":false,"layers":["genPlan:ok:kpTime(25)","staLogs:ok:array(25)","staLogsWorker:ok:array(25)","staEvent:ok:array(25)"]}
+{"name":"v-7","hang":false,"layers":["genPlan:ok:kpTime(169)","staLogs:ok:array(169)","staLogsWorker:ok:array(169)","staEvent:ok:array(169)"]}
+{"name":"v-30","hang":false,"layers":["genPlan:ok:kpTime(721)","staLogs:ok:array(721)","staLogsWorker:ok:array(721)","staEvent:ok:array(721)"]}
+{"name":"v-3650","hang":false,"layers":["genPlan:ok:kpTime(87601)","staLogs:ok:array(87601)","staLogsWorker:ok:array(87601)","staEvent:ok:array(87601)"]}
+{"name":"v-undef","hang":false,"layers":["genPlan:ok:kpTime(169)","staLogs:ok:array(169)","staLogsWorker:ok:array(169)","staEvent:ok:array(169)"]}
+{"name":"v-str7","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"v-str-spaced","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"v-str-sci","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"v-str-plus","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-NaN","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-Infinity","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-negInfinity","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-neg1","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-negHuge","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-float1.5","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-3651","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-100000","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-1e20","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-1e308","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strAbc","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strEmpty","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strSpace","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strHex","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strInfinity","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strNaN","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strFloat","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strNeg","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strHuge","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-strMarker","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-null","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-true","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-false","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-obj","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-objValueOf","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-arr","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-arr7","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-bigint","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-symbol","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-numberObj","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-fn","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-revokedProxy","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"x-date","hang":false,"layers":["genPlan:throw:errTimeLengthInvalid","staLogs:reject:errTimeLengthInvalid","staLogsWorker:reject:errTimeLengthInvalid","staEvent:reject:errTimeLengthInvalid"]}
+{"name":"now-NaN","hang":true,"layersDone":[],"note":"timeout 6000ms (同步無窮迴圈或過慢)"}
+{"name":"now-Infinity","hang":true,"layersDone":[],"note":"timeout 6000ms (同步無窮迴圈或過慢)"}
+{"name":"now-neg-Infinity","hang":true,"layersDone":[],"note":"timeout 6000ms (同步無窮迴圈或過慢)"}
+{"name":"now-1e300","hang":true,"layersDone":[],"note":"timeout 6000ms (同步無窮迴圈或過慢)"}
+{"name":"now-neg1e300","hang":true,"layersDone":[],"note":"timeout 6000ms (同步無窮迴圈或過慢)"}
+{"name":"now-str","hang":false,"layers":["genPlan:ok:kpTime(169)","pinned:ok:2026-11-23T08","staLogs:ok:array(169)","staLogsWorker:ok:array(169)","staEvent:ok:array(169)"]}
+{"name":"now-date-max","hang":true,"layersDone":[],"note":"timeout 6000ms (同步無窮迴圈或過慢)"}
+{"name":"now-date-min","hang":true,"layersDone":[],"note":"timeout 6000ms (同步無窮迴圈或過慢)"}
+{"name":"now-date-max-minus-5d","hang":false,"layers":["genPlan:ok:kpTime(169)","pinned:ok:275760-09-08T08","staLogs:ok:array(169)","staLogsWorker:ok:array(169)","staEvent:ok:array(169)"]}
+{"name":"now-date-min-plus-5d","hang":true,"layersDone":[],"note":"timeout 6000ms (同步無窮迴圈或過慢)"}
+{"name":"now-beyond-2100","hang":false,"layers":["genPlan:ok:kpTime(169)","pinned:ok:2100-01-01T08","staLogs:ok:array(169)","staLogsWorker:ok:array(169)","staEvent:ok:array(169)"]}
+{"name":"now-negative-epoch","hang":false,"layers":["genPlan:ok:kpTime(169)","pinned:ok:1970-01-01T07","staLogs:ok:array(169)","staLogsWorker:ok:array(169)","staEvent:ok:array(169)"]}
+{"name":"now-year-9999","hang":false,"layers":["genPlan:ok:kpTime(169)","pinned:ok:10000-01-01T07","staLogs:ok:array(169)","staLogsWorker:ok:array(169)","staEvent:ok:array(169)"]}
+{"name":"now-ok-epoch0","hang":false,"layers":["genPlan:ok:kpTime(169)","pinned:ok:1970-01-01T08","staLogs:ok:array(169)","staLogsWorker:ok:array(169)","staEvent:ok:array(169)"]}
+{"name":"now-ok-2100","hang":false,"layers":["genPlan:ok:kpTime(169)","pinned:ok:2100-01-01T08","staLogs:ok:array(169)","staLogsWorker:ok:array(169)","staEvent:ok:array(169)"]}

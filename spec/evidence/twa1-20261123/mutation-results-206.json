@@ -1,0 +1,249 @@
+{
+  "results": [
+    {
+      "id": "M206-01",
+      "file": "src/App.vue",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／describeShape／describeErr(修前 2",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-02",
+      "file": "src/components/LayoutContentEdit.vue",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／describeShape／describeErr(修前 2",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-03",
+      "file": "src/describeShape.mjs",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 5,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-004 摘要不含值: 使用者物件、回應、網址、錯誤訊息之識別值皆不出現; 輸出有界; 控制字元; 永不拋錯:",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-04",
+      "file": "src/describeShape.mjs",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 5,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-004 摘要不含值: 使用者物件、回應、網址、錯誤訊息之識別值皆不出現; 輸出有界; 控制字元; 永不拋錯:",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-05",
+      "file": "src/describeShape.mjs",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 5,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-004 摘要不含值: 使用者物件、回應、網址、錯誤訊息之識別值皆不出現; 輸出有界; 控制字元; 永不拋錯:",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-06",
+      "file": "src/main.js",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／describeShape／describeErr(修前 2",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-07",
+      "file": "src/components/MdPanel.vue",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／describeShape／describeErr(修前 2",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-08",
+      "file": "src/store/applyRows.mjs",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 1,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-002 站點全集: 各檔之可執行 console 呼叫數與已盤點者相同(共 21 處); 範圍涵蓋進入檔與全部元件:",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-09",
+      "file": "server/maskLog.mjs",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 4,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-003 describeShape／describeErr 單一實作(src/describeShape.mjs): 全專案無第二份定義; 使用者皆自該模組匯入; 依",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-10",
+      "file": "src/describeShape.mjs",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 4,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-003 describeShape／describeErr 單一實作(src/describeShape.mjs): 全專案無第二份定義; 使用者皆自該模組匯入; 依",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-11",
+      "file": "src/App.vue",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／describeShape／describeErr(修前 2",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-12",
+      "file": "src/main.js",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／describeShape／describeErr(修前 2",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-13",
+      "file": "src/components/MdPanel.vue",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 4,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-003 describeShape／describeErr 單一實作(src/describeShape.mjs): 全專案無第二份定義; 使用者皆自該模組匯入; 依",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-14",
+      "file": "server/maskLog.mjs",
+      "tests": [
+        "test/unit-ormDiagLog.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 17,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-ormDiagLog (w-serv-orm funLog → srLog: 接線測試，遮罩與序列化交 wsemi genDiagFunLog) |        R-ORMDIAG-01 接線盤點",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-15",
+      "file": "src/describeShape.mjs",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 6,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-004c describeErr 經 wsemi getDiagBriefErr: 內建代碼(ECONNREFUSED、EAI_AGAIN、E2BIG)收; 整數 1",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-16",
+      "file": "src/App.vue",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 0,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／describeShape／describeErr(修前 2",
+      "restoredSha256Same": true
+    },
+    {
+      "id": "M206-17",
+      "file": "src/describeShape.mjs",
+      "tests": [
+        "test/unit-consoleNoValuesFront.test.mjs"
+      ],
+      "verdict": "KILLED",
+      "passing": 5,
+      "failing": 1,
+      "exit": 1,
+      "timedOut": false,
+      "firstFail": "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕) |        CNVF-004 摘要不含值: 使用者物件、回應、網址、錯誤訊息之識別值皆不出現; 輸出有界; 控制字元; 永不拋錯:",
+      "restoredSha256Same": true
+    }
+  ],
+  "summary": {
+    "total": 17,
+    "killed": 17,
+    "survived": [],
+    "undetermined": [],
+    "allRestored": true
+  }
+}

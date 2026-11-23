@@ -250,7 +250,13 @@ describe('unit-ormDiagLog (w-serv-orm funLog → srLog: 接線測試，遮罩與
             }
         })
 
-        it('ORMDIAG-021 本套件只用 genDiagFunLog：server／src／toolg／srv.mjs／g_*.mjs 無 getDiag(、getDiagSecrets、maskDiag*、getDiagBriefErr 呼叫（新增即轉紅，須補接線案並擴充語料子集）', function() {
+        //2026-11-23(排程第 206 項): 前端 console 摘要 src/describeShape.mjs 之 describeErr 依規格 D1 經 wsemi getDiagBriefErr(單一實作, 不自寫); 此為本套件唯一核可之第二個診斷函數呼叫點(僅 getDiagBriefErr、僅該檔之 import 與一處呼叫),
+        //  其接線案為 unit-consoleNoValuesFront CNVF-004c(以共用語料 C01～C03 之輸入經 describeErr 驗證); 新增其他呼叫點仍轉紅
+        let ALLOWED_BRIEF = [
+            'src/describeShape.mjs: import getDiagBriefErr from \'wsemi/src/getDiagBriefErr.mjs\'',
+            'src/describeShape.mjs: let b = getDiagBriefErr(err)',
+        ]
+        it('ORMDIAG-021 本套件只用 genDiagFunLog：server／src／toolg／srv.mjs／g_*.mjs 無 getDiag(、getDiagSecrets、maskDiag*、getDiagBriefErr 呼叫（新增即轉紅，須補接線案並擴充語料子集）; 唯一例外為 src/describeShape.mjs 之 getDiagBriefErr（接線案 CNVF-004c）', function() {
             let files = [...walk(path.join(fdRoot, 'server')), ...walk(path.join(fdRoot, 'src')), ...walk(path.join(fdRoot, 'toolg')), path.join(fdRoot, 'srv.mjs')]
             for (let f of fs.readdirSync(fdRoot)) {
                 if (/^g_.*\.mjs$/.test(f)) {
@@ -265,7 +271,7 @@ describe('unit-ormDiagLog (w-serv-orm funLog → srLog: 接線測試，遮罩與
                     }
                 }
             }
-            assert.deepStrictEqual(hits, [])
+            assert.deepStrictEqual(hits, ALLOWED_BRIEF, '除 src/describeShape.mjs 之 getDiagBriefErr（import 與一處呼叫）外不得另有診斷函數之使用')
         })
 
         it('ORMDIAG-022 建立 WServOrm 之站點全集 ＝ server/WWebApi.mjs（接 funLog）＋ g_mOrm.mjs（離線工具, 刻意不接: 無 srLog, console 即操作者終端機, 預設已不含個資）', function() {

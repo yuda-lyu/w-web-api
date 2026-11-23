@@ -276,10 +276,12 @@ describe('unit-staEvent-golden', function() {
         for (let v of [0, 7, 3650]) {
             assert.doesNotThrow(() => genPlan(v, 'hr', { fdLog, timeNow: FIXED }), `timeLength=${v} 應為合法值`)
         }
-        //非法：非整數／負數／超上限／非數字／NaN／null 一律 throw errTimeLengthInvalid
-        for (let v of [-1, 1.5, 3651, 'abc', '7', NaN, null, 1e9]) {
+        //非法：非整數／負數／超上限／非數字字串／NaN／null 一律 throw errTimeLengthInvalid
+        //  2026-11-23(排程第 301 項對齊規格〈輸入參數之檢測機制〉K4／K7): 數字字串('7')原被拒(Number.isInteger), 改為收下並以轉換值為準(與 w-web-perm、w-web-sso 同), 見 unit-staLogs-timeLength
+        for (let v of [-1, 1.5, 3651, 'abc', NaN, null, 1e9]) {
             assert.throws(() => genPlan(v, 'hr', { fdLog, timeNow: FIXED }), /errTimeLengthInvalid/, `timeLength=${JSON.stringify(v)} 應被擋下`)
         }
+        assert.strict.equal(genPlan('7', 'hr', { fdLog, timeNow: FIXED }).kpTime.length, genPlan(7, 'hr', { fdLog, timeNow: FIXED }).kpTime.length, '數字字串 \'7\' 以轉換值 7 為準')
         //經 staLogs 之對外路徑：reject 值須為**字串** err-key（前端 $transErr 依 lang 反查用），非 Error 物件
         await assert.rejects(staLogs('abc', 'hr', { fdLog, timeNow: FIXED }), (e) => e === 'errTimeLengthInvalid')
         //合法值仍正常返回

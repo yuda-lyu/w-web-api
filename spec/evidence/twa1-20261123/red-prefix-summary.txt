@@ -1,0 +1,72 @@
+[quiet-run] exit=25 time=1m13s log=C:\opensrc\開源-JS-411-8-w-web-api\w-web-api\tmp\quiet-run\20261123-091133-twa1-red-final.log (702 行, 50 KB)
+[quiet-run] cmd: node C:/opensrc/開源-JS-411-8-w-web-api/w-web-api/node_modules/mocha/bin/mocha.js --no-parallel test/unit-staLogs-timeLength.test.mjs test/api-staEventTimeLength.test.mjs test/unit-consoleNoValuesFront.…
+[quiet-run] lock(測試): 取得並已釋放(等待 1s)
+== 統計 ==
+  52 passing (1m)
+  25 failing
+== 失敗段落(前 32 行) ==
+  1) unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕)
+       TL-001 parseTimeLength: 0～3650 之整數與其數字字串有效(回轉換後 number); 其餘一律 null(不拋錯):
+      AssertionError [ERR_ASSERTION]: parseTimeLength(0) 應為 number 0(+0), 實得 number 0
+      + expected - actual
+      -false
+      +true
+      at Context.<anonymous> (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/tmp/twa1/pre/test/unit-staLogs-timeLength.test.mjs:79:15)
+      at callFn (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runnable.js:360:23)
+      at Test.run (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runnable.js:348:7)
+      at Runner.runTest (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:809:10)
+      at file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:949:12
+      at next (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:724:14)
+      at file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:734:7
+      at next (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:595:14)
+      at Immediate._onImmediate (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:702:5)
+      at process.processImmediate (node:internal/timers:574:21)
+  2) unit-staLogs-timeLength (統計 timeLength 入口檢測, 排程第 301 項〔api 側〕)
+       TL-004 single-flight: staLogs(7) 與 staLogs('7')、staLogs(' 7 ') 共用同一 promise(K4):
+      AssertionError [ERR_ASSERTION]: 7、'7'、' 7 ' 應為同一 in-flight promise(轉換後之值為鍵)
+      + expected - actual
+      -false
+      +true
+      at Context.<anonymous> (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/tmp/twa1/pre/test/unit-staLogs-timeLength.test.mjs:138:11)
+      at callFn (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runnable.js:360:23)
+      at Test.run (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runnable.js:348:7)
+      at Runner.runTest (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:809:10)
+      at file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:949:12
+      at next (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:724:14)
+      at file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:734:7
+      at next (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:595:14)
+      at Immediate._onImmediate (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:702:5)
+      at process.processImmediate (node:internal/timers:574:21)
+== 錯誤行(去重,至多 15) ==
+  4) TL-004c staLogs: genPlan 拋出非 errTimeLengthInvalid 之錯誤時, 回 rejected Promise 且原因為原 Error(不被改寫為固定鍵), 不同步拋錯
+  ✔ CNVF-004c describeErr 經 wsemi getDiagBriefErr: 內建代碼(ECONNREFUSED、EAI_AGAIN、E2BIG)收; 整數 12345、E123456789、EMP04、ERR_ACCOUNT_ALICE01 不收(共用語料 C01～C03); 輸出等於依其結果組成之格式
+  AssertionError [ERR_ASSERTION]: Got unwanted exception: timeNow=bigint 不得使 staLogs 同步拋錯
+  TL-004c staLogs: genPlan 拋出非 errTimeLengthInvalid 之錯誤時, 回 rejected Promise 且原因為原 Error(不被改寫為固定鍵), 不同步拋錯:
+  AssertionError [ERR_ASSERTION]: 原因應為 Error 物件(原樣), 實得 string Cannot perform 'get' on a proxy that has been revoked
+  AssertionError [ERR_ASSERTION]: genPlan: {"layer":"genPlan","kind":"throw","v":"errTimeLengthInvalid"}
+  AssertionError [ERR_ASSERTION]: 候選 now-NaN 逾時(kpTime 迴圈無窮): 已完成之層 , ms=6028
+  AssertionError [ERR_ASSERTION]: 候選 now-Infinity 逾時(kpTime 迴圈無窮): 已完成之層 , ms=6026
+  AssertionError [ERR_ASSERTION]: 候選 now-neg-Infinity 逾時(kpTime 迴圈無窮): 已完成之層 , ms=6042
+  AssertionError [ERR_ASSERTION]: 候選 now-1e300 逾時(kpTime 迴圈無窮): 已完成之層 , ms=6039
+  AssertionError [ERR_ASSERTION]: 候選 now-neg1e300 逾時(kpTime 迴圈無窮): 已完成之層 , ms=6031
+  AssertionError [ERR_ASSERTION]: 候選 now-date-max 逾時(kpTime 迴圈無窮): 已完成之層 , ms=6026
+  AssertionError [ERR_ASSERTION]: 候選 now-date-min 逾時(kpTime 迴圈無窮): 已完成之層 , ms=6035
+  AssertionError [ERR_ASSERTION]: 應退回現在所屬桶(2026-11-23T09,2026-11-23T08), 實得 275760-09-08T08
+  AssertionError [ERR_ASSERTION]: 候選 now-date-min-plus-5d 逾時(kpTime 迴圈無窮): 已完成之層 , ms=6027
+== 最後 15 行(非空,不含上列失敗段落) ==
+       CNVF-003 describeShape／describeErr 單一實作(src/describeShape.mjs): 全專案無第二份定義; 使用者皆自該模組匯入; 依賴閉包不含 Node 內建模組:
+      AssertionError [ERR_ASSERTION]: 使用者(.vue／.mjs 之呼叫處)至少 7 處, 實得 0
+      + expected - actual
+      -false
+      +true
+      at Context.<anonymous> (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/tmp/twa1/pre/test/unit-consoleNoValuesFront.test.mjs:200:11)
+      at callFn (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runnable.js:360:23)
+      at Test.run (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runnable.js:348:7)
+      at Runner.runTest (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:809:10)
+      at file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:949:12
+      at next (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:724:14)
+      at file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:734:7
+      at next (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:595:14)
+      at Immediate._onImmediate (file:///C:/opensrc/%E9%96%8B%E6%BA%90-JS-411-8-w-web-api/w-web-api/node_modules/mocha/lib/runner.js:702:5)
+      at process.processImmediate (node:internal/timers:574:21)
+(完整輸出在 log;要看更多請用 Grep 搜該檔,或 Read 加 offset/limit 讀片段,不要整份讀入)

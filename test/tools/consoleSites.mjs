@@ -2,7 +2,7 @@
 //不帶 .test. 中綴、放 test/tools/，供 unit-consoleSites.test.mjs 與盤點腳本共用（同一 helper 只定義一次）。
 //作法：以 eslint（devDependencies 已宣告）之 Linter 取得 AST（不靠正規表示式，註解、字串、樣板字串內之 "console.log" 不誤判），
 //逐一檢視 console.(log|warn|error|info|debug|trace|dir|table)(…) 與 process.stdout／stderr.write(…) 之每個引數：
-//- 安全：字面值；樣板字串（其 ${} 皆安全）；呼叫核可之輸出函數（maskTok、shapeOf、typeOf、payloadShape、errBrief、pickErrName、pickErrCode）；
+//- 安全：字面值；樣板字串（其 ${} 皆安全）；呼叫核可之輸出函數（maskTok、shapeOf、typeOf、payloadShape、errBrief、pickErrName、pickErrCode；前端另有 describeShape、describeErr）；
 //  X.length（筆數）；typeof X（型別）；二元 + 、條件、邏輯運算式（各分支皆安全）；清單 exempt 內之運算式原文（各條附理由，屬「刻意不套」）
 //- 其餘（裸識別字、成員存取、物件／陣列字面值、其他呼叫）一律判為「可能輸出資料值」
 import fs from 'fs'
@@ -13,7 +13,8 @@ import eslint from 'eslint'
 let { Linter } = eslint
 
 let METHODS = ['log', 'warn', 'error', 'info', 'debug', 'trace', 'dir', 'table']
-let HELPERS = ['maskTok', 'shapeOf', 'typeOf', 'payloadShape', 'errBrief', 'pickErrName', 'pickErrCode']
+//describeShape／describeErr: 前端 console 用之摘要函數(src/describeShape.mjs, ADR-061, 排程第 206 項); 其行為由 unit-consoleNoValuesFront CNVF-004 釘住
+let HELPERS = ['maskTok', 'shapeOf', 'typeOf', 'payloadShape', 'errBrief', 'pickErrName', 'pickErrCode', 'describeShape', 'describeErr']
 
 
 //classify: 回傳 { safe, why }；exempt 為 Map(運算式原文 → 理由)，'*' 鍵表示該檔全部運算式（離線稽核工具之輸出本體）；exempt.used（Set）記錄被用到之鍵

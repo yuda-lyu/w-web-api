@@ -13,6 +13,13 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Upgrade Notes
 
+### Behavior change since 1.1.62：`getStaEvent` 之 `timeLength` 數字字串由拒收改為收下；`opt.timeNow` 限 1970～2100；瀏覽器 console 診斷不再輸出資料值
+
+**行為變更**（輸出形狀不變；與 w-web-perm、w-web-sso 之統計核心同一判準，依跨套件規格〈輸入參數之檢測機制〉）：
+- **`timeLength`（往回統計之天數）：數字字串由拒收改為收下**。有效值為 0～3650 之整數，或其數字字串（如 `'7'`、`' 7 '`、`'1e1'`；去頭尾空白，其後一律只用轉換後之數值，故 `7` 與 `'7'` 為同一查詢、共用同一次掃描）。其餘（`NaN`、`±Infinity`、負數、小數、超過 3650、非數字字串、`null`、布林、物件、陣列等）一律 reject 固定鍵 `errTimeLengthInvalid`（不回顯輸入值，與前一版相同）。**與前一版之差異只有一項：前一版以 `Number.isInteger` 判定，數字字串（如 `'7'`）被拒，現在收下**。本套件前端固定送數字 `7`，不受影響；自行以資料通道呼叫 `getStaEvent` 者，若曾以「字串被拒」為前提請留意。
+- **`opt.timeNow`（測試掛鉤，資料通道不可達）須為 1970-01-01 ～ 2100-01-01（UTC）內之有限毫秒時刻**，否則視為未給、改用現在。原本 `NaN`、`±Infinity`、`1e300`、`±8.64e15` 等值會使統計函數同步無窮迴圈（佔死主執行緒）；範圍內（含兩端）行為不變。
+- **瀏覽器 console 診斷不再輸出資料值**（承 1.1.26 之伺服端 console，本版補前端）：登入成功不再印使用者物件（只印鍵名，如 `login success (keys: id,name,email,isAdmin)`）、登入失敗不再印整個回應、`$alert` 不再印訊息文字、各處失敗之 `catch` 不再印錯誤本體（只印錯誤類別，如 `(Error)`、字串錯誤為 `(string)`）；畫面與功能不變。若您以瀏覽器 console 文字做除錯，需要細節請改讀伺服端 srLog。
+
 ### Behavior change since 1.1.32：統計資訊之時段輸出不再含晚於「現在所屬時段」之未來時段
 
 **行為變更**（輸出形狀與參數不變）。統計資訊頁之後端函數 `getStaEvent`（`staEvent`／`staLogs`）依時段與事件名聚合 srLog 紀錄。紀錄之 `time` 取寫入當下之真實時鐘，統計之「現在」則可由 `opt.timeNow` 或程序級假時鐘釘住（或伺服器時鐘回撥）；兩者不一致時，過去之版本會把**晚於現在所屬時段**之紀錄也輸出成一個未來時段，使圖表多出一格未來日期並主導 Y 軸，統計表之「最近 N 小時」亦隨之位移。自本版起：

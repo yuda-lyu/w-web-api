@@ -183,6 +183,20 @@
   ```
 - **已知限制**: ①位移後若占用 11005 者為「同專案手動後端」, e2e 另起自己之後端並重 build `dist/`(覆寫手動後端正在 serve 之檔), 兩者共用 `./db`; 同專案依序執行之規定(`quiet-run --lock`)不涵蓋手動起之後端。②套件 `createServiceManager.restart` 於 `killOwnListeners` 回 null(查不到監聽者)時只記錄就續行(新後端因埠被占而結束, `waitReady` 仍以占用者之回應放行), 僅在「手動 `E2E_PORT_OFFSET=0` 鎖基準埠且基準埠有他人服務」時可能發生, 屬套件層, 不在本套件改。
 
+## `timeLength`／`timeNow` 入口檢測與瀏覽器 console 不印資料值之測試(2026-11-23, twa1〔任務 20261123082127; 排程第 301、570、206 項〔api 側〕〕, ADR-062／ADR-061／ADR-040 Update; 規則見 `rulebook_backend.md` R-STA-TIMELENGTH-01、R-CONSOLE-NOVAL-01)
+
+| 檔 | 層 | 守什麼(對應規格) | 備註 |
+|---|---|---|---|
+| `test/unit-staLogs-timeLength.test.mjs` | unit | TL-001 `parseTimeLength` 有效 13 種／無效 36 種判準全表; TL-002 無效 33 候選 × 4 層(`genPlan` 同步 throw、`staLogs`／worker 版／`staEvent` reject 固定鍵); TL-003 有效 11 候選 × 4 層桶數(含數字字串); TL-004／004b single-flight 同鍵與無效 `timeNow`(BigInt、循環物件、`toJSON` 拋錯)不使同步拋錯; TL-004c 非 `errTimeLengthInvalid` 之錯誤(已撤銷 Proxy 之 `opt`)原樣 reject、不被改寫為固定鍵; TL-005 `timeNow` 13 種退回現在、2 種範圍內採用; TL-006a～c 站點全集與不變式(檢測先於 subtract、遠端入口只經 `staEvent`、無第二份 `Number.isInteger` 檢測); TL-007 語系鍵 | 子行程(`test/tools/timeLengthChild.mjs`)＋`spawnSync` 逾時保護(修前之無窮迴圈同行程內 mocha 逾時計時器亦無法觸發; 環境變數 `TL_CHILD_TIMEOUT_MS` 縮短變異測試之等待); 檔首 `import './staLogs-golden/setTz.mjs'` 釘 Asia/Taipei(桶數 = 天數 × 24 + 1 於有夏令時間之時區會因窗跨 DST 差 1, 2026-11-23 獨立複審實測 Europe/Berlin、America/New_York 之 30 天窗為 722) |
+| `test/api-staEventTimeLength.test.mjs` | api | 真後端經資料通道: ATL-001 有效值(含 `'7'`、`' 7 '`、`'1e1'`)照常; ATL-002 26 種無效值 reject `errTimeLengthInvalid`、數秒內回應、不回顯值、其後後端仍存活; ATL-003 srLog 記固定鍵、不含送入之值 | 埠 8574(與 api-logLeak／api-sysFuncs／api-ormDiag* 同埠循序; 8551–8574 範圍已滿) |
+| `test/unit-staEvent-golden.test.mjs` GOLD-040 | unit | 數字字串 `'7'` 自「須被擋下」移至「以轉換值為準」 | 規格 K4／K7, 與姊妹套件一致 |
+| `test/unit-syncRows.test.mjs` SR-570a／b／c | unit | 570: a) `checkRowIds` 對 NaN／±Infinity 之判定不改; b) 真 `procOrm`(公開入口 `WServOrm` ＋記憶體替身)對 NaN、±Infinity、布林、物件主鍵整批 reject `invalid id: data[k]`、零寫入、未給者補主鍵; c) JSON 往返為 `null` | 守護「註解所述之上游行為」, 上游改回補值時 b 轉紅 |
+| `test/unit-consoleNoValuesFront.test.mjs` | unit | CNVF-001 站點不變式(AST); 002 站點全集 21 站與各檔數、`public/`／設定檔無 console; 002b 非常規 console 引用全專案為 0; 002c 掃描器自測; 003 單一實作與依賴閉包不含 Node 內建模組; 004 摘要行為(識別值不出現、控制字元、有界、永不拋錯); 004c `describeErr` 經 `getDiagBriefErr` 之接線(共用語料 C01～C03) | 掃描器 `test/tools/srcScan.mjs`(`.vue` 取 `<script>`, 去註解, AST)＋`consoleSites.mjs`(HELPERS 增 `describeShape`／`describeErr`) |
+| `test/e2e-consoleNoValues.test.mjs` | e2e | E2E-CN-001: 真瀏覽器登入(`?token=sys`)並瀏覽 API 與統計資訊工作區, console 為鍵名摘要 `login success (keys: id,name,email,isAdmin)`, 不含 email／id／名稱／`token=`; E2E-CN-002(失敗路徑): `page.route` 中止 `getWebInfor` 之請求(其餘請求照常; w-converhp 用戶端重試 3 次後拒絕), catch 之 console 只印 `(TypeError)` 等錯誤類別, 不含 `Failed to fetch`／網址 | 純語意、無標準圖; `e2eShard.json` 之 `durations` 加 1.87 分(全套 5 組並行負載下實測, 2026-11-23 第 3 組〔位移 300〕與 `e2e-external` 同組 5.08 分) |
+| `test/unit-ormDiagLog.test.mjs` ORMDIAG-021 | unit | 本套件之 wsemi 診斷函數只有 `genDiagFunLog`, 例外只有 `src/describeShape.mjs` 之 `getDiagBriefErr`(`ALLOWED_BRIEF`: import 與一處呼叫) | 新增其他呼叫點仍轉紅 |
+
+**改動範圍 → 測試檔(timeLength／console)**: 改 `server/staLogs/staLogsCore.mjs`（`genPlan`／`parseTimeLength`／`staLogs`）、`staLogsCore.callWorker.mjs`、`staEvent.mjs`、`WWebApi.mjs` 之 `getStaEvent`、`procLang.mjs` 之 `errTimeLengthInvalid` → `unit-staLogs-timeLength`、`api-staEventTimeLength`、`unit-staEvent-golden`、`unit-staLogs-futureBucket`、`unit-iterSites` + e2e `e2e-stainfor`; 改 `server/checkSyncRows.mjs` → `unit-syncRows`＋`api-http`、`api-import`; 改 `src/**` 任一 console 站點、`src/describeShape.mjs`、`test/tools/srcScan.mjs`／`consoleSites.mjs` → `unit-consoleNoValuesFront`、`unit-consoleSites`、`unit-ormDiagLog`、`unit-maskLog`、`unit-applyRows` + e2e `e2e-consoleNoValues`; 改前端元件（含 `src/App.vue`、`main.js`）使 dist 重建者, 另依「建置設定／共用元件」擴大為全部 e2e 比對標準圖(本輪全跑 0 張改變)。標準圖授權範圍: 無(本輪不產圖)。
+
 ## dev server proxy 重用連線(2026-11-07 pa347〔任務 20261107181536〕, 排程第 347 項; 姊妹套件 w-web-sso 同名規則〔ss324, ADR-105〕為範本)
 
 ### R-E2E-PROXY-01 dev server 之 `/api` proxy 以 keep-alive agent 重用至後端之連線, 免每請求兩段各留 TIME_WAIT

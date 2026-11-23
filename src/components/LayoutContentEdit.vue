@@ -291,6 +291,7 @@ import iseobj from 'wsemi/src/iseobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import { mdiLock, mdiAlert } from '@mdi/js'
 import { buildBaseline, digestRow } from 'w-serv-orm/src/baseline.mjs'
+import { describeErr } from '../describeShape.mjs'
 import WTextSelect from 'w-component-vue/src/components/WTextSelect.vue'
 import WTooltip from 'w-component-vue/src/components/WTooltip.vue'
 import MdPanel from './MdPanel.vue'
@@ -465,7 +466,7 @@ export default {
                 catch (err) {
                     //列無主鍵或含不可摘要之值(過深巢狀、函式、非有限數字): 無法建立基準 → 標記後禁止存檔／刪除。
                     //不降級為不帶基準: 那會在他人更新後靜默覆寫(後端對不帶基準者不比對)
-                    console.log('buildBaseline', err)
+                    console.log('buildBaseline', describeErr(err))
                     vo.baselineBroken = true
                 }
             }
@@ -478,7 +479,7 @@ export default {
                 return digestRow(vo.form, contract) !== digestRow(vo.formInit, contract)
             }
             catch (err) {
-                console.log('digestRow', err)
+                console.log('digestRow', describeErr(err))
                 return true
             }
         },
@@ -509,7 +510,7 @@ export default {
                 same = !vo.baselineBroken && (vo.baseline === undefined || digestRow(val, contract) === vo.baseline[0][1])
             }
             catch (err) {
-                console.log('digestRow', err)
+                console.log('digestRow', describeErr(err))
                 same = false
             }
             if (same) {
@@ -590,7 +591,7 @@ export default {
                     .catch(function(err) {
                         //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md 失敗通知政策；不用自動消失之 $alert toast，ADR-005）；
                         //回傳訊息框之 Promise, 流程至其關閉才結束 (ADR-034)
-                        console.log('catch', err); vo.$ui.updateLoading(false); return vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
+                        console.log('catch', describeErr(err)); vo.$ui.updateLoading(false); return vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
                     })
                     .finally(function() {
                         vo.$ui.updateLoading(false)
@@ -663,7 +664,7 @@ export default {
                         rowSaved = get(res, '0.row', null)
                     })
                     .catch(function(err) {
-                        console.log('saveApi', err); vo.errSave = vo.$transErr(err); vo.markRejected(err) //被拒: 保留草稿(不動 form)並提示重新載入
+                        console.log('saveApi', describeErr(err)); vo.errSave = vo.$transErr(err); vo.markRejected(err) //被拒: 保留草稿(不動 form)並提示重新載入
                     }) //err 為後端 err-key，依 lang 反查顯示
                 if (!okSave) return
 
@@ -699,7 +700,7 @@ export default {
                         return vo.doDelete() //回傳刪除流程之 Promise, 占位持續至結果訊息框關閉
                     })
                     .catch(function(err) {
-                        if (err === 'close') return; console.log('showCheckYesNo', err)
+                        if (err === 'close') return; console.log('showCheckYesNo', describeErr(err))
                     })
             })
         },
@@ -730,7 +731,7 @@ export default {
                         okDel = true
                     })
                     .catch(function(err) {
-                        console.log('deleteApi', err); vo.errSave = vo.$transErr(err); vo.markRejected(err)
+                        console.log('deleteApi', describeErr(err)); vo.errSave = vo.$transErr(err); vo.markRejected(err)
                     }) //err 為後端 err-key，依 lang 反查顯示
                 if (!okDel) return
 
@@ -747,7 +748,7 @@ export default {
                 .catch(function(err) {
                     //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md 失敗通知政策；不用自動消失之 $alert toast，ADR-005）；
                     //回傳訊息框之 Promise, 流程至其關閉才結束 (ADR-034)
-                    console.log('catch', err); vo.$ui.updateLoading(false); return vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
+                    console.log('catch', describeErr(err)); vo.$ui.updateLoading(false); return vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
                 })
                 .finally(function() {
                     vo.$ui.updateLoading(false)

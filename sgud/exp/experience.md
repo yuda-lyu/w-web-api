@@ -350,6 +350,18 @@
 - **測試之坑**: ①自簽憑證用 `test/tools/tlsFixture.mjs`(測試專用、僅 127.0.0.1; 不依賴未宣告之傳遞相依 `selfsigned`, 也不假設機器有 openssl), 測試內 `NODE_TLS_REJECT_UNAUTHORIZED=0` 於 `before` 設、`after` 還原; ②`net.Server.close(cb)` 要等所有連線結束才回呼(`net.Server` 無 `closeAllConnections`), 起 http／https server 之測試關閉時須逐一 `destroy` 記下之 socket; ③實測 7.28.0 對 `.invalid` 主機名之 `fetch` 在本機 DNS 下 60 秒以上不 reject(`AbortSignal.timeout(5000)` 未使其提早結束; 原因未查、未對 8.12.3 重測), 探測與測試一律以注入之解析函數(`dnsLookup`)模擬解析失敗, 不打真 DNS; ④證「位址檢查於連線當下」: 注入之解析函數**不回覆**, 短暫觀察窗內 server 之 `connection` 計數須為 0, 放行後才為 1(否定斷言, 其餘同步點用輪詢可觀察條件, 不用固定延時)。
 - **變異驗證用複本**: `./tmp/<任務>/mut/<名>/` 放 `server/` 與測試之複本(Node 沿父層找 `node_modules`, `./tmp` 在 repo 內不需目錄連結), 單行置換並先確認命中數為 1。放寬守門之變異會讓測試真的向公開 IP(如 93.184.216.34)發連線, 只在複本跑一次。
 
+## twa1(2026-11-23, 任務 20261123082127, 排程第 301、570、206 項〔api 側〕): timeLength 對齊規格、NaN 主鍵註解更正、前端 console 不印值(R-STA-TIMELENGTH-01、R-CONSOLE-NOVAL-01, ADR-061／062)
+
+- **「屬實則比照」之前提要逐項實測, 不照姊妹報告推論**: 姊妹套件之 `timeLength` 缺陷是「無檢測 → 同步無窮迴圈」, 本套件於 ADR-030 早已有 `Number.isInteger` 閘, 實測 `timeLength` 之 33 種無效值全被拒(只差數字字串); 真正同形之缺口在 `opt.timeNow`(`NaN`、`±Infinity`、`1e300`、`±8.64e15` 等 8 種使 `kpTime` 迴圈卡死)。先以「逾時保護之子行程 × 全部候選」跑修前碼取得現況表(`spec/evidence/twa1-20261123/repro301-run.mjs`), 才知道修什麼、哪些測試是回歸守護而非修前紅。
+- **修前紅之鏡像根作法**: `git archive HEAD server src test/tools` 解到 `./tmp/twa1/pre/`(保持相對路徑; 裸名匯入向上解析到專案 `node_modules`, 目錄內不放連結), 新測試複製進去在該根執行; 新測試所需而修前碼沒有之匯出(`parseTimeLength`)以**載入 shim**補(shim 取修前判準, 於鏡像檔註明), 使檔可載入而逐案紅; 否則整檔載入失敗只得「0 案」之假紅。
+- **同步無窮迴圈之測試必走子行程＋`spawnSync` 逾時**: 同行程內 mocha 之逾時計時器無法觸發; `TL_CHILD_TIMEOUT_MS` 供變異測試縮短卡住候選之等待。子行程列出各層入口之輸出, 以「缺行」判該層卡住。
+- **時區相依之斷言**: 桶數 `天數 × 24 + 1` 於有夏令時間之時區會因窗跨 DST 差 1(獨立複審實測 Europe/Berlin、America/New_York 之 30 天窗為 722); 檔首 `import './staLogs-golden/setTz.mjs'` 釘 Asia/Taipei(子行程繼承 `process.env.TZ`)。
+- **掃描型測試以 AST、並為掃描器本身寫盲點自測**: 首版 `srcScan.mjs` 只取 `.vue` 第一個 `<script>`、漏 `window['console']`、`{ console: c } = window`、`eval`／`Function`／字串碼計時器／`onerror`；獨立複審(sonnet, 唯讀)以探測腳本逐一找出。教訓: 凡「全集不變式」類測試, 掃描器之盲點寫法須進自測案(CNVF-002c), 且 `SITES` 釘各檔數使新增站點必紅。
+- **ORMDIAG-021 之意圖是「新增診斷函數呼叫點須補接線案」, 不是「永遠不得用」**: 前端 `describeErr` 依規格 D1 經 `getDiagBriefErr`, 以 `ALLOWED_BRIEF`(僅該檔之 import 與一處呼叫)明列唯一例外, 並補接線案 CNVF-004c(共用語料 C01～C03 之輸入經 `describeErr`); 新增其他呼叫點仍轉紅。ADR-057 當時因此不採 `getDiagBriefErr` 之理由, 在補接線案後即不成立。
+- **e2e 失敗路徑之 console 驗證**: 全部中止 `/api/main` 使連線閘後之同步不完成, `getWebInfor` 根本不被呼叫; 改 `page.route` 只中止 `postDataBuffer().includes('getWebInfor')` 之請求, w-converhp 用戶端重試 3 次後拒絕, catch 才輸出(約 10 秒)。`msg.text()` 對字串引數已含文字, 附 `jsonValue()` 後同一文字出現兩次, 斷言之正規式涵蓋 `text | "引數1" | "引數2"` 形。
+- **wsemi 已含 `getDiagShape`**: 已安裝之 wsemi 1.9.71 之 `src/getDiagShape.mjs` 即規格 D1 之共用形狀摘要(輸出近似, 字串為 `(string)`); 本輪依主控指示仍放暫行單一模組, 取代時機與格式差異列報告〈需你決定〉。
+- **跑 e2e 會重建 `dist/`**: hash 檔名隨前端碼變, 已入版控之 hash 檔被刪、產生未追蹤之新檔; 還原一律 `git cat-file blob HEAD:<檔>` 之原位元組(不用 `git archive`／`checkout`)。工作樹起手即存在之 3 檔刪除與 `tableTags-web-api.json` 依派工不還原。
+
 ## 排測試鎖與長鏈之補遺(2026-09～11-03 各輪; 2026-11-22 自自動記憶提取)
 
 - **背景指令之 `timeout` 一律給 7200000**: 排鎖等待時間亦計入背景上限, 曾給 3600000 而於等鎖滿 1 小時時被系統終止, 工作白排.

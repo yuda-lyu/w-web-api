@@ -25,6 +25,7 @@
 // import str2aes from 'wsemi/src/str2aes.mjs'
 // import timeTZ2past from 'wsemi/src/timeTZ2past.mjs'
 import md2html from 'w-md2html/src/md2html.mjs'
+import { describeErr } from '../describeShape.mjs'
 
 
 export default {
@@ -67,7 +68,7 @@ export default {
                     vo.mdh = res.html
                 })
                 .catch((err) => {
-                    console.log('md2html', err)
+                    console.log('md2html', describeErr(err))
                     if (nCurr !== vo.nSeq) {
                         return
                     }
