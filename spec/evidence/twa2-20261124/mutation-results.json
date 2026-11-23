@@ -1,0 +1,639 @@
+[
+ {
+  "id": "CONTROL:test/unit-consoleSites.test.mjs|test/unit-consoleNoValuesFront.test.mjs|test/unit-maskLog.test.mjs|test/unit-ormDiagLog.test.mjs|test/api-logLeak.test.mjs",
+  "exit": 0,
+  "passing": 87,
+  "failing": 0,
+  "names": [],
+  "ok": true
+ },
+ {
+  "id": "CONTROL:test/unit-consoleSites.test.mjs|test/unit-consoleNoValuesFront.test.mjs|test/unit-maskLog.test.mjs|test/unit-ormDiagLog.test.mjs",
+  "exit": 0,
+  "passing": 56,
+  "failing": 0,
+  "names": [],
+  "ok": true
+ },
+ {
+  "id": "CONTROL:test/unit-distGuard.test.mjs",
+  "exit": 0,
+  "passing": 6,
+  "failing": 0,
+  "names": [],
+  "ok": true
+ },
+ {
+  "id": "CONTROL:test/e2e-consoleNoValues.test.mjs",
+  "exit": 0,
+  "passing": 2,
+  "failing": 0,
+  "names": [],
+  "ok": true
+ },
+ {
+  "id": "S1",
+  "desc": "checkUser 之 user 站點改印使用者物件本體",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs",
+   "test/api-logLeak.test.mjs"
+  ],
+  "exit": 5,
+  "passing": 82,
+  "failing": 5,
+  "names": [
+   "SITE-002 伺服端全部 console 站點：每個引數皆安全（無裸變數、使用者物件、請求本體、查詢參數、外來錯誤原文）",
+   "SITE-004 認證與請求驗證站點：印 user／query／payload 之引數一律經 getDiagShape",
+   "SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同",
+   "REQ-001 GET /api/getUserByToken，tokZzNoId（使用者物件各欄位為識別值）→ errUserIdMissing；console 只印鍵名",
+   "REQ-019 整段請求期之 console 累計不含識別值",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S2",
+  "desc": "建構參數 url 之站點不再 keys:false(連鍵名亦列)",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs",
+   "test/api-logLeak.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 86,
+  "failing": 1,
+  "names": [
+   "CTOR-002 建構參數誤傳含識別值之物件（badurl）→ console 只印型別「invalid url (object)」",
+   "api-logLeak (console 診斷不輸出資料值：以含識別值之測資觸發各站點)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S3",
+  "desc": "ORM 建構失敗站點印錯誤本體",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs",
+   "test/api-logLeak.test.mjs"
+  ],
+  "exit": 3,
+  "passing": 84,
+  "failing": 3,
+  "names": [
+   "SITE-002 伺服端全部 console 站點：每個引數皆安全（無裸變數、使用者物件、請求本體、查詢參數、外來錯誤原文）",
+   "SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同",
+   "CTOR-010 WOrm 建構時拋出含識別值之 Error → console 只印 WServOrm init failed ＋ 錯誤名稱，不含識別值；仍拋出",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)",
+   "api-logLeak (console 診斷不輸出資料值：以含識別值之測資觸發各站點)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S4",
+  "desc": "WWebApi 缺 getDiagShape 匯入",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs",
+   "test/api-logLeak.test.mjs"
+  ],
+  "exit": 23,
+  "passing": 64,
+  "failing": 23,
+  "names": [
+   "SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同",
+   "CTOR-001 建構參數誤傳含識別值之物件（badorm）→ console 只印型別「invalid WOrm (object)」",
+   "CTOR-002 建構參數誤傳含識別值之物件（badurl）→ console 只印型別「invalid url (object)」",
+   "CTOR-003 建構參數誤傳含識別值之物件（baddb）→ console 只印型別「invalid db (object)」",
+   "CTOR-004 建構參數誤傳含識別值之字串（badhook）→ console 只印型別「invalid getUserByToken (string)」",
+   "CTOR-005 建構參數誤傳含識別值之物件（badv1）→ console 只印型別「invalid verifyClientUser (object)」"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S5",
+  "desc": "maskLog 復活本地 shapeOf(定義＋匯出)",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs",
+   "test/api-logLeak.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 86,
+  "failing": 1,
+  "names": [
+   "SITE-006 D1 單一實作：伺服端無本地 shapeOf／errBrief／typeOf／payloadShape（定義、匯出、呼叫皆無）; maskLog.mjs 匯出表只",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S6",
+  "desc": "請求本體站點(group 無效)漏印 rows 之形狀",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs",
+   "test/api-logLeak.test.mjs"
+  ],
+  "exit": 2,
+  "passing": 85,
+  "failing": 2,
+  "names": [
+   "SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同",
+   "REQ-013 POST /syncAndReplaceTabs，group 為物件（夾識別值）→ errGroupInvalid；console 只印鍵名與筆數",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)",
+   "api-logLeak (console 診斷不輸出資料值：以含識別值之測資觸發各站點)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S7",
+  "desc": "keyTable 站點改回 typeof 樣板",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs",
+   "test/api-logLeak.test.mjs"
+  ],
+  "exit": 2,
+  "passing": 85,
+  "failing": 2,
+  "names": [
+   "SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同",
+   "REQ-010 POST /syncAndReplaceTabs，keyTable 為重複參數（陣列，含識別值）→ errKeyTableInvalid；console 不含識別值",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)",
+   "api-logLeak (console 診斷不輸出資料值：以含識別值之測資觸發各站點)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S8",
+  "desc": "入口檔寫入失敗站點印 String(err)",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs",
+   "test/api-logLeak.test.mjs"
+  ],
+  "exit": 3,
+  "passing": 84,
+  "failing": 3,
+  "names": [
+   "SITE-002 伺服端全部 console 站點：每個引數皆安全（無裸變數、使用者物件、請求本體、查詢參數、外來錯誤原文）",
+   "SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同",
+   "CTOR-012 dist/index.html 寫入失敗（檔案系統錯誤之訊息帶路徑，cwd 名稱含識別值）→ console 只印 can not generate index.",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)",
+   "api-logLeak (console 診斷不輸出資料值：以含識別值之測資觸發各站點)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S9",
+  "desc": "srv.mjs 之 getDiagBriefErr 不宣告 nested cause",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 55,
+  "failing": 1,
+  "names": [
+   "SITE-008 srv.mjs 之 getDiagBriefErr 呼叫皆宣告 nested: [cause]",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S10",
+  "desc": "srv.mjs state 站點改回 typeof 樣板",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 55,
+  "failing": 1,
+  "names": [
+   "SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S11",
+  "desc": "srv.mjs 新增 getDiag( 呼叫(診斷物件用途)",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 55,
+  "failing": 1,
+  "names": [
+   "ORMDIAG-021 本套件之診斷物件用途只用 genDiagFunLog：server／src／toolg／srv.mjs／g_*.mjs 無 getDiag(、getDiag",
+   "unit-ormDiagLog (w-serv-orm funLog → srLog: 接線測試，遮罩與序列化交 wsemi genDiagFunLog)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S12",
+  "desc": "WWebApi 復活本地 typeOf 閉包並用於一站",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs",
+   "test/api-logLeak.test.mjs"
+  ],
+  "exit": 3,
+  "passing": 84,
+  "failing": 3,
+  "names": [
+   "SITE-002 伺服端全部 console 站點：每個引數皆安全（無裸變數、使用者物件、請求本體、查詢參數、外來錯誤原文）",
+   "SITE-006 D1 單一實作：伺服端無本地 shapeOf／errBrief／typeOf／payloadShape（定義、匯出、呼叫皆無）; maskLog.mjs 匯出表只",
+   "SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "S13",
+  "desc": "getDiagBriefErr 匯入指向他處",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 2,
+  "passing": 54,
+  "failing": 2,
+  "names": [
+   "SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同",
+   "ORMDIAG-021 本套件之診斷物件用途只用 genDiagFunLog：server／src／toolg／srv.mjs／g_*.mjs 無 getDiag(、getDiag",
+   "unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)",
+   "unit-ormDiagLog (w-serv-orm funLog → srLog: 接線測試，遮罩與序列化交 wsemi genDiagFunLog)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "F1",
+  "desc": "App.vue 登入成功印使用者物件本體",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 2,
+  "passing": 54,
+  "failing": 2,
+  "names": [
+   "CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／getDiagShape／getDiagBriefErr(修前 ",
+   "CNVF-003 D1 單一實作: src/describeShape.mjs 已刪除, 全專案無 describeShape／describeErr／safeCtl 之定義或呼叫",
+   "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "F2",
+  "desc": "LayoutContentEdit.vue 缺 getDiagBriefErr 匯入",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 55,
+  "failing": 1,
+  "names": [
+   "CNVF-003 D1 單一實作: src/describeShape.mjs 已刪除, 全專案無 describeShape／describeErr／safeCtl 之定義或呼叫",
+   "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "F3",
+  "desc": "main.js 錯誤摘要放進樣板字串(得 [object Object])",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 55,
+  "failing": 1,
+  "names": [
+   "CNVF-005 getDiagBriefErr 之結果不得內插樣板字串、不得字串串接、不得 String()／JSON.stringify() 包裹(站點一律作獨立引數)",
+   "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "F4",
+  "desc": "復活本地模組 src/describeShape.mjs",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 55,
+  "failing": 1,
+  "names": [
+   "CNVF-003 D1 單一實作: src/describeShape.mjs 已刪除, 全專案無 describeShape／describeErr／safeCtl 之定義或呼叫",
+   "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "F5",
+  "desc": "MdPanel.vue 之 getDiagBriefErr 匯入指向本地模組",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 2,
+  "passing": 54,
+  "failing": 2,
+  "names": [
+   "CNVF-003 D1 單一實作: src/describeShape.mjs 已刪除, 全專案無 describeShape／describeErr／safeCtl 之定義或呼叫",
+   "ORMDIAG-021 本套件之診斷物件用途只用 genDiagFunLog：server／src／toolg／srv.mjs／g_*.mjs 無 getDiag(、getDiag",
+   "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)",
+   "unit-ormDiagLog (w-serv-orm funLog → srLog: 接線測試，遮罩與序列化交 wsemi genDiagFunLog)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "F6",
+  "desc": "applyRows.mjs 第一站印錯誤本體",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 2,
+  "passing": 54,
+  "failing": 2,
+  "names": [
+   "CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／getDiagShape／getDiagBriefErr(修前 ",
+   "CNVF-003 D1 單一實作: src/describeShape.mjs 已刪除, 全專案無 describeShape／describeErr／safeCtl 之定義或呼叫",
+   "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "F7",
+  "desc": "LayoutContentStats.vue 錯誤摘要經 String()",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 2,
+  "passing": 54,
+  "failing": 2,
+  "names": [
+   "CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／getDiagShape／getDiagBriefErr(修前 ",
+   "CNVF-005 getDiagBriefErr 之結果不得內插樣板字串、不得字串串接、不得 String()／JSON.stringify() 包裹(站點一律作獨立引數)",
+   "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "F8",
+  "desc": "main.js $alert 印訊息本體",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 2,
+  "passing": 54,
+  "failing": 2,
+  "names": [
+   "CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／getDiagShape／getDiagBriefErr(修前 ",
+   "CNVF-003 D1 單一實作: src/describeShape.mjs 已刪除, 全專案無 describeShape／describeErr／safeCtl 之定義或呼叫",
+   "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "F9",
+  "desc": "App.vue 之 getDiagShape 匯入指向他處",
+  "tests": [
+   "test/unit-consoleSites.test.mjs",
+   "test/unit-consoleNoValuesFront.test.mjs",
+   "test/unit-maskLog.test.mjs",
+   "test/unit-ormDiagLog.test.mjs"
+  ],
+  "exit": 2,
+  "passing": 54,
+  "failing": 2,
+  "names": [
+   "CNVF-003 D1 單一實作: src/describeShape.mjs 已刪除, 全專案無 describeShape／describeErr／safeCtl 之定義或呼叫",
+   "ORMDIAG-021 本套件之診斷物件用途只用 genDiagFunLog：server／src／toolg／srv.mjs／g_*.mjs 無 getDiag(、getDiag",
+   "unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)",
+   "unit-ormDiagLog (w-serv-orm funLog → srLog: 接線測試，遮罩與序列化交 wsemi genDiagFunLog)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "H1",
+  "desc": "distGuard 還原不驗 sha256",
+  "tests": [
+   "test/unit-distGuard.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 5,
+  "failing": 1,
+  "names": [
+   "DG-004 還原回驗: 備份檔之位元組被改動時還原拋錯(sha256 不符)並保留備份供查",
+   "unit-distGuard (測試之建置不得改變入版控之 dist/, 備份＋原位元組還原)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "H2",
+  "desc": "distGuard 還原前不清空 dist(多餘檔殘留)",
+  "tests": [
+   "test/unit-distGuard.test.mjs"
+  ],
+  "exit": 3,
+  "passing": 3,
+  "failing": 3,
+  "names": [
+   "DG-001 往返: 刪檔、改位元組、新增檔、整個子目錄被刪後還原——檔案清單、目錄清單(含空目錄)、逐檔 sha256 與修改時間皆同備份當時, 備份夾已移除",
+   "DG-002 崩潰安全: 前次未收尾(殘留備份, 如被強制結束)——下次啟動先還原再備份, 最終回到第一次備份時之位元組",
+   "DG-003 備份時 dist 不存在(如多開之臨時實例不含 dist): 還原後 dist 不存在(建置產生者被移除)",
+   "unit-distGuard (測試之建置不得改變入版控之 dist/, 備份＋原位元組還原)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "H3",
+  "desc": "distGuard 啟動不處理殘留備份",
+  "tests": [
+   "test/unit-distGuard.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 5,
+  "failing": 1,
+  "names": [
+   "DG-002 崩潰安全: 前次未收尾(殘留備份, 如被強制結束)——下次啟動先還原再備份, 最終回到第一次備份時之位元組",
+   "unit-distGuard (測試之建置不得改變入版控之 dist/, 備份＋原位元組還原)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "H4",
+  "desc": "e2e-setup 不備份即建置(guardDistStart 呼叫移除)",
+  "tests": [
+   "test/unit-distGuard.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 5,
+  "failing": 1,
+  "names": [
+   "DG-006 接線: e2e-setup 於 npm run build 之前呼叫 guardDistStart、onCleanup 呼叫 guardDistRestore; 全 ",
+   "unit-distGuard (測試之建置不得改變入版控之 dist/, 備份＋原位元組還原)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "H5",
+  "desc": "e2e-setup 之 cleanup 不還原 dist",
+  "tests": [
+   "test/unit-distGuard.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 5,
+  "failing": 1,
+  "names": [
+   "DG-006 接線: e2e-setup 於 npm run build 之前呼叫 guardDistStart、onCleanup 呼叫 guardDistRestore; 全 ",
+   "unit-distGuard (測試之建置不得改變入版控之 dist/, 備份＋原位元組還原)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "H6",
+  "desc": "distGuard 不偵測連結",
+  "tests": [
+   "test/unit-distGuard.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 5,
+  "failing": 1,
+  "names": [
+   "DG-005 不跟進連結: dist/ 內有目錄連結即拒絕備份(不建立備份), 連結目標之內容不受影響",
+   "unit-distGuard (測試之建置不得改變入版控之 dist/, 備份＋原位元組還原)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "H7",
+  "desc": "distGuard 啟動不清無 manifest 之殘留",
+  "tests": [
+   "test/unit-distGuard.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 5,
+  "failing": 1,
+  "names": [
+   "DG-002 崩潰安全: 前次未收尾(殘留備份, 如被強制結束)——下次啟動先還原再備份, 最終回到第一次備份時之位元組",
+   "unit-distGuard (測試之建置不得改變入版控之 dist/, 備份＋原位元組還原)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "H8",
+  "desc": "逐檔 runner 收尾不還原 dist",
+  "tests": [
+   "test/unit-distGuard.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 5,
+  "failing": 1,
+  "names": [
+   "DG-006 接線: e2e-setup 於 npm run build 之前呼叫 guardDistStart、onCleanup 呼叫 guardDistRestore; 全 ",
+   "unit-distGuard (測試之建置不得改變入版控之 dist/, 備份＋原位元組還原)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "H9",
+  "desc": "distGuard 寫入與實際備份不符之 manifest(還原時找不到備份檔)",
+  "tests": [
+   "test/unit-distGuard.test.mjs"
+  ],
+  "exit": 4,
+  "passing": 2,
+  "failing": 4,
+  "names": [
+   "DG-001 往返: 刪檔、改位元組、新增檔、整個子目錄被刪後還原——檔案清單、目錄清單(含空目錄)、逐檔 sha256 與修改時間皆同備份當時, 備份夾已移除",
+   "DG-002 崩潰安全: 前次未收尾(殘留備份, 如被強制結束)——下次啟動先還原再備份, 最終回到第一次備份時之位元組",
+   "DG-003 備份時 dist 不存在(如多開之臨時實例不含 dist): 還原後 dist 不存在(建置產生者被移除)",
+   "DG-004 還原回驗: 備份檔之位元組被改動時還原拋錯(sha256 不符)並保留備份供查",
+   "unit-distGuard (測試之建置不得改變入版控之 dist/, 備份＋原位元組還原)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "E1",
+  "desc": "真瀏覽器: main.js 之 catch 印錯誤本體",
+  "tests": [
+   "test/e2e-consoleNoValues.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 1,
+  "failing": 1,
+  "names": [
+   "E2E-CN-002 資料通道請求失敗時, getWebInfor 之 catch 於 console 只印錯誤類別, 不含錯誤訊息文字",
+   "e2e-consoleNoValues (前端 console 不印資料值, 排程第 206 項〔api 側〕)"
+  ],
+  "verdict": "KILLED"
+ },
+ {
+  "id": "E2",
+  "desc": "真瀏覽器: App.vue 登入成功印使用者物件本體",
+  "tests": [
+   "test/e2e-consoleNoValues.test.mjs"
+  ],
+  "exit": 1,
+  "passing": 1,
+  "failing": 1,
+  "names": [
+   "E2E-CN-001 登入並瀏覽統計與 API 工作區後, 瀏覽器 console 只有摘要(鍵名、型別、筆數), 不含使用者資料與權杖",
+   "e2e-consoleNoValues (前端 console 不印資料值, 排程第 206 項〔api 側〕)"
+  ],
+  "verdict": "KILLED"
+ }
+]

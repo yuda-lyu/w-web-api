@@ -126,6 +126,7 @@ describe('api-logLeak (console 診斷不輸出資料值：以含識別值之測�
                 let { out, status } = runCtor(sc)
                 assert.ok(out.includes(marker), `應印「${marker}」（實得 ${out.slice(0, 300)}）`)
                 assert.ok(!out.includes(SECRET), `console 不得含 ${SECRET}（實得 ${out.slice(0, 500)}）`)
+                assert.ok(!out.includes('(keys:') && !out.includes('dbuser'), `建構參數為連線設定物件時連鍵名亦不印（getDiagShape(v, { keys: false })；實得 ${out.slice(0, 300)}）`)
                 assert.strictEqual(status, 0)
             })
         })
@@ -141,6 +142,7 @@ describe('api-logLeak (console 診斷不輸出資料值：以含識別值之測�
         it('CTOR-008 opt.serverPort 誤傳含識別值之物件 → console 只印 invalid opt.serverPort (object)', function() {
             let { out, status } = runCtor('portobj')
             assert.ok(out.includes('invalid opt.serverPort (object)'), `實得 ${out.slice(0, 300)}`)
+            assert.ok(!out.includes('(keys:'), `連鍵名亦不印（實得 ${out.slice(0, 300)}）`)
             assert.ok(!out.includes(SECRET), `console 不得含 ${SECRET}（實得 ${out.slice(0, 500)}）`)
             assert.strictEqual(status, 0)
         })
@@ -159,7 +161,7 @@ describe('api-logLeak (console 診斷不輸出資料值：以含識別值之測�
         it('CTOR-010 WOrm 建構時拋出含識別值之 Error → console 只印 WServOrm init failed ＋ 錯誤名稱，不含識別值；仍拋出', function() {
             let { out, status } = runCtor('ormfail')
             assert.ok(out.includes('WServOrm init failed'), `站點應被走到（實得 ${out.slice(0, 300)}）`)
-            assert.ok(/WServOrm init failed Error\r?\n/.test(out), `應只給錯誤名稱（實得 ${out.slice(0, 300)}）`)
+            assert.ok(/WServOrm init failed \{ errType: 'Error' \}\r?\n/.test(out), `應只給錯誤摘要物件 { errType }（wsemi getDiagBriefErr 直印; 實得 ${out.slice(0, 300)}）`)
             assert.ok(out.includes('THROW Error'), `建構仍應拋出（實得 ${out.slice(0, 300)}）`)
             assert.ok(!out.includes(SECRET), `console 不得含 ${SECRET}（實得 ${out.slice(0, 500)}）`)
             assert.ok(!out.includes('STILL-ALIVE'), '拋錯後行程應自行結束')
@@ -184,7 +186,7 @@ describe('api-logLeak (console 診斷不輸出資料值：以含識別值之測�
                 fs.mkdirSync(path.join(cwd, 'dist', 'index.html')) //寫入 index.html 時 EISDIR
             })
             assert.ok(out.includes('can not generate index.html'), `站點應被走到（實得 ${out.slice(0, 300)}）`)
-            assert.ok(/^Error EISDIR\r?$/m.test(out), `應只給錯誤名稱與代碼（實得 ${out.slice(0, 300)}）`)
+            assert.ok(/^\{ errType: 'Error', errCode: 'EISDIR' \}\r?$/m.test(out), `應只給錯誤摘要物件 { errType, errCode }（wsemi getDiagBriefErr 直印; 實得 ${out.slice(0, 300)}）`)
             assert.ok(!out.includes(SECRET), `console 不得含路徑中之 ${SECRET}（實得 ${out.slice(0, 600)}）`)
             assert.ok(!out.includes('STILL-ALIVE'), '行程應自行結束')
             assert.strictEqual(status, 0)
@@ -289,12 +291,14 @@ describe('api-logLeak (console 診斷不輸出資料值：以含識別值之測�
         it('REQ-010 POST /syncAndReplaceTabs，keyTable 為重複參數（陣列，含識別值）→ errKeyTableInvalid；console 不含識別值', async function() {
             let { seg, r } = await doReq(() => postSync(`token=sys&keyTable=a&keyTable=${SECRET}`, '{}'), '[API]syncAndReplaceTabs/check keyTable: invalid keyTable')
             assert.strictEqual(r.msg, 'errKeyTableInvalid')
+            assert.ok(seg.includes('keyTable (array, length=2)'), `重複參數（陣列）只印型別與筆數（wsemi getDiagShape; 實得 ${seg.slice(0, 300)}）`)
             noSecret('REQ-010', seg)
         })
 
         it('REQ-011 POST /syncAndReplaceTabs，keyTable 為白名單外之字串（識別值）→ errKeyTableInvalid；console 不含識別值', async function() {
             let { seg, r } = await doReq(() => postSync(`token=sys&keyTable=${SECRET}`, '{}'), 'unexpected keyTable')
             assert.strictEqual(r.msg, 'errKeyTableInvalid')
+            assert.ok(seg.includes('unexpected keyTable (string)'), `白名單外之字串只印型別（實得 ${seg.slice(0, 300)}）`)
             noSecret('REQ-011', seg)
         })
 
@@ -302,19 +306,21 @@ describe('api-logLeak (console 診斷不輸出資料值：以含識別值之測�
         it('REQ-012 POST /syncAndReplaceTabs，本體為字串（識別值）→ errPayloadInvalid；console 不含識別值', async function() {
             let { seg, r } = await doReq(() => postSync('token=sys&keyTable=apis', JSON.stringify(SECRET)), 'invalid payload in req')
             assert.strictEqual(r.msg, 'errPayloadInvalid')
+            assert.ok(seg.includes('payload (keys: none)'), `本體為字串（j2o 後為空物件）時只印鍵名摘要（wsemi getDiagShape; 實得 ${seg.slice(0, 300)}）`)
             noSecret('REQ-012', seg)
         })
 
         it('REQ-013 POST /syncAndReplaceTabs，group 為物件（夾識別值）→ errGroupInvalid；console 只印鍵名與筆數', async function() {
             let { seg, r } = await doReq(() => postSync('token=sys&keyTable=apis', JSON.stringify({ group: { v: SECRET }, rows: [{ name: SECRET }] })), 'invalid group in payload')
             assert.strictEqual(r.msg, 'errGroupInvalid')
-            assert.ok(/keys: \[ 'group', 'rows' \]/.test(seg), `應印本體之鍵名（實得 ${seg.slice(0, 300)}）`)
+            assert.ok(seg.includes('payload (keys: group,rows) rows (array, length=1)'), `應印本體之鍵名與 rows 之筆數（wsemi getDiagShape; 實得 ${seg.slice(0, 300)}）`)
             noSecret('REQ-013', seg)
         })
 
         it('REQ-014 POST /syncAndReplaceTabs，rows 為字串（識別值）→ errRowsInvalid；console 不含識別值', async function() {
             let { seg, r } = await doReq(() => postSync('token=sys&keyTable=apis', JSON.stringify({ group: 'g', rows: SECRET })), 'invalid rows in payload')
             assert.strictEqual(r.msg, 'errRowsInvalid')
+            assert.ok(seg.includes('payload (keys: group,rows) rows (string)'), `rows 非陣列時只印其型別（實得 ${seg.slice(0, 300)}）`)
             noSecret('REQ-014', seg)
         })
 

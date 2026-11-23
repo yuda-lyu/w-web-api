@@ -23,7 +23,7 @@ import isestr from 'wsemi/src/isestr.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import isDev from 'wsemi/src/isDev.mjs'
 import wui from 'w-ui-loginout/src/WUiLoginout.mjs'
-import { describeShape } from './describeShape.mjs'
+import getDiagShape from 'wsemi/src/getDiagShape.mjs'
 import Layout from './components/Layout.vue'
 import LayoutState from './components/LayoutState.vue'
 import LoadingWinBar from './components/Common/LoadingWinBar.vue'
@@ -57,14 +57,14 @@ export default {
         vo.$ui.setLang(null, 'app init')
 
         function loginSuccess(data) {
-            console.log('login success', describeShape(data.user)) //只印鍵名, 不印使用者資料(R-CONSOLE-NOVAL-01)
+            console.log('login success', getDiagShape(data.user)) //只印鍵名, 不印使用者資料(R-CONSOLE-NOVAL-01)
             vo.$ui.updateConnState('csLogin')
             vo.$ui.updateUserToken(data.token)
             vo.$ui.updateUserSelf(data.user)
         }
 
         function loginError(data) {
-            console.log('login error', describeShape(data))
+            console.log('login error', getDiagShape(data))
 
             //非系統管理者（後台登入檢查回固定鍵 errUserNotAdmin；R-ADMINONLY-01）：token 有效但無權進入後台，顯示「無權進入 API 管理後台」並停在此畫面。
             //不轉址：轉去登入頁毫無用處（已通過驗證），而 SSO 登入後會導回本頁，將形成登入頁與本頁間的轉址迴圈；也不留在連線中（csIng）轉圈。
@@ -78,7 +78,7 @@ export default {
             vo.$ui.updateUserToken('')
             let urlRedirect = get(window, '___pmwapi___.urlRedirect', '')
             if (!isestr(urlRedirect)) {
-                console.log('urlRedirect', describeShape(urlRedirect))
+                console.log('urlRedirect', getDiagShape(urlRedirect))
                 throw new Error(`invalid urlRedirect`)
             }
             if (isDev()) {

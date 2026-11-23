@@ -23,6 +23,7 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { runIsolatedE2e } from './e2eLib.mjs'
 import { BACKEND_PORT, reservation } from './e2ePorts.mjs'
+import { guardDistRestore } from './distGuard.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url)) //test/tools
 //後端實際埠: 基準埠 11005 經保留後之實際埠(沒有占用且未設 E2E_PORT_OFFSET 時＝11005, 與導入前相同; 與 e2e-setup.mjs 同源)
@@ -63,11 +64,13 @@ let { failed } = await runIsolatedE2e({
     beforeEachFile: async () => {
         //每檔前殺本實例之後端 → 新 mocha 進程之 startServersOnce 重新 build + spawn 全新後端
         await killOwnBackend(true)
+        guardDistRestore() //前一檔之 mocha 若被強制結束而殘留 dist/ 備份(已無後端), 先還原; 無殘留時不動作(正常結束之 mocha 於 cleanup 已還原)
         await new Promise((resolve) => setTimeout(resolve, 2000))
     },
     afterAll: async () => {
-        //收尾殺本實例之後端
+        //收尾殺本實例之後端, 並還原 dist/(同上, 防最後一檔被強制結束後殘留; 規則帳本 R-E2E-DISTGUARD-01)
         await killOwnBackend(false)
+        guardDistRestore()
     },
 })
 process.exit(failed === 0 ? 0 : 1)

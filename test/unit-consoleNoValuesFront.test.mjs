@@ -1,21 +1,23 @@
-//前端瀏覽器 console 不印資料值(排程第 206 項〔api 側〕; 規則帳本 R-CONSOLE-NOVAL-01; 規格〈診斷輸出與遮罩〉D2、〈輸入參數之檢測機制〉V20)
-//  承 2026-10-31 api 輪(伺服端 console 不印值, R-CONSOLE-01; 當時只改伺服端、列知悉瀏覽器端 console 未動), 本輪補前端: src/ 下可執行之 console 呼叫(.vue 之 <script>、.js、.mjs)
-//  只印固定字面值、typeof、或不含值之摘要函數(describeShape／describeErr), 不印權杖、使用者物件、登入回應、錯誤本體、訊息文字。
+//前端瀏覽器 console 不印資料值(排程第 206 項〔api 側〕; 規則帳本 R-CONSOLE-NOVAL-01; 規格〈診斷輸出與遮罩〉D1、D2、〈輸入參數之檢測機制〉V20)
+//  承 2026-10-31 api 輪(伺服端 console 不印值, R-CONSOLE-01; 當時只改伺服端、列知悉瀏覽器端 console 未動), 第 206 項補前端: src/ 下可執行之 console 呼叫(.vue 之 <script>、.js、.mjs)
+//  只印固定字面值、typeof、或不含值之摘要函數, 不印權杖、使用者物件、登入回應、錯誤本體、訊息文字。
+//  排程第 603 項(2026-11-24)起摘要函數一律為 wsemi 共用函數 getDiagShape／getDiagBriefErr(規格 D1 單一實作), 本地模組 src/describeShape.mjs 已刪除。
 //CNVF-001 站點不變式: src/ 下(排除已由 unit-consoleSites 涵蓋之 src/schema/**)每個可執行 console 呼叫之每個引數皆不印值
 //CNVF-002 站點全集: 各檔之可執行 console 呼叫數已盤點(新增站點須先判定其引數); 範圍涵蓋進入檔與全部元件; 非常規之 console 引用(別名、解構、括號存取、window.console、傳遞)全專案為 0
-//CNVF-003 單一實作: describeShape／describeErr 只定義於 src/describeShape.mjs(暫行單一模組, 日後由 wsemi 共用函數取代, 排程第 603 項); 使用者皆自該模組匯入; 其依賴閉包不含 Node 內建模組(瀏覽器可載入)
-//CNVF-004 行為: 摘要不含值(以識別值植入使用者物件、授權字串、錯誤訊息逐一驗)、控制字元、有界、永不拋錯; describeErr 經 wsemi getDiagBriefErr 之接線(共用語料 C01～C03 之輸入)
+//CNVF-003 單一實作(D1): src/describeShape.mjs 不存在, describeShape／describeErr／safeCtl 全專案無定義與呼叫; 使用者皆自 wsemi/src 匯入 getDiagShape／getDiagBriefErr, 呼叫數已盤點; 依賴閉包不含 Node 內建模組(瀏覽器可載入)
+//CNVF-004 行為(wsemi 輸出契約之釘住): 摘要不含值(以識別值植入使用者物件、授權字串、錯誤訊息逐一驗)、控制字元、有界、永不拋錯; 錯誤摘要為 { errType, errCode? } 物件(直印, 不留字串外殼)
+//CNVF-005 錯誤摘要物件不得被字串化: 站點不得把 getDiagBriefErr 之結果放進樣板字串或字串串接(否則得 [object Object]), 一律作為獨立之 console 引數
 //掃描以 eslint 之 AST 為準(test/tools/srcScan.mjs、consoleSites.mjs), 不靠正規表示式; .vue 取 <script> 區
 //跑法: npx mocha test/unit-consoleNoValuesFront.test.mjs --timeout 60000
 import assert from 'assert'
 import fs from 'fs'
 import path from 'path'
 import { builtinModules } from 'module'
+import getDiagShape from 'wsemi/src/getDiagShape.mjs'
 import getDiagBriefErr from 'wsemi/src/getDiagBriefErr.mjs'
 import diagCases from 'wsemi/src/_diagCases.mjs'
 import { scanCode } from './tools/consoleSites.mjs'
 import { scriptOf, templateOf, codeText, findOddConsoleRefs, importClosure, projRoot } from './tools/srcScan.mjs'
-import { describeShape, describeErr, safeCtl } from '../src/describeShape.mjs'
 
 const A = assert.strict
 const rel = (fp) => path.relative(projRoot, fp).replace(/\\/g, '/')
@@ -52,10 +54,24 @@ const SITES = {
     'src/store/applyRows.mjs': 2,
 }
 
+//各檔 getDiagShape(／getDiagBriefErr( 之呼叫數(2026-11-24 盤點; 即原 describeShape(／describeErr( 之站點, 一對一取代)
+const SHAPE_CALLS = {
+    'src/App.vue': 3,
+    'src/main.js': 2,
+}
+const ERR_CALLS = {
+    'src/components/LayoutContentEdit.vue': 8,
+    'src/components/LayoutContentStats.vue': 1,
+    'src/components/LayoutContentTest.vue': 2,
+    'src/components/MdPanel.vue': 1,
+    'src/main.js': 1,
+    'src/store/applyRows.mjs': 2,
+}
 
-describe('unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206 項〔api 側〕)', function() {
 
-    it('CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／describeShape／describeErr(修前 2026-11-23 於 21 個站點中 20 個含未遮罩之引數〔共 21 個引數〕: 登入成功之使用者物件、登入失敗回應、網址、錯誤本體、$alert 訊息等)', function() {
+describe('unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 206／603 項〔api 側〕)', function() {
+
+    it('CNVF-001 前端專用之 src 檔: 每個可執行 console 呼叫之每個引數皆為固定字面值／typeof／getDiagShape／getDiagBriefErr(修前 2026-11-23 於 21 個站點中 20 個含未遮罩之引數〔共 21 個引數〕: 登入成功之使用者物件、登入失敗回應、網址、錯誤本體、$alert 訊息等; 2026-11-24 起本地摘要函數 describeShape／describeErr 不再核可)', function() {
         let bad = []
         for (let fp of frontFiles()) {
             for (let s of scanCode(scriptOf(fp))) {
@@ -116,7 +132,7 @@ describe('unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 2
                 '    methods: {',
                 '        f: function() {',
                 '            console.log(\'user\', user)',
-                '            console.log(\'ok\', describeShape(user), describeErr(err))',
+                '            console.log(\'ok\', getDiagShape(user), getDiagBriefErr(err))',
                 '            // console.log(\'註解內不算\', user)',
                 '        },',
                 '    },',
@@ -161,17 +177,15 @@ describe('unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 2
             A.equal(blk.length, 1)
             A.equal(blk[0].safe, false)
             //codeText 去註解: 註解內之文字不算可執行碼, 可執行碼之文字保留
-            A.ok(!codeText(fpVue).includes('註解內不算') && codeText(fpVue).includes('describeShape(user)'))
+            A.ok(!codeText(fpVue).includes('註解內不算') && codeText(fpVue).includes('getDiagShape(user)'))
         }
         finally {
             fs.rmSync(fd, { recursive: true, force: true })
         }
     })
 
-    it('CNVF-003 describeShape／describeErr 單一實作(src/describeShape.mjs): 全專案無第二份定義; 使用者皆自該模組匯入; 依賴閉包不含 Node 內建模組', function() {
-        //定義處: server/、src/、srv.mjs、g_*.mjs、toolg/ 之可執行碼中, function describeShape／describeErr／safeCtl 之定義只在 src/describeShape.mjs
-        let defs = []
-        let users = []
+    it('CNVF-003 D1 單一實作: src/describeShape.mjs 已刪除, 全專案無 describeShape／describeErr／safeCtl 之定義或呼叫; 使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入且呼叫數與盤點相同; 依賴閉包不含 Node 內建模組', function() {
+        A.ok(!fs.existsSync(path.join(projRoot, 'src', 'describeShape.mjs')), '本地模組 src/describeShape.mjs 須已刪除(規格 D1 單一實作: 改用 wsemi 共用函數)')
         let scanFiles = [...walkSrc()]
         let walkDir = (d) => {
             for (let n of fs.readdirSync(d, { withFileTypes: true })) {
@@ -185,111 +199,137 @@ describe('unit-consoleNoValuesFront (前端 console 不印資料值, 排程第 2
             }
         }
         walkDir(path.join(projRoot, 'server'))
+        scanFiles.push(path.join(projRoot, 'srv.mjs'))
+        let oldNames = []
+        let shapeGot = {}
+        let errGot = {}
         for (let fp of scanFiles) {
             let code = codeText(fp)
-            if (/\b(?:function\s+(?:describeShape|describeErr|safeCtl)\b|(?:let|const|var)\s+(?:describeShape|describeErr|safeCtl)\s*=)/.test(code)) {
-                defs.push(rel(fp))
+            if (/\b(?:describeShape|describeErr|safeCtl)\b/.test(code)) {
+                oldNames.push(rel(fp))
             }
-            for (let name of ['describeShape', 'describeErr']) {
-                if (new RegExp(`\\b${name}\\(`).test(code) && rel(fp) !== 'src/describeShape.mjs') {
-                    users.push([rel(fp), name, new RegExp(`import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*'(?:\\.{1,2}/)+describeShape\\.mjs'`).test(code)])
-                }
+            let nShape = (code.match(/\bgetDiagShape\(/g) || []).length
+            let nErr = (code.match(/\bgetDiagBriefErr\(/g) || []).length
+            if (rel(fp).startsWith('src/') && nShape > 0) {
+                shapeGot[rel(fp)] = nShape
+                A.ok(/^import getDiagShape from 'wsemi\/src\/getDiagShape\.mjs'\r?$/m.test(code), `${rel(fp)} 使用 getDiagShape( 但未自 wsemi/src/getDiagShape.mjs 匯入(不得自行定義或另匯他處)`)
+            }
+            if (rel(fp).startsWith('src/') && nErr > 0) {
+                errGot[rel(fp)] = nErr
+                A.ok(/^import getDiagBriefErr from 'wsemi\/src\/getDiagBriefErr\.mjs'\r?$/m.test(code), `${rel(fp)} 使用 getDiagBriefErr( 但未自 wsemi/src/getDiagBriefErr.mjs 匯入(不得自行定義或另匯他處)`)
             }
         }
-        A.deepEqual(defs, ['src/describeShape.mjs'], `describeShape／describeErr／safeCtl 只許定義於 src/describeShape.mjs(規格 D1 單一實作), 實得 ${defs}`)
-        A.ok(users.length >= 7, `使用者(.vue／.mjs 之呼叫處)至少 7 處, 實得 ${users.length}`)
-        for (let [f, name, ok] of users) {
-            A.ok(ok, `${f} 使用 ${name}( 但未自 describeShape.mjs 匯入(不得自行定義或另匯他處)`)
-        }
-        //閉包: src/describeShape.mjs → wsemi 之 isarr、getDiagBriefErr(再往下私有依賴); 不得靜態匯入 Node 內建模組(webpack 5 不自動填補)
+        A.deepEqual(oldNames, [], `describeShape／describeErr／safeCtl 已由 wsemi 共用函數取代, 不得再出現: ${oldNames}`)
+        A.deepEqual(shapeGot, SHAPE_CALLS, '前端各檔 getDiagShape( 呼叫數與盤點不符')
+        A.deepEqual(errGot, ERR_CALLS, '前端各檔 getDiagBriefErr( 呼叫數與盤點不符')
+        //閉包: 前端使用之 wsemi 診斷函數及其私有依賴; 不得靜態匯入 Node 內建模組(webpack 5 不自動填補)
         let builtins = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)])
-        let specs = new Map()
-        let all = importClosure(path.join(projRoot, 'src', 'describeShape.mjs'), specs)
-        A.ok(all.size >= 4, `閉包應至少含 4 檔(describeShape、isarr、getDiagBriefErr 及其私有依賴), 實得 ${all.size}`)
-        let hits = []
-        for (let [fp, list] of specs) {
-            for (let s of list) {
-                if (builtins.has(s)) {
-                    hits.push(`${rel(fp)} 匯入 ${s}`)
+        for (let name of ['getDiagShape', 'getDiagBriefErr']) {
+            let specs = new Map()
+            let all = importClosure(path.join(projRoot, 'node_modules', 'wsemi', 'src', `${name}.mjs`), specs)
+            A.ok(all.size >= 2, `${name} 閉包應至少含 2 檔(本身與私有依賴), 實得 ${all.size}`)
+            let hits = []
+            for (let [fp, list] of specs) {
+                for (let s of list) {
+                    if (builtins.has(s)) {
+                        hits.push(`${rel(fp)} 匯入 ${s}`)
+                    }
                 }
             }
+            A.deepEqual(hits, [], `前端用之 ${name} 閉包不得靜態匯入 Node 內建模組: ${hits}`)
         }
-        A.deepEqual(hits, [], `前端用之摘要函數閉包不得靜態匯入 Node 內建模組: ${hits}`)
     })
 
-    it('CNVF-004 摘要不含值: 使用者物件、回應、網址、錯誤訊息之識別值皆不出現; 輸出有界; 控制字元; 永不拋錯', function() {
+    it('CNVF-004 摘要不含值(wsemi 輸出契約): 使用者物件、回應、網址、錯誤訊息之識別值皆不出現; 輸出有界; 控制字元; 永不拋錯', function() {
         const SEC = 'ZZ-secret-front-5521'
         //登入成功之使用者物件(App.vue)與登入失敗回應: 只列鍵名
         let user = { id: SEC, name: SEC, email: `${SEC}@example.com`, isAdmin: 'y' }
-        A.equal(describeShape(user), '(keys: id,name,email,isAdmin)')
-        A.ok(!describeShape(user).includes(SEC))
+        A.equal(getDiagShape(user), '(keys: id,name,email,isAdmin)')
+        A.ok(!getDiagShape(user).includes(SEC))
         //網址、訊息文字(App.vue urlRedirect、main.js $alert): 只標型別
-        A.equal(describeShape(`https://x.example/?token=${SEC}`), '(typeof string)')
-        A.equal(describeShape(''), '(typeof string, empty)')
-        A.equal(describeShape(undefined), '(undefined)')
-        A.equal(describeShape(null), '(null)')
-        A.equal(describeShape(5), '(typeof number)')
+        A.equal(getDiagShape(`https://x.example/?token=${SEC}`), '(string)')
+        A.equal(getDiagShape(''), '(string, empty)')
+        A.equal(getDiagShape(undefined), '(undefined)')
+        A.equal(getDiagShape(null), '(null)')
+        A.equal(getDiagShape(5), '(number)')
         //陣列: 只標筆數
-        A.equal(describeShape([{ data: { id: SEC } }, { data: { id: SEC } }]), '(array, length=2)')
-        //錯誤: 伺服端回傳之語系鍵(字串)、Error 本體、帶 code 之錯誤、含識別值之訊息
+        A.equal(getDiagShape([{ data: { id: SEC } }, { data: { id: SEC } }]), '(array, length=2)')
+        //錯誤: 伺服端回傳之語系鍵(字串)、Error 本體、帶 code 之錯誤、含識別值之訊息; 摘要為 { errType, errCode? } 物件(直印), 不含訊息文字
         for (let e of [SEC, new Error(SEC), Object.assign(new Error(SEC), { code: 'ENOENT' }), { message: SEC }, { err: SEC }]) {
-            let s = describeErr(e)
-            A.ok(!s.includes(SEC), `describeErr 不得含識別值, 實得 ${s}`)
+            let s = JSON.stringify(getDiagBriefErr(e))
+            A.ok(!s.includes(SEC), `getDiagBriefErr 不得含識別值, 實得 ${s}`)
         }
-        A.equal(describeErr(SEC), '(string)')
-        A.equal(describeErr(new Error(SEC)), '(Error)')
-        A.equal(describeErr(Object.assign(new Error(SEC), { code: 'ENOENT' })), '(Error ENOENT)')
-        //控制字元: C0、DEL、C1(U+0085)、行／段分隔(U+2028、U+2029)、雙向文字控制(U+202E)皆換成 '?', 不可偽造 log 行或改變顯示順序
+        A.deepEqual(getDiagBriefErr(SEC), { errType: 'string' })
+        A.deepEqual(getDiagBriefErr(new Error(SEC)), { errType: 'Error' })
+        A.deepEqual(getDiagBriefErr(Object.assign(new Error(SEC), { code: 'ENOENT' })), { errType: 'Error', errCode: 'ENOENT' })
+        //控制字元: C0、DEL、C1(U+0085)、行／段分隔(U+2028、U+2029)、雙向文字控制(U+202E)皆換成 '?', 不可偽造 log 行或改變顯示順序; 格式字元(零寬、BOM)亦換
         let ctl = {}
-        for (let [k, x] of [['a', 0x2028], ['c', 0x202e], ['e', 0x85], ['g', 0x2029], ['i', 7], ['k', 0x7f], ['m', 0x2067]]) {
+        for (let [k, x] of [['a', 0x2028], ['c', 0x202e], ['e', 0x85], ['g', 0x2029], ['i', 7], ['k', 0x7f], ['m', 0x2067], ['o', 0x200b], ['q', 0xfeff]]) {
             ctl[`${k}${String.fromCharCode(x)}z`] = 1 //以 fromCharCode 組成, 原始碼不含字面控制字元
         }
-        A.equal(describeShape(ctl), '(keys: a?z,c?z,e?z,g?z,i?z,k?z,m?z)')
-        A.equal(safeCtl(`a${String.fromCharCode(10)}b${String.fromCharCode(13)}c`), 'a?b?c')
+        A.equal(getDiagShape(ctl), '(keys: a?z,c?z,e?z,g?z,i?z,k?z,m?z,o?z,q?z)')
         //一般文字(含中文與全形標點)不受影響
-        A.equal(describeShape({ '名稱': 1, 'user-id': 2 }), '(keys: 名稱,user-id)')
-        //有界(至多 20 個鍵、單鍵至多 40 字)與不拋錯
+        A.equal(getDiagShape({ '名稱': 1, 'user-id': 2 }), '(keys: 名稱,user-id)')
+        //有界(至多 20 個鍵、單鍵至多 32 字)與不拋錯
         let huge = {}
         for (let i = 0; i < 3000; i++) {
             huge[`k${i}${SEC}`] = 1
         }
-        A.ok(describeShape(huge).length < 1500)
-        A.ok(describeShape(huge).endsWith(',...+2980)'))
-        A.ok(describeShape({ [`${'x'.repeat(50)}`]: 1 }).includes(`${'x'.repeat(40)}...`))
+        A.ok(getDiagShape(huge).length < 1500)
+        A.ok(getDiagShape(huge).endsWith(',...+2980)'))
+        A.ok(getDiagShape({ [`${'x'.repeat(50)}`]: 1 }).includes(`${'x'.repeat(32)}...`))
         let evil = new Proxy({}, {
             ownKeys: () => {
                 throw new Error(SEC)
             },
         })
-        A.doesNotThrow(() => describeShape(evil))
-        A.ok(!describeShape(evil).includes(SEC))
-        A.doesNotThrow(() => describeErr(evil))
-        //陣列之 length 以 Proxy 陷阱回字串(敵意物件)亦不印值: 只印整數筆數, 否則 '?'
+        A.doesNotThrow(() => getDiagShape(evil))
+        A.ok(!getDiagShape(evil).includes(SEC))
+        A.doesNotThrow(() => getDiagBriefErr(evil))
+        //陣列之 length 以 Proxy 陷阱回字串(敵意物件)亦不印值
         let evilArr = new Proxy([1, 2], {
             get: (t, k) => (k === 'length' ? SEC : t[k]),
         })
-        A.ok(!describeShape(evilArr).includes(SEC), `陣列 length 為非整數時不得印出其值, 實得 ${describeShape(evilArr)}`)
-        A.equal(describeShape([]), '(array, length=0)')
+        A.ok(!getDiagShape(evilArr).includes(SEC), `陣列 length 為非整數時不得印出其值, 實得 ${getDiagShape(evilArr)}`)
+        A.equal(getDiagShape([]), '(array, length=0)')
     })
 
-    //接線案: describeErr 之輸出完全取自 wsemi getDiagBriefErr(單一實作, 規格 D1)——以共用語料 C01～C03 之輸入驗證(代碼白名單: 內建代碼收、整數與不合形狀之字串不收)
-    it('CNVF-004c describeErr 經 wsemi getDiagBriefErr: 內建代碼(ECONNREFUSED、EAI_AGAIN、E2BIG)收; 整數 12345、E123456789、EMP04、ERR_ACCOUNT_ALICE01 不收(共用語料 C01～C03); 輸出等於依其結果組成之格式', function() {
+    //接線案: 錯誤摘要之輸出完全取自 wsemi getDiagBriefErr(單一實作, 規格 D1)——以共用語料 C01～C03 之輸入驗證(代碼白名單: 內建代碼收、整數與不合形狀之字串不收)
+    it('CNVF-004c getDiagBriefErr 代碼白名單: 內建代碼(ECONNREFUSED、EAI_AGAIN、E2BIG)收; 整數 12345、E123456789、EMP04、ERR_ACCOUNT_ALICE01 不收(共用語料 C01～C03)', function() {
         for (let id of ['C01', 'C02', 'C03']) {
             A.ok(diagCases.cases.find((c) => c.id === id && c.fn === 'getDiagBriefErr'), `共用語料缺 ${id}(wsemi 語料已變動, 須重新核對適用子集)`)
         }
-        let fmt = (e) => {
-            let b = getDiagBriefErr(e)
-            return b.errCode === undefined ? `(${b.errType})` : `(${b.errType} ${b.errCode})`
-        }
         for (let c of ['ECONNREFUSED', 'EAI_AGAIN', 'E2BIG']) {
             let e = Object.assign(new Error('x'), { code: c })
-            A.equal(describeErr(e), `(Error ${c})`)
-            A.equal(describeErr(e), fmt(e))
+            A.deepEqual(getDiagBriefErr(e), { errType: 'Error', errCode: c })
         }
         for (let c of [12345, 'E123456789', 'EMP04', 'ERR_ACCOUNT_ALICE01']) {
             let e = Object.assign(new Error('x'), { code: c })
-            A.equal(describeErr(e), '(Error)', `代碼 ${c} 不得出現在摘要`)
-            A.equal(describeErr(e), fmt(e))
+            A.deepEqual(getDiagBriefErr(e), { errType: 'Error' }, `代碼 ${c} 不得出現在摘要`)
+        }
+    })
+
+    //站點不得把錯誤摘要物件字串化: 樣板字串內插或字串串接會得 [object Object]（tws2 之陷阱）; 一律作獨立 console 引數, 於瀏覽器 console 以物件顯示
+    it('CNVF-005 getDiagBriefErr 之結果不得內插樣板字串、不得字串串接、不得 String()／JSON.stringify() 包裹(站點一律作獨立引數)', function() {
+        let bad = []
+        for (let fp of frontFiles()) {
+            let code = codeText(fp)
+            for (let [i, l] of code.split(/\r?\n/).entries()) {
+                if (!/getDiagBriefErr\(/.test(l)) {
+                    continue
+                }
+                if (/\$\{[^}]*getDiagBriefErr\(/.test(l) || /[+]\s*getDiagBriefErr\(/.test(l) || /getDiagBriefErr\([^)]*\)\s*[+]/.test(l) || /(?:String|JSON\.stringify)\(\s*getDiagBriefErr\(/.test(l)) {
+                    bad.push(`${rel(fp)}:${i + 1}: ${l.trim().slice(0, 100)}`)
+                }
+            }
+        }
+        A.deepEqual(bad, [], `getDiagBriefErr 之結果被字串化:\n${bad.join('\n')}`)
+        //負向自測: 偵測式本身須分得出不合格寫法(防此條空轉)
+        let D = '$' //樣板字串之 ${ 以串接組出(專案 eslint 禁字串內含 ${ )
+        let samples = ['`err[' + D + '{getDiagBriefErr(e)}]`', '\'x\' + getDiagBriefErr(e)', 'getDiagBriefErr(e) + 1', 'String(getDiagBriefErr(e))']
+        for (let l of samples) {
+            let hit = /\$\{[^}]*getDiagBriefErr\(/.test(l) || /[+]\s*getDiagBriefErr\(/.test(l) || /getDiagBriefErr\([^)]*\)\s*[+]/.test(l) || /(?:String|JSON\.stringify)\(\s*getDiagBriefErr\(/.test(l)
+            A.ok(hit, `偵測式應判為不合格: ${l}`)
         }
     })
 })

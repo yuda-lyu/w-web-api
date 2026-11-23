@@ -369,3 +369,15 @@
 - **變異腳本之 find 字串於 CRLF 檔不可含 `\n`**(如 `server/staLogs/staLogsCore.mjs` 為 CRLF); 變異清單先 dry-run 命中數(每項須恰 1 次)再排鎖——wa58 因未 dry-run 而重排一次鎖, 多等 38 分.
 - **自己多排一個 `--lock` 指令不會搶到第二槽**, 會在前一個釋放後依先進先出續排; 想一次取鎖就寫成單一鏈(前幾步結果不符預期即 `break` 以立即釋放鎖).
 - **守門 hook 誤擋**(2026-11-03 觀察): Bash 指令同一行同時出現 `rmdir`／`rm` 與 `tmp/locks` 字樣會被誤擋(`lock-rm`), 兩者分開下.
+
+## 診斷摘要改用 wsemi 共用函數與 harness 之 `dist/` 守護(2026-11-24, twa2, 排程第 603 項 w-web-api 部分, ADR-063)
+
+- **先探測再改**: 同一組 52 個輸入(基本型別、陣列、類別實例、null-prototype、循環、25 鍵、長鍵名、控制／格式字元鍵、Proxy 〔ownKeys 拋錯、已撤銷〕、`Map`／`Set`／`Date`／二進位…；錯誤 14 種；請求本體 7 種)跑 HEAD 本地實作與 wsemi, 取得字樣改變表(`spec/evidence/twa2-20261124/probe-shape.mjs`、`shape-diff.json`); 本套件另有姊妹套件沒有之三個本地物件: 伺服端 `typeOf`(`(typeof v)` 字面值閉包)、`payloadShape`(鍵名無上限、不處理控制字元, 含 `rows` 筆數)、`errBrief`(名稱與代碼之形狀過濾字串)。
+- **`getDiagBriefErr` 之代碼在 `cause.code` 者須宣告 `nested: ['cause']`**: Node 內建 fetch(undici)失敗之 `TypeError` 其系統錯誤碼在 `err.cause.code`, 不宣告只得 `{ errType: 'TypeError' }`; 原 `pickErrCode` 本來就先取 `cause.code`, 遷移時最易漏。以真實 fetch 失敗(對剛關閉之本機埠)寫案(DIAG-007), 不以手造錯誤物件。
+- **建構參數用 `getDiagShape(v, { keys: false })`**: 這些參數誤傳值常為連線設定物件(含 `password` 鍵), 原即「只給型別」; 預設會列鍵名(`(keys: host,user,password)`)是新增之揭露面。`opt.keys: false` 為 wsemi 文件所列之用途。其餘伺服端物件(使用者物件、查詢參數、請求本體)依主控已定列鍵名。以 CTOR-001～008 斷言輸出不含 `(keys:` 與 `dbuser`。
+- **請求本體之 `rows` 資訊以第二引數保留**: 不另留 `payloadShape` 薄包裝(其鍵名部分即 `getDiagShape`); `console.log('payload', getDiagShape(p), 'rows', getDiagShape(get(p, 'rows')))` 輸出 `payload (keys: group,rows) rows (array, length=1)`。注意 `parsePayload` 之第一站(`!iseobj`)對字串本體 `j2o` 後為空物件, 輸出 `payload (keys: none)`, 不是 `(string)`(測試期望首版寫錯, 實跑修正)。
+- **摘要物件不可字串化**: 把 `getDiagBriefErr(err)` 放進樣板字串得 `[object Object]`; 一律作獨立 console 引數(瀏覽器 console 以物件顯示), CNVF-005 以偵測式掃全部前端檔並附負向自測。e2e 之 console 收集須以 `jsonValue()` 判定物件, `msg.text()` 之預覽字串依 Playwright 版本而異。
+- **harness 不改變 `dist/` 之作法與理由**: 主控首選「建置導向 `test/_tmp/`(`--dest`)並使後端 serve 該處」不可行——後端固定 serve cwd 下 `dist/`(`WWebApi.mjs` `pathStaticFiles`, `opt` 無此項), 換 cwd 使 `./db`、`./logs`、設定檔與測試行程(以 `woItems` 直接重置資料庫)不同源; 故備份＋還原(`distGuard.mjs`)。設計要點: 同步 fs(cleanup 於 exit／signal 備援中非同步不被等待)、`manifest.json` 最後才寫(存在即備份完整)、殘留 manifest 即前次被強制結束(下次啟動先還原)、不跟進連結(遇連結拒絕)、回驗檔案清單＋目錄清單＋逐檔 sha256、備份夾於還原後移除。多開之臨時實例 `exclude` 含 `dist`, 備份時不存在者還原後移除建置產生之目錄。
+- **DG-006 之偵測式**: 以「起行程之呼叫帶建置命令」判定(`exec/spawn…(… npm run build|vue-cli-service …)`), 不以字串出現判定——`e2e-init` 之錯誤訊息「請先 npm run build 產 dist」會誤報。
+- **修前紅之鏡像根**: 於 `./tmp/twa2/pre/` 解開 `git archive HEAD`(排除 `docs`、`test/pics`、`spec/evidence`), 需 `node_modules` 目錄連結指回本專案(自身鏡像; 否則讀 `node_modules/wsemi/package.json`、`importClosure` 之測試報 ENOENT 假紅), **結案清 `./tmp/` 前先拆該連結**(`cmd //c rmdir`, 回驗連結目標完好)。鏡像根無 `./db`: 真瀏覽器之 E2E-CN-001(需 API 清單種子)於鏡像根必紅, 不算修前紅證據; 修前紅證據取 E2E-CN-002(失敗路徑, 不依賴種子)。鏡像根跑 HEAD 之 harness 即得 `dist/` 修前證據: 9 檔變 6 檔(`index.tmp`、`w-web-api.umd.js(.map)` 刪、hash 檔換)。
+- **工具陷阱**: ①Edit 工具會剪去 `new_string` 之尾端空白——改一行中段之 `', ` 後空白時被吃掉(eslint `comma-spacing` 抓到); ②Git Bash 之 `grep -c $'\r'` 把 CR 吃掉成空樣式、對每一行都命中, 不可判換行(全庫實為 LF, 見 process.md); ③`sed -i` 被守門擋, 改以 Edit 工具。

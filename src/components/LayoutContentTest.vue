@@ -229,7 +229,7 @@ import isestr from 'wsemi/src/isestr.mjs'
 import isobj from 'wsemi/src/isobj.mjs'
 import j2o from 'wsemi/src/j2o.mjs'
 import WTextSelect from 'w-component-vue/src/components/WTextSelect.vue'
-import { describeErr } from '../describeShape.mjs'
+import getDiagBriefErr from 'wsemi/src/getDiagBriefErr.mjs'
 
 
 let kpColorMethod = {
@@ -531,7 +531,7 @@ export default {
                         okSend = true
                     })
                     .catch(function(err) {
-                        console.log('proxyRequest', describeErr(err))
+                        console.log('proxyRequest', getDiagBriefErr(err))
                         vo.errSend = vo.$transErr(err) //err 為後端 err-key，依 lang 反查顯示
                     })
                 if (!okSend) {
@@ -551,7 +551,7 @@ export default {
                         //非預期例外：先關 overlay、再以 showCheckYes modal 通知（CLAUDE.md：失敗通知走 showCheckYes、之前先 updateLoading(false)；
                         //非 success 之 type 顯示警示圖標）；不用會自動消失之 $alert toast（ADR-005 modal 政策）；
                         //回傳訊息框之 Promise, 流程至其關閉才結束（同編輯分頁之存／刪，ADR-034）
-                        console.log('catch', describeErr(err))
+                        console.log('catch', getDiagBriefErr(err))
                         vo.$ui.updateLoading(false)
                         return vo.$dg.showCheckYes(vo.$t('anUnexpectedErrorOccurred'), { type: 'error' })
                     })

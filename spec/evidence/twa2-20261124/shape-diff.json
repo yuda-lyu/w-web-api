@@ -1,0 +1,449 @@
+[
+ {
+  "kind": "shape",
+  "input": "string",
+  "frontOld": "(typeof string)",
+  "serverOldShapeOf": "(string)",
+  "serverOldTypeOf": "(string)",
+  "wsemi": "(string)",
+  "wsemiKeysFalse": "(string)"
+ },
+ {
+  "kind": "shape",
+  "input": "empty string",
+  "frontOld": "(typeof string, empty)",
+  "serverOldShapeOf": "(string)",
+  "serverOldTypeOf": "(string)",
+  "wsemi": "(string, empty)",
+  "wsemiKeysFalse": "(string, empty)"
+ },
+ {
+  "kind": "shape",
+  "input": "number",
+  "frontOld": "(typeof number)",
+  "serverOldShapeOf": "(number)",
+  "serverOldTypeOf": "(number)",
+  "wsemi": "(number)",
+  "wsemiKeysFalse": "(number)"
+ },
+ {
+  "kind": "shape",
+  "input": "NaN",
+  "frontOld": "(typeof number)",
+  "serverOldShapeOf": "(number)",
+  "serverOldTypeOf": "(number)",
+  "wsemi": "(number)",
+  "wsemiKeysFalse": "(number)"
+ },
+ {
+  "kind": "shape",
+  "input": "boolean",
+  "frontOld": "(typeof boolean)",
+  "serverOldShapeOf": "(boolean)",
+  "serverOldTypeOf": "(boolean)",
+  "wsemi": "(boolean)",
+  "wsemiKeysFalse": "(boolean)"
+ },
+ {
+  "kind": "shape",
+  "input": "function",
+  "frontOld": "(typeof function)",
+  "serverOldShapeOf": "(function)",
+  "serverOldTypeOf": "(function)",
+  "wsemi": "(function)",
+  "wsemiKeysFalse": "(function)"
+ },
+ {
+  "kind": "shape",
+  "input": "bigint",
+  "frontOld": "(typeof bigint)",
+  "serverOldShapeOf": "(bigint)",
+  "serverOldTypeOf": "(bigint)",
+  "wsemi": "(bigint)",
+  "wsemiKeysFalse": "(bigint)"
+ },
+ {
+  "kind": "shape",
+  "input": "symbol",
+  "frontOld": "(typeof symbol)",
+  "serverOldShapeOf": "(symbol)",
+  "serverOldTypeOf": "(symbol)",
+  "wsemi": "(symbol)",
+  "wsemiKeysFalse": "(symbol)"
+ },
+ {
+  "kind": "shape",
+  "input": "null",
+  "frontOld": "(null)",
+  "serverOldShapeOf": "(null)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(null)",
+  "wsemiKeysFalse": "(null)"
+ },
+ {
+  "kind": "shape",
+  "input": "undefined",
+  "frontOld": "(undefined)",
+  "serverOldShapeOf": "(undefined)",
+  "serverOldTypeOf": "(undefined)",
+  "wsemi": "(undefined)",
+  "wsemiKeysFalse": "(undefined)"
+ },
+ {
+  "kind": "shape",
+  "input": "array(2)",
+  "frontOld": "(array, length=2)",
+  "serverOldShapeOf": "(array)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(array, length=2)",
+  "wsemiKeysFalse": "(array, length=2)"
+ },
+ {
+  "kind": "shape",
+  "input": "empty array",
+  "frontOld": "(array, length=0)",
+  "serverOldShapeOf": "(array)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(array, length=0)",
+  "wsemiKeysFalse": "(array, length=0)"
+ },
+ {
+  "kind": "shape",
+  "input": "empty object",
+  "frontOld": "(keys: none)",
+  "serverOldShapeOf": "(keys: )",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(keys: none)",
+  "wsemiKeysFalse": "(object)"
+ },
+ {
+  "kind": "shape",
+  "input": "object {a,b}",
+  "frontOld": "(keys: a,b)",
+  "serverOldShapeOf": "(keys: a,b)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(keys: a,b)",
+  "wsemiKeysFalse": "(object)"
+ },
+ {
+  "kind": "shape",
+  "input": "class instance",
+  "frontOld": "(keys: a,b)",
+  "serverOldShapeOf": "(keys: a,b)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(keys: a,b)",
+  "wsemiKeysFalse": "(object)"
+ },
+ {
+  "kind": "shape",
+  "input": "null-prototype",
+  "frontOld": "(keys: x)",
+  "serverOldShapeOf": "(keys: x)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(keys: x)",
+  "wsemiKeysFalse": "(object)"
+ },
+ {
+  "kind": "shape",
+  "input": "circular",
+  "frontOld": "(keys: a,self)",
+  "serverOldShapeOf": "(keys: a,self)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(keys: a,self)",
+  "wsemiKeysFalse": "(object)"
+ },
+ {
+  "kind": "shape",
+  "input": "25 keys",
+  "frontOld": "(keys: f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17,f18,f19,...+5)",
+  "serverOldShapeOf": "(keys: f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17,f18,f19,...)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(keys: f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17,f18,f19,...+5)",
+  "wsemiKeysFalse": "(object)"
+ },
+ {
+  "kind": "shape",
+  "input": "key 35 chars",
+  "frontOld": "(keys: kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk)",
+  "serverOldShapeOf": "(keys: kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(keys: kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk...)",
+  "wsemiKeysFalse": "(object)"
+ },
+ {
+  "kind": "shape",
+  "input": "key 60 chars",
+  "frontOld": "(keys: kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk...)",
+  "serverOldShapeOf": "(keys: kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(keys: kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk...)",
+  "wsemiKeysFalse": "(object)"
+ },
+ {
+  "kind": "shape",
+  "input": "ctl/format keys(LF, U+200B, U+00AD)",
+  "frontOld": "(keys: a?b,c​d,e­f)",
+  "serverOldShapeOf": "(keys: a?b,c​d,e­f)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(keys: a?b,c?d,e?f)",
+  "wsemiKeysFalse": "(object)"
+ },
+ {
+  "kind": "shape",
+  "input": "proxy(ownKeys throws)",
+  "frontOld": "(typeof object)",
+  "serverOldShapeOf": "(unreadable)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(proxy)",
+  "wsemiKeysFalse": "(proxy)"
+ },
+ {
+  "kind": "shape",
+  "input": "revoked proxy",
+  "frontOld": "(typeof object)",
+  "serverOldShapeOf": "(unreadable)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(proxy)",
+  "wsemiKeysFalse": "(proxy)"
+ },
+ {
+  "kind": "shape",
+  "input": "Map",
+  "frontOld": "(keys: none)",
+  "serverOldShapeOf": "(keys: )",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(map, size=1)",
+  "wsemiKeysFalse": "(map, size=1)"
+ },
+ {
+  "kind": "shape",
+  "input": "Set",
+  "frontOld": "(keys: none)",
+  "serverOldShapeOf": "(keys: )",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(set, size=1)",
+  "wsemiKeysFalse": "(set, size=1)"
+ },
+ {
+  "kind": "shape",
+  "input": "Uint8Array(4)",
+  "frontOld": "(keys: 0,1,2,3)",
+  "serverOldShapeOf": "(keys: 0,1,2,3)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(binary, byteLength=4)",
+  "wsemiKeysFalse": "(binary, byteLength=4)"
+ },
+ {
+  "kind": "shape",
+  "input": "Date",
+  "frontOld": "(keys: none)",
+  "serverOldShapeOf": "(keys: )",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(date)",
+  "wsemiKeysFalse": "(date)"
+ },
+ {
+  "kind": "shape",
+  "input": "RegExp",
+  "frontOld": "(keys: none)",
+  "serverOldShapeOf": "(keys: )",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(regexp)",
+  "wsemiKeysFalse": "(regexp)"
+ },
+ {
+  "kind": "shape",
+  "input": "Promise",
+  "frontOld": "(keys: none)",
+  "serverOldShapeOf": "(keys: )",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(promise)",
+  "wsemiKeysFalse": "(promise)"
+ },
+ {
+  "kind": "shape",
+  "input": "Error object",
+  "frontOld": "(keys: none)",
+  "serverOldShapeOf": "(keys: )",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(error)",
+  "wsemiKeysFalse": "(error)"
+ },
+ {
+  "kind": "shape",
+  "input": "boxed String",
+  "frontOld": "(keys: 0)",
+  "serverOldShapeOf": "(keys: 0)",
+  "serverOldTypeOf": "(object)",
+  "wsemi": "(boxed)",
+  "wsemiKeysFalse": "(boxed)"
+ },
+ {
+  "kind": "err",
+  "input": "Error",
+  "frontOld": "(Error)",
+  "serverOldErrBrief": "Error",
+  "serverOldPick": "Error|",
+  "wsemi": "{\"errType\":\"Error\"}",
+  "wsemiNestedCause": "{\"errType\":\"Error\"}"
+ },
+ {
+  "kind": "err",
+  "input": "TypeError",
+  "frontOld": "(TypeError)",
+  "serverOldErrBrief": "TypeError",
+  "serverOldPick": "TypeError|",
+  "wsemi": "{\"errType\":\"TypeError\"}",
+  "wsemiNestedCause": "{\"errType\":\"TypeError\"}"
+ },
+ {
+  "kind": "err",
+  "input": "Error code ENOENT",
+  "frontOld": "(Error ENOENT)",
+  "serverOldErrBrief": "Error ENOENT",
+  "serverOldPick": "Error|ENOENT",
+  "wsemi": "{\"errType\":\"Error\",\"errCode\":\"ENOENT\"}",
+  "wsemiNestedCause": "{\"errType\":\"Error\",\"errCode\":\"ENOENT\"}"
+ },
+ {
+  "kind": "err",
+  "input": "string(語系鍵)",
+  "frontOld": "(string)",
+  "serverOldErrBrief": "Error",
+  "serverOldPick": "|",
+  "wsemi": "{\"errType\":\"string\"}",
+  "wsemiNestedCause": "{\"errType\":\"string\"}"
+ },
+ {
+  "kind": "err",
+  "input": "null",
+  "frontOld": "(null)",
+  "serverOldErrBrief": "Error",
+  "serverOldPick": "|",
+  "wsemi": "{\"errType\":\"null\"}",
+  "wsemiNestedCause": "{\"errType\":\"null\"}"
+ },
+ {
+  "kind": "err",
+  "input": "undefined",
+  "frontOld": "(undefined)",
+  "serverOldErrBrief": "Error",
+  "serverOldPick": "|",
+  "wsemi": "{\"errType\":\"undefined\"}",
+  "wsemiNestedCause": "{\"errType\":\"undefined\"}"
+ },
+ {
+  "kind": "err",
+  "input": "{message}",
+  "frontOld": "(object)",
+  "serverOldErrBrief": "Error",
+  "serverOldPick": "|",
+  "wsemi": "{\"errType\":\"object\"}",
+  "wsemiNestedCause": "{\"errType\":\"object\"}"
+ },
+ {
+  "kind": "err",
+  "input": "number",
+  "frontOld": "(number)",
+  "serverOldErrBrief": "Error",
+  "serverOldPick": "|",
+  "wsemi": "{\"errType\":\"number\"}",
+  "wsemiNestedCause": "{\"errType\":\"number\"}"
+ },
+ {
+  "kind": "err",
+  "input": "custom name MyCustomError",
+  "frontOld": "(Error)",
+  "serverOldErrBrief": "MyCustomError",
+  "serverOldPick": "MyCustomError|",
+  "wsemi": "{\"errType\":\"Error\"}",
+  "wsemiNestedCause": "{\"errType\":\"Error\"}"
+ },
+ {
+  "kind": "err",
+  "input": "code ERR_X(不在白名單)",
+  "frontOld": "(Error)",
+  "serverOldErrBrief": "Error ERR_X",
+  "serverOldPick": "Error|ERR_X",
+  "wsemi": "{\"errType\":\"Error\"}",
+  "wsemiNestedCause": "{\"errType\":\"Error\"}"
+ },
+ {
+  "kind": "err",
+  "input": "fetch refused(cause.code)",
+  "frontOld": "(TypeError)",
+  "serverOldErrBrief": "TypeError ECONNREFUSED",
+  "serverOldPick": "TypeError|ECONNREFUSED",
+  "wsemi": "{\"errType\":\"TypeError\"}",
+  "wsemiNestedCause": "{\"errType\":\"TypeError\",\"errCode\":\"ECONNREFUSED\"}"
+ },
+ {
+  "kind": "err",
+  "input": "DOMException TimeoutError",
+  "frontOld": "(Error)",
+  "serverOldErrBrief": "TimeoutError",
+  "serverOldPick": "TimeoutError|",
+  "wsemi": "{\"errType\":\"Error\"}",
+  "wsemiNestedCause": "{\"errType\":\"Error\"}"
+ },
+ {
+  "kind": "err",
+  "input": "Proxy",
+  "frontOld": "(Proxy)",
+  "serverOldErrBrief": "Error",
+  "serverOldPick": "|",
+  "wsemi": "{\"errType\":\"Proxy\"}",
+  "wsemiNestedCause": "{\"errType\":\"Proxy\"}"
+ },
+ {
+  "kind": "err",
+  "input": "revoked proxy",
+  "frontOld": "(Proxy)",
+  "serverOldErrBrief": "Error",
+  "serverOldPick": "THROW TypeError|THROW TypeError",
+  "wsemi": "{\"errType\":\"Proxy\"}",
+  "wsemiNestedCause": "{\"errType\":\"Proxy\"}"
+ },
+ {
+  "kind": "payload",
+  "input": "string",
+  "old": "(string)",
+  "wsemi": "(string) rows (undefined)"
+ },
+ {
+  "kind": "payload",
+  "input": "{}",
+  "old": "(object)",
+  "wsemi": "(keys: none) rows (undefined)"
+ },
+ {
+  "kind": "payload",
+  "input": "{group:{v},rows:[x]}",
+  "old": "{\"keys\":[\"group\",\"rows\"],\"rows\":1}",
+  "wsemi": "(keys: group,rows) rows (array, length=1)"
+ },
+ {
+  "kind": "payload",
+  "input": "{group:\"g\",rows:\"S\"}",
+  "old": "{\"keys\":[\"group\",\"rows\"],\"rows\":\"(string)\"}",
+  "wsemi": "(keys: group,rows) rows (string)"
+ },
+ {
+  "kind": "payload",
+  "input": "{group:\"g\",rows:[]}",
+  "old": "{\"keys\":[\"group\",\"rows\"],\"rows\":0}",
+  "wsemi": "(keys: group,rows) rows (array, length=0)"
+ },
+ {
+  "kind": "payload",
+  "input": "31 keys",
+  "old": "{\"keys\":[\"k0\",\"k1\",\"k2\",\"k3\",\"k4\",\"k5\",\"k6\",\"k7\",\"k8\",\"k9\",\"k10\",\"k11\",\"k12\",\"k13\",\"k14\",\"k15\",\"k16\",\"k17\",\"k18\",\"k19\",\"k20\",\"k21\",\"k22\",\"k23\",\"k24\",\"k25\",\"k26\",\"k27\",\"k28\",\"k29\",\"k30\"],\"rows\":\"(undefined)\"}",
+  "wsemi": "(keys: k0,k1,k2,k3,k4,k5,k6,k7,k8,k9,k10,k11,k12,k13,k14,k15,k16,k17,k18,k19,...+11) rows (undefined)"
+ },
+ {
+  "kind": "payload",
+  "input": "key with LF",
+  "old": "{\"keys\":[\"a\\nb\",\"rows\"],\"rows\":1}",
+  "wsemi": "(keys: a?b,rows) rows (array, length=1)"
+ }
+]

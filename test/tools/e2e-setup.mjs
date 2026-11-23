@@ -45,6 +45,8 @@ import {
 //基準埠與埠保留(排程第 309 項): e2ePorts.mjs 載入時即呼叫 reserveE2ePorts(基準埠有占用時整組位移並寫入 E2E_PORT_OFFSET), 須早於本檔任何 resolveE2ePort／createServiceManager——
 //  ES 模組先評估被匯入者, 故此匯入之副作用先於本檔本體。
 import { BACKEND_PORT, reservation } from './e2ePorts.mjs'
+//dist/ 備份與原位元組還原(排程第 603 項, 規則帳本 R-E2E-DISTGUARD-01): 建置前備份入版控之 dist/, cleanup 時寫回並逐檔 sha256 回驗, 使跑完測試後 `git status --short dist` 為空
+import { guardDistStart, guardDistRestore } from './distGuard.mjs'
 
 //baseline 產製模式：mocha 帶 --baseline 或 env E2E_REGEN=1 時寫檔；否則 pixelmatch 容差比對。
 //診斷閘門紀律：診斷 env 生效時絕不可寫正式 baseline（技能 references/pixel-mismatch-diagnosis.md §6；getE2eMode 於此拋錯）
@@ -111,7 +113,9 @@ let services = createServiceManager({
             readyTimeoutMs: 30000,
             beforeSpawn: ({ phase }) => {
                 if (phase === 'start') {
-                    console.log('[e2e-setup] building dist (vue-cli build)...')
+                    //建置會清空 dist/ 並寫出新 hash 檔(後端固定 serve cwd 下之 dist/, 產品碼無 opt 可改靜態檔夾): 先備份, cleanup 時還原(distGuard.mjs; 前次被強制結束之殘留備份於此先還原)
+                    let g = guardDistStart()
+                    console.log(`[e2e-setup] dist backed up (${g.nFiles} files${g.staleRestored ? ', stale backup restored first' : ''}); building dist (vue-cli build)...`)
                     execSync('npm run build', { stdio: 'ignore', windowsHide: true })
                 }
             },
@@ -122,7 +126,11 @@ let services = createServiceManager({
     //  killForeignOnRestart 仍須為 true 才會進入該判斷(false 時直接拋錯), 但不再依埠下殺任何人(原依 killPortListeners 殺任何監聽者, 2026-11-05 修前以真實占用者實測會殺到)。
     reservation,
     killForeignOnRestart: true,
-    onCleanup: () => cleanupTempSettings(),
+    //onCleanup 於自建後端已終止之後同步呼叫: 還原 dist/(無備份時不動作; 建置未發生或沿用既有服務者無備份)
+    onCleanup: () => {
+        cleanupTempSettings()
+        guardDistRestore()
+    },
 })
 
 async function startServersOnce() {

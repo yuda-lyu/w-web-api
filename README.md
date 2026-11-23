@@ -13,6 +13,13 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 
 ## Upgrade Notes
 
+### Behavior change since 1.1.63：console 診斷之形狀與錯誤摘要改用 wsemi 共用函數 `getDiagShape`／`getDiagBriefErr`（輸出字樣改變）
+
+**行為變更**（不提供舊格式相容；HTTP 回應、srLog 之內容、`maskTok`／`maskQuery`／`maskUrl` 等 M 契約函式皆不變）。前後端 console 之「資料值不入診斷」規則不變（只印鍵名、型別、筆數、錯誤類別），但摘要之產生者由本套件之本地函式（前端 `describeShape`／`describeErr`、伺服端 `shapeOf`／`errBrief`／`typeOf`／`payloadShape`）改為 wsemi 之共用函數，輸出字樣隨之改變；若您以 console 文字做過濾或比對，需對應調整：
+- **瀏覽器 console**：字串與其他基本型別由 `(typeof string)`、`(typeof number)` 改為 `(string)`、`(number)`（空字串由 `(typeof string, empty)` 改為 `(string, empty)`）；錯誤摘要由字串 `(Error ENOENT)` 改為**獨立之物件引數** `{ errType: 'Error', errCode: 'ENOENT' }`（字串錯誤〔如伺服端回傳之語系鍵〕為 `{ errType: 'string' }`）；單一鍵名上限由 40 字改為 32 字；鍵名之格式字元（零寬字元、軟連字號等）與控制字元一併換成 `?`；`Map`、`Set`、`Date`、二進位資料等內建物件改列其型別（如 `(map, size=1)`、`(binary, byteLength=4)`）而非 `(keys: none)`。
+- **伺服端 console**：陣列由 `(array)` 改為 `(array, length=N)`；空物件由 `(keys: )` 改為 `(keys: none)`；超過 20 個鍵之省略標示由 `,...` 改為 `,...+N`；請求本體（外部匯入之 `payload`）由 `{ keys: [...], rows: N }` 改為 `payload (keys: group,rows) rows (array, length=N)`；原只印 `(typeof …)` 之站點（`keyTable`、`group`、`isAdmin` 等）改列同一摘要，物件值由 `(object)` 改為鍵名清單；**建構參數**（`WOrm`、`url`、`db`、三個注入函數、`opt.serverPort`）仍只印型別，連鍵名亦不印（`getDiagShape(v, { keys: false })`，如 `invalid url (object)`）。
+- **外來錯誤**（ORM 或 `WServHapiServer` 建構失敗、`index.html` 產生失敗等）由字串 `Error EISDIR` 改為物件 `{ errType: 'Error', errCode: 'EISDIR' }`；錯誤類別只列內建類別名、代碼只列系統錯誤代碼等白名單內者，自訂之錯誤名稱與白名單外之代碼一律為 `Error`／不列（原本只要合形狀即列）。**錯誤本身仍原樣拋出**。
+
 ### Behavior change since 1.1.62：`getStaEvent` 之 `timeLength` 數字字串由拒收改為收下；`opt.timeNow` 限 1970～2100；瀏覽器 console 診斷不再輸出資料值
 
 **行為變更**（輸出形狀不變；與 w-web-perm、w-web-sso 之統計核心同一判準，依跨套件規格〈輸入參數之檢測機制〉）：

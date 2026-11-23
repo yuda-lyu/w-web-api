@@ -19,6 +19,8 @@ import replace from 'wsemi/src/replace.mjs'
 import cacheSt from 'wsemi/src/cacheSt.mjs'
 import evEmit from 'wsemi/src/evEmit.mjs'
 import genDiagFunLog from 'wsemi/src/genDiagFunLog.mjs'
+import getDiagShape from 'wsemi/src/getDiagShape.mjs'
+import getDiagBriefErr from 'wsemi/src/getDiagBriefErr.mjs'
 import WServHapiServer from 'w-serv-hapi/src/WServHapiServer.mjs'
 import WServOrm from 'w-serv-orm/src/WServOrm.mjs'
 import { SAFE_KEYS } from 'w-serv-orm/src/safeKeys.mjs'
@@ -32,7 +34,7 @@ import createLockSave from './lockSave.mjs'
 import getLockExternalRows from './getLockExternalRows.mjs'
 import staEvent from './staLogs/staEvent.mjs'
 import srLogInit from './srLog.mjs'
-import { maskTok, shapeOf, errBrief } from './maskLog.mjs'
+import { maskTok } from './maskLog.mjs'
 import { wrapInjected } from './wrapInjected.mjs'
 import getOptDataChannel from './getOptDataChannel.mjs'
 import { pickLoginUser } from './pickLoginUser.mjs'
@@ -155,53 +157,52 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let instWServHapiServer = null
 
 
-    //console 診斷一律不印資料值，只印型別、鍵名或固定詞彙（跨套件規格〈診斷輸出與遮罩〉D2、〈輸入參數之檢測機制〉V20；ADR-057）：
-    //- 無效建構參數只給型別（同 w-serv-orm 1.1.22 對無效參數之處置）：url 可為含帳密之連線字串, 誤傳含帳密之連線設定物件時, 印出其值即洩漏憑證；
+    //console 診斷一律不印資料值，只印型別、鍵名或固定詞彙（跨套件規格〈診斷輸出與遮罩〉D1 單一實作、D2、〈輸入參數之檢測機制〉V20；ADR-057、ADR-063）：
+    //- 無效建構參數只給型別（getDiagShape(v, { keys: false })：連鍵名亦不列，同 w-serv-orm 1.1.22 對無效參數之處置）：url 可為含帳密之連線字串, 誤傳含帳密之連線設定物件時, 印出其值即洩漏憑證；
     //  其餘參數（含 opt.serverPort）同一規則（誤傳之字串或物件亦可能帶憑證）
-    //- 使用者物件、請求本體、查詢參數等物件只給鍵名（shapeOf，./maskLog.mjs）；權杖仍經 maskTok（M 契約）
-    //- 外來錯誤（ORM、WServHapiServer、檔案系統）只給錯誤名稱與代碼（errBrief，./maskLog.mjs；不取 message 與 stack）；錯誤本身仍原樣拋出，不動 reject／throw 之內容
+    //- 使用者物件、請求本體、查詢參數等物件只給鍵名（wsemi getDiagShape：至多 20 鍵、單鍵至多 32 字、控制字元換 ?；請求本體另附 rows 之形狀）；權杖仍經 maskTok（M 契約）
+    //- 外來錯誤（ORM、WServHapiServer、檔案系統）只給錯誤類別與白名單代碼（wsemi getDiagBriefErr 之 { errType, errCode? } 物件直印；不取 message 與 stack）；錯誤本身仍原樣拋出，不動 reject／throw 之內容
     //盤點與判定見 test/unit-consoleSites.test.mjs（站點全集不變式）與 test/api-logLeak.test.mjs（以含識別值之測資觸發各站點）
-    let typeOf = (v) => `(${typeof v})`
 
 
     //check WOrm
     if (!isfun(WOrm)) {
-        console.log('invalid WOrm', typeOf(WOrm))
+        console.log('invalid WOrm', getDiagShape(WOrm, { keys: false }))
         throw new Error('invalid WOrm')
     }
 
 
     //check url
     if (!isestr(url)) {
-        console.log('invalid url', typeOf(url))
+        console.log('invalid url', getDiagShape(url, { keys: false }))
         throw new Error('invalid url')
     }
 
 
     //check db
     if (!isestr(db)) {
-        console.log('invalid db', typeOf(db))
+        console.log('invalid db', getDiagShape(db, { keys: false }))
         throw new Error('invalid db')
     }
 
 
     //check getUserByToken
     if (!isfun(getUserByToken)) {
-        console.log('invalid getUserByToken', typeOf(getUserByToken))
+        console.log('invalid getUserByToken', getDiagShape(getUserByToken, { keys: false }))
         throw new Error('invalid getUserByToken')
     }
 
 
     //check verifyClientUser
     if (!isfun(verifyClientUser)) {
-        console.log('invalid verifyClientUser', typeOf(verifyClientUser))
+        console.log('invalid verifyClientUser', getDiagShape(verifyClientUser, { keys: false }))
         throw new Error('invalid verifyClientUser')
     }
 
 
     //check verifyAppUser
     if (!isfun(verifyAppUser)) {
-        console.log('invalid verifyAppUser', typeOf(verifyAppUser))
+        console.log('invalid verifyAppUser', getDiagShape(verifyAppUser, { keys: false }))
         throw new Error('invalid verifyAppUser')
     }
 
@@ -218,7 +219,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         serverPort = 11005
     }
     else if (!ispint(serverPort) || cint(serverPort) > 65535) {
-        console.log('invalid opt.serverPort', typeOf(serverPort))
+        console.log('invalid opt.serverPort', getDiagShape(serverPort, { keys: false }))
         throw new Error('invalid opt.serverPort')
     }
     serverPort = cint(serverPort)
@@ -234,7 +235,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //createTargetPolicy 之 throw 皆為固定詞彙（invalid opt.proxyAllowInternal、invalid opt.proxyAllowList，不含設定值）；
         //opt 之取值器若自行拋錯，其訊息非固定詞彙，不印，只給錯誤名稱與代碼
         let msg = get(err, 'message')
-        console.log(isestr(msg) && /^invalid opt\.[A-Za-z]+$/.test(msg) ? msg : errBrief(err))
+        console.log(isestr(msg) && /^invalid opt\.[A-Za-z]+$/.test(msg) ? msg : getDiagBriefErr(err))
         throw err
     }
 
@@ -290,7 +291,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let srLog = srLogInit(opt)
 
     //印權杖一律經 ./maskLog.mjs 之 maskTok（M 契約：前後各至多 4 字＋長度、陣列逐元素、其他型別只給型別；ADR-033）；
-    //印整包查詢參數（req.query）一律只給鍵名（shapeOf）：原 maskQuery 只遮 token 鍵、其餘參數值照印，不合 D2（ADR-057；maskQuery 仍留於 maskLog.mjs 與 unit-maskLog，屬四 repo 共同之 M 契約）
+    //印整包查詢參數（req.query）一律只給鍵名（wsemi getDiagShape）：原 maskQuery 只遮 token 鍵、其餘參數值照印，不合 D2（ADR-057；maskQuery 仍留於 maskLog.mjs 與 unit-maskLog，屬四 repo 共同之 M 契約）
 
     //注入函數一律經 wrapInjected（W 契約，ADR-033）：以包裝版取代參數，之後本函數內之呼叫皆為包裝版（原始參數無從直接呼叫）。
     //上游同步拋錯或 reject 視同否定結果：getUserByToken → null（等同查無）、verifyClientUser／verifyAppUser → false（等同無權限），
@@ -326,7 +327,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     catch (err) {
         //ORM 為必要依賴：初始化失敗即 fail-fast，不以 wp={} 帶 undefined woItems/procOrm 殘缺啟動（與建構子其餘必要依賴一致）；
         //拋出前釋放已建立之 srLog（R-RES-1），否則其 log worker 撐住呼叫端之行程
-        console.log('WServOrm init failed', errBrief(err)) //外來錯誤只給名稱與代碼；err 本身照常於下方拋出
+        console.log('WServOrm init failed', getDiagBriefErr(err)) //外來錯誤只給名稱與代碼；err 本身照常於下方拋出
         ormLog.close()
         srLog.clear().catch(() => {})
         throw err
@@ -409,26 +410,26 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
     let checkUser = async(user) => {
         let id = get(user, 'id', '')
         if (!isestr(id)) {
-            console.log('user', shapeOf(user))
+            console.log('user', getDiagShape(user))
             console.log('can not get the userId')
             return Promise.reject('errUserIdMissing')
         }
         let email = get(user, 'email', '')
         if (!isestr(email)) {
-            console.log('user', shapeOf(user))
+            console.log('user', getDiagShape(user))
             console.log('can not get the email of user')
             return Promise.reject('errUserEmailMissing')
         }
         let name = get(user, 'name', '')
         if (!isestr(name)) {
-            console.log('user', shapeOf(user))
+            console.log('user', getDiagShape(user))
             console.log('can not get userName')
             return Promise.reject('errUserNameMissing')
         }
         let isAdmin = get(user, 'isAdmin', '')
         if (isAdmin !== 'y' && isAdmin !== 'n') {
-            console.log('user', shapeOf(user))
-            console.log('user.isAdmin is not y or n', typeOf(isAdmin))
+            console.log('user', getDiagShape(user))
+            console.log('user.isAdmin is not y or n', getDiagShape(isAdmin))
             console.log('can not get the role of user')
             return Promise.reject('errUserRoleMissing')
         }
@@ -566,7 +567,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         //check
         if (!b) {
-            console.log('user', shapeOf(user))
+            console.log('user', getDiagShape(user))
             console.log(`user does not have permission`)
             return Promise.reject('errUserNoPermission')
         }
@@ -598,7 +599,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         //check
         if (!b) {
-            console.log('user', shapeOf(user))
+            console.log('user', getDiagShape(user))
             console.log(`user does not have permission`)
             return Promise.reject('errUserNoPermission')
         }
@@ -608,16 +609,6 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         srLog.info({ event: 'verifyAppUser', from, userId: get(user, 'id', '') }) //應用程式使用者驗證通過（含等級）
         return user
-    }
-
-
-    //payloadShape：推送資料之結構摘要（鍵名與 rows 筆數），供錯誤分支之 console 使用；rows 可能夾 tokens／authConfigJson 等第三方憑證，
-    //故不印內容（不印整包請求資料；w-web-sso ADR-068 之同規則，ADR-033）
-    let payloadShape = (v) => {
-        if (!iseobj(v)) {
-            return `(${typeof v})`
-        }
-        return { keys: Object.keys(v), rows: isarr(v.rows) ? v.rows.length : `(${typeof v.rows})` }
     }
 
 
@@ -634,7 +625,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         //check
         if (!iseobj(payload)) {
-            console.log('payload', payloadShape(payload))
+            console.log('payload', getDiagShape(payload))
             console.log(`invalid payload in req`)
             return Promise.reject('errPayloadInvalid')
         }
@@ -644,7 +635,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         //check
         if (!isestr(group)) {
-            console.log('payload', payloadShape(payload))
+            console.log('payload', getDiagShape(payload), 'rows', getDiagShape(get(payload, 'rows')))
             console.log(`invalid group in payload`)
             return Promise.reject('errGroupInvalid')
         }
@@ -655,7 +646,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         //check（陣列層：非空陣列即可；逐列檢核統一於 syncAndReplaceTabs，使 [null] 與 [null,null] 皆回同一 err-key errRowInvalid，
         //不因 wsemi isearr「僅長度 1 檢查元素」而分岔）
         if (!isarr(rows) || rows.length === 0) {
-            console.log('payload', payloadShape(payload))
+            console.log('payload', getDiagShape(payload), 'rows', getDiagShape(get(payload, 'rows')))
             console.log(`invalid rows in payload`)
             return Promise.reject('errRowsInvalid')
         }
@@ -695,8 +686,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         //check
         if (!isestr(group)) {
-            console.log('inp', payloadShape(inp))
-            console.log('group', typeOf(group))
+            console.log('inp', getDiagShape(inp), 'rows', getDiagShape(get(inp, 'rows')))
+            console.log('group', getDiagShape(group))
             console.log(`invalid group`)
             return Promise.reject('errGroupInvalid')
         }
@@ -707,8 +698,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
         //check（陣列層：須為非空陣列——空批次拒收，清空某來源須另以明確操作，防誤清；逐列檢核見 syncApis）
         if (!isarr(rows) || rows.length === 0) {
-            console.log('inp', payloadShape(inp))
-            console.log('keyTable', typeOf(keyTable))
+            console.log('inp', getDiagShape(inp), 'rows', getDiagShape(get(inp, 'rows')))
+            console.log('keyTable', getDiagShape(keyTable))
             return Promise.reject('errRowsInvalid')
         }
 
@@ -747,7 +738,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         fs.writeFileSync(fpEntryOut, c, 'utf8')
     }
     catch (err) {
-        console.log(errBrief(err)) //檔案系統錯誤之訊息帶絕對路徑，只給名稱與代碼（如 Error ENOENT、Error EACCES）
+        console.log(getDiagBriefErr(err)) //檔案系統錯誤之訊息帶絕對路徑，只給類別與代碼（如 { errType: 'Error', errCode: 'ENOENT' }）
         console.log(`can not generate ${fnEntryOut}`)
     }
 
@@ -768,7 +759,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check
                     if (!isestr(token)) {
-                        console.log('req.query', shapeOf(get(req, 'query')))
+                        console.log('req.query', getDiagShape(get(req, 'query')))
                         console.log('token', maskTok(token))
                         console.log('[API]getUserByToken/check token: invalid token')
                         return Promise.reject('errTokenNoPermission')
@@ -821,7 +812,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check
                     if (!isestr(token)) {
-                        console.log('req.query', shapeOf(get(req, 'query')))
+                        console.log('req.query', getDiagShape(get(req, 'query')))
                         console.log('token', maskTok(token))
                         console.log('[API]getApisList/check token: invalid token')
                         return Promise.reject('errTokenNoPermission')
@@ -922,7 +913,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check
                     if (!isestr(token)) {
-                        console.log('req.query', shapeOf(get(req, 'query')))
+                        console.log('req.query', getDiagShape(get(req, 'query')))
                         console.log('token', maskTok(token))
                         console.log('[API]syncAndReplaceTabs/check token: invalid token')
                         return Promise.reject('errTokenNoPermission')
@@ -933,8 +924,8 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
 
                     //check
                     if (!isestr(keyTable)) {
-                        console.log('req.query', shapeOf(get(req, 'query')))
-                        console.log('keyTable', typeOf(keyTable))
+                        console.log('req.query', getDiagShape(get(req, 'query')))
+                        console.log('keyTable', getDiagShape(keyTable))
                         console.log('[API]syncAndReplaceTabs/check keyTable: invalid keyTable')
                         return Promise.reject('errKeyTableInvalid')
                     }
@@ -942,7 +933,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //check keyTable
                     let allowedTables = ['apis']
                     if (!allowedTables.includes(keyTable)) {
-                        console.log('[API]syncAndReplaceTabs/check keyTable: unexpected keyTable', typeOf(keyTable))
+                        console.log('[API]syncAndReplaceTabs/check keyTable: unexpected keyTable', getDiagShape(keyTable))
                         return Promise.reject('errKeyTableInvalid')
                     }
 
@@ -962,7 +953,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
                     //check userId
                     if (!isestr(userId)) {
                         console.log('token', maskTok(token))
-                        console.log('user', shapeOf(user))
+                        console.log('user', getDiagShape(user))
                         console.log('[API]syncAndReplaceTabs/check userId: invalid userId')
                         return Promise.reject('errTokenNoPermission')
                     }
@@ -1115,7 +1106,7 @@ function WWebApi(WOrm, url, db, getUserByToken, verifyClientUser, verifyAppUser,
         instWServHapiServer = new WServHapiServer(optServ)
     }
     catch (err) {
-        console.log('WServHapiServer init failed', errBrief(err)) //外來錯誤只給名稱與代碼；err 本身照常於下方拋出
+        console.log('WServHapiServer init failed', getDiagBriefErr(err)) //外來錯誤只給名稱與代碼；err 本身照常於下方拋出
         cst.clear()
         closeAll().catch(() => {})
         ormLog.close()

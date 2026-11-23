@@ -15,7 +15,8 @@ import store from './store/index.mjs'
 import ui from './plugins/mUI.mjs'
 import * as s from './plugins/mShare.mjs'
 import ds from './schema/index.mjs'
-import { describeShape, describeErr } from './describeShape.mjs'
+import getDiagShape from 'wsemi/src/getDiagShape.mjs'
+import getDiagBriefErr from 'wsemi/src/getDiagBriefErr.mjs'
 // console.log('globalState', globalState)
 // console.log('ds', ds)
 
@@ -26,7 +27,7 @@ Vue.config.productionTip = false
 //$alert
 Vue.prototype.$alert = function() {
     let [msg, type] = arguments
-    console.log('$alert', describeShape(msg), describeShape(type)) //訊息文字可含使用者輸入之名稱, 只印型別
+    console.log('$alert', getDiagShape(msg), getDiagShape(type)) //訊息文字可含使用者輸入之名稱, 只印型別
     if (msg !== 'close') {
         WAlert(msg, type)
     }
@@ -83,7 +84,7 @@ WServHapiClient({
 
             })
             .catch((err) => {
-                console.log('getWebInfor failed', describeErr(err))
+                console.log('getWebInfor failed', getDiagBriefErr(err))
                 //getWebInfor 失敗時導向連線錯誤態，避免 ready(需 webInfor) 永假而卡在「已登入」轉圈無回饋
                 ui.updateConnState('csErrConn')
             })

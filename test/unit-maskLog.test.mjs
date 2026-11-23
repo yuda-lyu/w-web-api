@@ -1,7 +1,9 @@
 //unit：server/maskLog.mjs——權杖／憑證寫入 console 與 srLog 前之唯一遮罩出口（M 契約；w-web-sso tmp/sso-token-leak-全盤.md〈六〉「共用契約 M」，
 //四 repo 同一組測資）與錯誤名稱／代碼之形狀過濾（K 契約 helper console 之 errName／errCode 形狀）。每條斷言對應契約之一句；ADR-033。
 import assert from 'assert'
-import { maskTok, maskQuery, maskUrl, pickErrName, pickErrCode, shapeOf, errBrief } from '../server/maskLog.mjs'
+import { maskTok, maskQuery, maskUrl, pickErrName, pickErrCode } from '../server/maskLog.mjs'
+import getDiagShape from 'wsemi/src/getDiagShape.mjs'
+import getDiagBriefErr from 'wsemi/src/getDiagBriefErr.mjs'
 
 
 describe('unit-maskLog', function() {
@@ -137,44 +139,52 @@ describe('unit-maskLog', function() {
         }
     })
 
-    //shapeOf（ADR-057；規格〈診斷輸出與遮罩〉D2「預設不輸出資料值」、〈輸入參數之檢測機制〉V20）：資料值只給形狀（鍵名、型別），絕不給值
-    it('SHAPE-001 shapeOf：物件只給鍵名（保留插入順序），值（含巢狀值）一律不出現', function() {
+    //DIAG-001～006: 伺服端 console 之形狀與錯誤類別摘要一律經 wsemi getDiagShape／getDiagBriefErr(規格〈診斷輸出與遮罩〉D1 單一實作; 排程第 603 項取代本檔原有之 shapeOf／errBrief,
+    //  本地實作已刪, 其單一實作與接線由 unit-consoleSites SITE-006／007 守護); 本組釘住「伺服端站點所依賴之 wsemi 輸出契約」(D2 預設不輸出資料值、D4 永不拋錯且有界),
+    //  日後 wsemi 升版改變此契約時此組轉紅, 逼迫重新判定站點(原 SHAPE-001～004、ERRBRIEF-001～002 之語意延續, 字樣差異見 sgud/rule/rulebook_backend.md R-CONSOLE-01)
+    it('DIAG-001 getDiagShape：物件只給鍵名（保留插入順序），值（含巢狀值）一律不出現; 空物件為 (keys: none)', function() {
         let secret = 'ZZ-secret-9317'
         let user = { id: secret, email: `${secret}@example.com`, name: secret, isAdmin: secret, nested: { deep: secret }, list: [secret] }
-        let s = shapeOf(user)
+        let s = getDiagShape(user)
         assert.strictEqual(s, '(keys: id,email,name,isAdmin,nested,list)')
         assert.ok(!s.includes(secret), '值不得出現')
-        assert.strictEqual(shapeOf({}), '(keys: )')
+        assert.strictEqual(getDiagShape({}), '(keys: none)')
     })
 
-    it('SHAPE-002 shapeOf：非物件只給型別；陣列與 null 為固定詞', function() {
+    it('DIAG-002 getDiagShape：非物件只給型別; 字串另標 empty; 陣列給筆數; null 為固定詞', function() {
         let secret = 'ZZ-secret-9317'
-        assert.strictEqual(shapeOf(secret), '(string)')
-        assert.strictEqual(shapeOf(12345), '(number)')
-        assert.strictEqual(shapeOf(true), '(boolean)')
-        assert.strictEqual(shapeOf(undefined), '(undefined)')
-        assert.strictEqual(shapeOf(10n), '(bigint)')
-        assert.strictEqual(shapeOf(() => secret), '(function)')
-        assert.strictEqual(shapeOf(Symbol(secret)), '(symbol)')
-        assert.strictEqual(shapeOf([secret, secret]), '(array)')
-        assert.strictEqual(shapeOf(null), '(null)')
+        assert.strictEqual(getDiagShape(secret), '(string)')
+        assert.strictEqual(getDiagShape(''), '(string, empty)')
+        assert.strictEqual(getDiagShape(12345), '(number)')
+        assert.strictEqual(getDiagShape(true), '(boolean)')
+        assert.strictEqual(getDiagShape(undefined), '(undefined)')
+        assert.strictEqual(getDiagShape(10n), '(bigint)')
+        assert.strictEqual(getDiagShape(() => secret), '(function)')
+        assert.strictEqual(getDiagShape(Symbol(secret)), '(symbol)')
+        assert.strictEqual(getDiagShape([secret, secret]), '(array, length=2)')
+        assert.strictEqual(getDiagShape(null), '(null)')
+        //opt.keys 為 false 者(建構參數之站點: 連線設定等其鍵名亦不輸出): 一般物件只給 (object), 其餘型別不變
+        assert.strictEqual(getDiagShape({ host: 'h', password: secret }, { keys: false }), '(object)')
+        assert.strictEqual(getDiagShape(secret, { keys: false }), '(string)')
+        assert.strictEqual(getDiagShape([secret], { keys: false }), '(array, length=1)')
     })
 
-    it('SHAPE-003 shapeOf：鍵名之控制字元換成 ?（防 log 注入）、單鍵至多 32 字元、至多 20 鍵', function() {
-        assert.strictEqual(shapeOf({ 'a\nforged log line\r': 1, 'b\u0000': 2 }), '(keys: a?forged log line?,b?)')
+    it('DIAG-003 getDiagShape：鍵名之控制字元與格式字元換成 ?（防 log 注入）、單鍵至多 32 字元（超過截斷接 ...）、至多 20 鍵（其餘接 ,...+N）', function() {
+        assert.strictEqual(getDiagShape({ 'a\nforged log line\r': 1, 'b\u0000': 2 }), '(keys: a?forged log line?,b?)')
+        assert.strictEqual(getDiagShape({ 'a\u202Eb': 1, 'c\u200Bd': 2 }), '(keys: a?b,c?d)', '雙向覆寫與零寬字元亦換成 ?')
         let longKey = 'k'.repeat(100)
-        assert.strictEqual(shapeOf({ [longKey]: 1 }), `(keys: ${'k'.repeat(32)})`)
+        assert.strictEqual(getDiagShape({ [longKey]: 1 }), `(keys: ${'k'.repeat(32)}...)`)
         let many = {}
         for (let i = 0; i < 25; i++) {
             many[`f${i}`] = 1
         }
-        let s = shapeOf(many)
-        assert.ok(s.endsWith(',...)'), s)
-        assert.strictEqual(s.split(',').length, 21, '20 個鍵＋省略號')
+        let s = getDiagShape(many)
+        assert.ok(s.endsWith(',...+5)'), s)
+        assert.strictEqual(s.split(',').length, 21, '20 個鍵＋省略號（,...+5 計為 1 段）')
         assert.ok(!s.includes('f20') && !s.includes('f24'), '第 21 個起之鍵不出現')
     })
 
-    it('SHAPE-004 shapeOf：Proxy 之 ownKeys 陷阱拋錯、拋錯之取值器——永不拋錯、不執行取值器', function() {
+    it('DIAG-004 getDiagShape：Proxy 之 ownKeys 陷阱拋錯、已撤銷之 Proxy、拋錯之取值器——永不拋錯、不執行取值器、不執行使用端程式', function() {
         let secret = 'ZZ-secret-9317'
         let handler = {
             ownKeys() {
@@ -182,7 +192,12 @@ describe('unit-maskLog', function() {
             },
         }
         let p = new Proxy({}, handler)
-        assert.strictEqual(shapeOf(p), '(unreadable)')
+        let sp = getDiagShape(p)
+        assert.ok(!sp.includes(secret) && /^\((proxy|unreadable)\)$/.test(sp), `Proxy 不得觸發陷阱或印出其內容, 實得 ${sp}`)
+        let r = Proxy.revocable({}, {})
+        r.revoke()
+        let sr = getDiagShape(r.proxy)
+        assert.ok(/^\((proxy|unreadable)\)$/.test(sr), `已撤銷之 Proxy 不得拋錯, 實得 ${sr}`)
         let called = false
         let g = { id: 'x' }
         let desc = {
@@ -193,29 +208,33 @@ describe('unit-maskLog', function() {
             },
         }
         Object.defineProperty(g, 'trap', desc)
-        assert.strictEqual(shapeOf(g), '(keys: id,trap)')
+        assert.strictEqual(getDiagShape(g), '(keys: id,trap)')
         assert.strictEqual(called, false, '取鍵名不得執行取值器')
     })
 
-    //errBrief（ADR-057；規格〈診斷輸出與遮罩〉D2「不含後端錯誤原文」）：外來錯誤只給名稱與代碼（形狀過濾同 pickErrName／pickErrCode），絕不取 message 與 stack
-    it('ERRBRIEF-001 errBrief：只給名稱與代碼，message／stack 之內容（連線字串、路徑、識別值）不出現', function() {
+    //getDiagBriefErr（ADR-057／110；規格〈診斷輸出與遮罩〉D2「不含後端錯誤原文」）：外來錯誤只給類別與白名單代碼，絕不取 message 與 stack
+    it('DIAG-005 getDiagBriefErr：只給類別與白名單代碼，message／stack 之內容（連線字串、路徑、識別值）不出現; 取 cause.code 須宣告 nested（srv.mjs 之 fetch 失敗站點）', function() {
         let secret = 'ZZ-secret-9317'
         let e1 = Object.assign(new Error(`EISDIR: illegal operation on a directory, open 'C:/${secret}/dist/index.html'`), { code: 'EISDIR' })
-        assert.strictEqual(errBrief(e1), 'Error EISDIR')
-        assert.strictEqual(errBrief(new Error(`connect failed postgres://u:${secret}@h/db`)), 'Error')
+        assert.deepStrictEqual(getDiagBriefErr(e1), { errType: 'Error', errCode: 'EISDIR' })
+        assert.deepStrictEqual(getDiagBriefErr(new Error(`connect failed postgres://u:${secret}@h/db`)), { errType: 'Error' })
         let refused = new TypeError('fetch failed', { cause: Object.assign(new Error(secret), { code: 'ECONNREFUSED' }) })
-        assert.strictEqual(errBrief(refused), 'TypeError ECONNREFUSED')
+        assert.deepStrictEqual(getDiagBriefErr(refused), { errType: 'TypeError' }, '未宣告 nested 時不讀 cause.code')
+        assert.deepStrictEqual(getDiagBriefErr(refused, { nested: ['cause'] }), { errType: 'TypeError', errCode: 'ECONNREFUSED' })
         for (let e of [e1, refused, new Error(secret)]) {
-            assert.ok(!errBrief(e).includes(secret))
+            assert.ok(!JSON.stringify(getDiagBriefErr(e, { nested: ['cause'] })).includes(secret))
         }
     })
 
-    it('ERRBRIEF-002 errBrief：名稱或代碼不合形狀、非錯誤值、取值器拋錯——一律回 Error 或只給合形狀之部分，永不拋錯', function() {
+    it('DIAG-006 getDiagBriefErr：自訂名稱／不合白名單之代碼、非錯誤值、取值器拋錯——一律回 Error 或型別名，永不拋錯', function() {
         let secret = 'ZZ-secret-9317'
-        assert.strictEqual(errBrief(Object.assign(new Error('x'), { name: `SYNTH ${secret} http://x`, code: `http://${secret}` })), 'Error')
-        for (let v of [secret, null, undefined, 123, {}, [secret]]) {
-            assert.strictEqual(errBrief(v), 'Error', `errBrief(${String(v)})`)
-        }
+        assert.deepStrictEqual(getDiagBriefErr(Object.assign(new Error('x'), { name: `SYNTH ${secret} http://x`, code: `http://${secret}` })), { errType: 'Error' })
+        assert.deepStrictEqual(getDiagBriefErr(secret), { errType: 'string' })
+        assert.deepStrictEqual(getDiagBriefErr(null), { errType: 'null' })
+        assert.deepStrictEqual(getDiagBriefErr(undefined), { errType: 'undefined' })
+        assert.deepStrictEqual(getDiagBriefErr(123), { errType: 'number' })
+        assert.deepStrictEqual(getDiagBriefErr({}), { errType: 'object' })
+        assert.deepStrictEqual(getDiagBriefErr([secret]), { errType: 'object' })
         let getterErr = {}
         let desc = {
             get() {
@@ -224,7 +243,33 @@ describe('unit-maskLog', function() {
         }
         Object.defineProperty(getterErr, 'name', desc)
         Object.defineProperty(getterErr, 'code', desc)
-        assert.strictEqual(errBrief(getterErr), 'Error')
+        assert.doesNotThrow(() => getDiagBriefErr(getterErr))
+        assert.ok(!JSON.stringify(getDiagBriefErr(getterErr)).includes(secret))
+    })
+
+    //DIAG-007: 真實之 fetch 失敗(連線被拒)——undici 將系統錯誤碼放在 cause.code, 故 srv.mjs 之 console 站點以 { nested: ['cause'] } 取代原 pickErrCode 之「先取 cause.code」;
+    //  不宣告 nested 時只給類別(不洩漏、也不含代碼); 訊息(含網址與埠)不出現
+    it('DIAG-007 getDiagBriefErr：真實 fetch 連線被拒(TypeError, cause.code ECONNREFUSED)——宣告 nested: [cause] 得代碼, 不宣告只得類別; 訊息中之網址不出現', async function() {
+        let net = await import('net')
+        let srv = net.createServer()
+        await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve))
+        let port = srv.address().port
+        await new Promise((resolve) => srv.close(resolve))
+        let url = `http://127.0.0.1:${port}/zz-secret-path?token=ZZ-secret-9317`
+        let err = null
+        try {
+            await fetch(url)
+        }
+        catch (e) {
+            err = e
+        }
+        assert.ok(err !== null, '前置: fetch 應失敗')
+        assert.deepStrictEqual(getDiagBriefErr(err, { nested: ['cause'] }), { errType: 'TypeError', errCode: 'ECONNREFUSED' })
+        assert.deepStrictEqual(getDiagBriefErr(err), { errType: 'TypeError' })
+        assert.ok(!JSON.stringify(getDiagBriefErr(err, { nested: ['cause'] })).includes('ZZ-secret'))
+        //與 K 契約之 pickErrName／pickErrCode 對同一錯誤給同一組名稱與代碼(srLog 欄位用, 與 console 摘要語意一致)
+        assert.strictEqual(pickErrName(err), 'TypeError')
+        assert.strictEqual(pickErrCode(err), 'ECONNREFUSED')
     })
 
 })

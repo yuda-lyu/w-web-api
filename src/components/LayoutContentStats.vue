@@ -149,7 +149,7 @@ import isestr from 'wsemi/src/isestr.mjs'
 import WEchartsVue from 'w-echarts-vue/src/components/WEchartsVue.vue'
 import WIconLoading from 'w-component-vue/src/components/WIconLoading.vue'
 import WTextSelect from 'w-component-vue/src/components/WTextSelect.vue'
-import { describeErr } from '../describeShape.mjs'
+import getDiagBriefErr from 'wsemi/src/getDiagBriefErr.mjs'
 
 //時間範圍下拉觸發區之結構寬度（不含文字）：左右內距 8+8、邊框 1+1、展開圖標 18、對稱呼吸空間 2（全域 §10.6-5；量測見 spec/流程_統計資訊.md）
 let SEL_STRUCT_WIDTH = 8 + 8 + 1 + 1 + 18 + 2
@@ -423,7 +423,7 @@ export default {
                     vo.freq = isearr(rs) ? rs : []
                 })
                 .catch(function(err) {
-                    console.log('getStaEvent catch', describeErr(err))
+                    console.log('getStaEvent catch', getDiagBriefErr(err))
                     vo.errMsg = vo.$t('getDataError')
                 })
                 .finally(function() {

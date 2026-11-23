@@ -10,7 +10,7 @@ import cloneDeep from 'lodash-es/cloneDeep.js'
 import isPlainObject from 'lodash-es/isPlainObject.js'
 import isestr from 'wsemi/src/isestr.mjs'
 import { digestRow } from 'w-serv-orm/src/baseline.mjs'
-import { describeErr } from '../describeShape.mjs'
+import getDiagBriefErr from 'wsemi/src/getDiagBriefErr.mjs'
 
 
 //基準 [[id, 列摘要]] 之單列摘要; 格式不符回 null
@@ -75,7 +75,7 @@ function applySavedRow(rows, row, baseline, contract) {
         return rows.map((v, k) => (k === i ? cloneDeep(row) : v))
     }
     catch (err) {
-        console.log('applySavedRow', describeErr(err))
+        console.log('applySavedRow', getDiagBriefErr(err))
         return rows //列含不可摘要之值等: 不更新, 退回等推播
     }
 }
@@ -110,7 +110,7 @@ function applyDeletedRow(rows, id, baseline, contract) {
         return rows.filter((v, k) => k !== i)
     }
     catch (err) {
-        console.log('applyDeletedRow', describeErr(err))
+        console.log('applyDeletedRow', getDiagBriefErr(err))
         return rows
     }
 }

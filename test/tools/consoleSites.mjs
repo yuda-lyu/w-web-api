@@ -2,7 +2,7 @@
 //不帶 .test. 中綴、放 test/tools/，供 unit-consoleSites.test.mjs 與盤點腳本共用（同一 helper 只定義一次）。
 //作法：以 eslint（devDependencies 已宣告）之 Linter 取得 AST（不靠正規表示式，註解、字串、樣板字串內之 "console.log" 不誤判），
 //逐一檢視 console.(log|warn|error|info|debug|trace|dir|table)(…) 與 process.stdout／stderr.write(…) 之每個引數：
-//- 安全：字面值；樣板字串（其 ${} 皆安全）；呼叫核可之輸出函數（maskTok、shapeOf、typeOf、payloadShape、errBrief、pickErrName、pickErrCode；前端另有 describeShape、describeErr）；
+//- 安全：字面值；樣板字串（其 ${} 皆安全）；呼叫核可之輸出函數（maskTok、getDiagShape、getDiagBriefErr〔wsemi 共用函數, 規格 D1 單一實作; 前後端共用〕、pickErrName、pickErrCode〔K 契約, 伺服端〕）；
 //  X.length（筆數）；typeof X（型別）；二元 + 、條件、邏輯運算式（各分支皆安全）；清單 exempt 內之運算式原文（各條附理由，屬「刻意不套」）
 //- 其餘（裸識別字、成員存取、物件／陣列字面值、其他呼叫）一律判為「可能輸出資料值」
 import fs from 'fs'
@@ -13,8 +13,9 @@ import eslint from 'eslint'
 let { Linter } = eslint
 
 let METHODS = ['log', 'warn', 'error', 'info', 'debug', 'trace', 'dir', 'table']
-//describeShape／describeErr: 前端 console 用之摘要函數(src/describeShape.mjs, ADR-061, 排程第 206 項); 其行為由 unit-consoleNoValuesFront CNVF-004 釘住
-let HELPERS = ['maskTok', 'shapeOf', 'typeOf', 'payloadShape', 'errBrief', 'pickErrName', 'pickErrCode', 'describeShape', 'describeErr']
+//getDiagShape／getDiagBriefErr: wsemi 之診斷摘要共用函數(規格〈診斷輸出與遮罩〉D1 單一實作; 排程第 603 項起取代本套件原有之 shapeOf／typeOf／payloadShape／errBrief 與前端 describeShape／describeErr, 舊名不再核可);
+//  其輸出契約由 unit-consoleNoValuesFront CNVF-004、unit-maskLog 之 DIAG-* 釘住; pickErrName／pickErrCode 為 K 契約之名稱／代碼形狀過濾(srv.mjs 之 console 已改 getDiagBriefErr, 其餘為 srLog 欄位用)
+let HELPERS = ['maskTok', 'getDiagShape', 'getDiagBriefErr', 'pickErrName', 'pickErrCode']
 
 
 //classify: 回傳 { safe, why }；exempt 為 Map(運算式原文 → 理由)，'*' 鍵表示該檔全部運算式（離線稽核工具之輸出本體）；exempt.used（Set）記錄被用到之鍵
@@ -158,7 +159,7 @@ let EXEMPT = {
         ['from', '入口名: authToken 之 from 為套件內固定字串（main、getUserByToken、getApisList、syncAndReplaceTabs）或 w-converhp 之 apiType 路由名，非使用者輸入'],
         ['apiType', 'w-converhp 之路由名（main、upload-controller、upload-slice、download-get-filename、download-get-file、download），框架指派，非使用者輸入'],
         ['fnEntryOut', '常數 index.html（入口檔名）'],
-        ['isestr(msg) && /^invalid opt\\.[A-Za-z]+$/.test(msg) ? msg : errBrief(err)', 'msg 先經 /^invalid opt\\.[A-Za-z]+$/ 限為固定詞彙（createTargetPolicy 之 throw），否則只給錯誤名稱與代碼'],
+        ['isestr(msg) && /^invalid opt\\.[A-Za-z]+$/.test(msg) ? msg : getDiagBriefErr(err)', 'msg 先經 /^invalid opt\\.[A-Za-z]+$/ 限為固定詞彙（createTargetPolicy 之 throw），否則只給錯誤名稱與代碼'],
     ]),
     'server/syncApis.mjs': new Map([
         ['index', '外部匯入批次之列索引（整數）'],

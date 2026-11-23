@@ -1,26 +1,34 @@
-//unit-consoleSites：console 輸出站點之全集不變式（ADR-057，取代 ADR-033／048 之「console 印使用者物件，記錄不修」）。
-//規格依據：C:\opensrcOper\dspec\診斷輸出與遮罩.md D2「預設不輸出資料值」（使用者 2026-10-29 裁示）、輸入參數之檢測機制.md §6 V20「訊息與 throw 前之 console 皆不含輸入值」。
+//unit-consoleSites：console 輸出站點之全集不變式（ADR-057，取代 ADR-033／048 之「console 印使用者物件，記錄不修」；2026-11-24 起摘要函數改用 wsemi 共用函數，ADR-063）。
+//規格依據：C:\opensrcOper\dspec\診斷輸出與遮罩.md D1「單一實作」、D2「預設不輸出資料值」（使用者 2026-10-29 裁示）、輸入參數之檢測機制.md §6 V20「訊息與 throw 前之 console 皆不含輸入值」。
 //範圍：伺服端出口——server/**、srv.mjs、g_*.mjs、toolg/**、src/schema/**（前後端共用之 schema，funTest 於伺服端執行）；瀏覽器端 src/ 其餘檔案與 test/ 不在此（見 sgud/rule/rulebook_backend.md R-CONSOLE-01〈站點全集〉）。
 //作法：掃描器（test/tools/consoleSites.mjs，以 eslint 之 AST）逐一檢視每個 console 站點之每個引數，只准：字面值、樣板字串（其 ${} 皆安全）、
-//核可之輸出函數（maskTok／shapeOf／typeOf／payloadShape／errBrief／pickErrName／pickErrCode）、筆數（.length）、typeof，或 test/tools/consoleSites.mjs 之 EXEMPT 清單所列（刻意不套，各附理由）；
+//核可之輸出函數（maskTok／getDiagShape／getDiagBriefErr／pickErrName／pickErrCode）、筆數（.length）、typeof，或 test/tools/consoleSites.mjs 之 EXEMPT 清單所列（刻意不套，各附理由）；
 //其餘（裸識別字、成員存取、物件字面值等）一律判為「可能輸出資料值」而失敗。新增站點若直接印變數，此檔轉紅，須改印形狀或列入 EXEMPT（附理由）。
+//SITE-006／007（D1）：伺服端不得另有 shapeOf／errBrief／typeOf／payloadShape 等本地摘要實作，形狀與錯誤類別摘要一律經 wsemi getDiagShape／getDiagBriefErr。
 //環境變數 CONSOLE_SITES_ROOT 可指向另一份原始碼樹（修前紅對 HEAD 副本、變異測試對變異副本重跑同一檔，副本放 ./tmp/）。
 //動態觸發（以含識別值之測資實際走各站點）見 test/api-logLeak.test.mjs；本檔補足其無法由外部觸發之站點（防禦性分支、建構期內部失敗）。
 import assert from 'assert'
+import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { scanCode, scanRoot, freshExempt } from './tools/consoleSites.mjs'
+import { scanCode, scanRoot, listFiles, freshExempt } from './tools/consoleSites.mjs'
 
 
 let fdTest = path.dirname(fileURLToPath(import.meta.url))
 let ROOT = process.env.CONSOLE_SITES_ROOT ? path.resolve(process.env.CONSOLE_SITES_ROOT) : path.resolve(fdTest, '..')
+
+//伺服端各檔之 getDiagShape(／getDiagBriefErr( 呼叫數(2026-11-24 盤點; 新增或移除站點須先判定其引數, 再更新本表)
+const WSEMI_CALLS = {
+    'server/WWebApi.mjs': { shape: 32, err: 4 }, //shapeOf 11＋typeOf 12(建構參數 7 加 keys:false)＋payloadShape 之 5 站(其中 4 站另附 rows 形狀, 共 9 次呼叫)
+    'srv.mjs': { shape: 2, err: 2 },
+}
 
 
 describe('unit-consoleSites (console 輸出站點全集：只准形狀、型別、固定詞彙，不輸出資料值)', function() {
     this.timeout(120000)
 
     //spec D2：掃描器本身須分得出「印值」與「印形狀」（變異：把掃描器放寬，這條轉紅）
-    it('SITE-001 掃描器自檢：印值之寫法判為不安全，印形狀／型別／固定詞彙判為安全', function() {
+    it('SITE-001 掃描器自檢：印值之寫法判為不安全，印形狀／型別／固定詞彙判為安全；本地摘要函數之舊名不再核可', function() {
         let D = '$' //樣板字串之 ${ 以串接組出（專案 eslint 禁字串內含 ${ ）
         let bad = [
             `console.log('user', user)`,
@@ -36,6 +44,13 @@ describe('unit-consoleSites (console 輸出站點全集：只准形狀、型別�
             `console.log(isOk ? 'ok' : user)`,
             `console.log(a && user)`,
             `console.log(typeof user, user.length > 1, !user)`,
+            //D1：本地摘要函數之舊名不再核可(排程第 603 項改用 wsemi): 站點不得再呼叫它們
+            `console.log('user', shapeOf(user))`,
+            `console.log('invalid url', typeOf(url))`,
+            `console.log(errBrief(err))`,
+            `console.log('payload', payloadShape(payload))`,
+            `console.log('x', describeShape(v))`,
+            `console.log('x', describeErr(err))`,
         ]
         for (let code of bad) {
             let sites = scanCode(code)
@@ -43,16 +58,17 @@ describe('unit-consoleSites (console 輸出站點全集：只准形狀、型別�
             assert.strictEqual(sites[0].safe, false, `應判為不安全: ${code}`)
         }
         let good = [
-            `console.log('user', shapeOf(user))`,
-            `console.log('invalid url', typeOf(url))`,
+            `console.log('user', getDiagShape(user))`,
+            `console.log('invalid url', getDiagShape(url, { keys: false }))`,
             `console.log('token', maskTok(token))`,
-            `console.log(errBrief(err))`,
+            `console.log('err', getDiagBriefErr(err))`,
+            `console.log('SSO error', getDiagBriefErr(err, { nested: ['cause'] }))`,
             `console.log('SSO error', pickErrName(err), pickErrCode(err))`,
             `console.log('rows', rs.length)`,
             'console.log(`rows[' + D + '{rows.length}] invalid`)',
             `console.log('a' + 'b')`,
-            `console.log(isOk ? 'ok' : shapeOf(user))`,
-            `console.log('payload', payloadShape(payload))`,
+            `console.log(isOk ? 'ok' : getDiagShape(user))`,
+            `console.log('payload', getDiagShape(payload), 'rows', getDiagShape(rows))`,
             'console.log(\'state\', `(' + D + '{typeof state})`)',
             `// console.log('user', user)\nlet s = "console.log(user)"`,
         ]
@@ -69,7 +85,7 @@ describe('unit-consoleSites (console 輸出站點全集：只准形狀、型別�
         let sites = scanRoot(ROOT, freshExempt())
         let unsafe = sites.filter((s) => !s.safe)
         let msg = unsafe.map((s) => `${s.file}:${s.line} ${s.call}(${s.args.filter((a) => !a.safe).map((a) => `${a.text} ← ${a.why}`).join(' | ')})`).join('\n')
-        assert.strictEqual(unsafe.length, 0, `以下站點可能輸出資料值（改印 shapeOf／typeOf／固定詞彙，或列入 EXEMPT 並附理由）:\n${msg}`)
+        assert.strictEqual(unsafe.length, 0, `以下站點可能輸出資料值（改印 getDiagShape／getDiagBriefErr／固定詞彙，或列入 EXEMPT 並附理由）:\n${msg}`)
     })
 
     //掃描器須真的掃到站點（防掃描器空轉而恆綠）：下限取自盤點（2026-10-31：WWebApi.mjs 70 站、syncApis 2、srv 7、g_auditExternalRows 8、g_initialTestData 2、g_provideApis 3、
@@ -87,22 +103,24 @@ describe('unit-consoleSites (console 輸出站點全集：只准形狀、型別�
         assert.ok(sites.length >= 93, `全伺服端站點 ${sites.length}（盤點 93）`)
     })
 
-    //spec D2：認證階段（checkUser、授權拒絕、userId 無效）印使用者物件之站點全數改印 shapeOf；請求本體改印 payloadShape；查詢參數改印 shapeOf
-    it('SITE-004 認證與請求驗證站點：印 user／query／payload 之引數一律經形狀函數', function() {
+    //spec D2：認證階段（checkUser、授權拒絕、userId 無效）印使用者物件之站點全數改印 getDiagShape；請求本體亦經 getDiagShape（另附 rows 之形狀）；查詢參數改印 getDiagShape
+    it('SITE-004 認證與請求驗證站點：印 user／query／payload 之引數一律經 getDiagShape', function() {
         let sites = scanRoot(ROOT, freshExempt()).filter((s) => s.file === 'server/WWebApi.mjs')
         let withLabel = (label) => sites.filter((s) => s.args.length >= 2 && s.args[0].text === `'${label}'`)
         let users = withLabel('user')
         assert.ok(users.length >= 7, `'user' 站點 ${users.length}（checkUser 4、getAndVerifyClientUser 1、getAndVerifyAppUser 1、userId 無效 1）`)
         for (let s of users) {
-            assert.strictEqual(s.args[1].text.startsWith('shapeOf('), true, `${s.file}:${s.line} 'user' 須印 shapeOf（實為 ${s.args[1].text}）`)
+            assert.strictEqual(s.args[1].text.startsWith('getDiagShape('), true, `${s.file}:${s.line} 'user' 須印 getDiagShape（實為 ${s.args[1].text}）`)
         }
         let queries = withLabel('req.query')
         assert.ok(queries.length >= 4, `'req.query' 站點 ${queries.length}`)
         for (let s of queries) {
-            assert.strictEqual(s.args[1].text.startsWith('shapeOf('), true, `${s.file}:${s.line} 'req.query' 須印 shapeOf（實為 ${s.args[1].text}）`)
+            assert.strictEqual(s.args[1].text.startsWith('getDiagShape('), true, `${s.file}:${s.line} 'req.query' 須印 getDiagShape（實為 ${s.args[1].text}）`)
         }
-        for (let s of [...withLabel('payload'), ...withLabel('inp')]) {
-            assert.strictEqual(s.args[1].text.startsWith('payloadShape('), true, `${s.file}:${s.line} 須印 payloadShape（實為 ${s.args[1].text}）`)
+        let payloads = [...withLabel('payload'), ...withLabel('inp')]
+        assert.ok(payloads.length >= 5, `'payload'／'inp' 站點 ${payloads.length}（parsePayload 3、syncAndReplaceTabs 2）`)
+        for (let s of payloads) {
+            assert.strictEqual(s.args[1].text.startsWith('getDiagShape('), true, `${s.file}:${s.line} 須印 getDiagShape（實為 ${s.args[1].text}）`)
         }
     })
 
@@ -114,6 +132,64 @@ describe('unit-consoleSites (console 輸出站點全集：只准形狀、型別�
             for (let k of m.keys()) {
                 assert.ok(m.used && m.used.has(k), `${file} 之豁免「${k}」未被任何 console 站點用到（過期，請移除）`)
             }
+        }
+    })
+
+    //規格 D1（單一實作）：伺服端無本地之形狀／錯誤類別摘要實作——shapeOf／errBrief／typeOf／payloadShape 不得再有定義、匯出或呼叫（排程第 603 項改用 wsemi；
+    //  修前 server/maskLog.mjs 定義並匯出 shapeOf、errBrief, WWebApi.mjs 內另有 typeOf、payloadShape 兩個閉包）; maskLog.mjs 之匯出只剩 M 契約（maskTok、maskQuery、maskUrl）與 K 契約之名稱／代碼形狀過濾（pickErrName、pickErrCode）
+    it('SITE-006 D1 單一實作：伺服端無本地 shapeOf／errBrief／typeOf／payloadShape（定義、匯出、呼叫皆無）; maskLog.mjs 匯出表只含 M／K 契約', function() {
+        let OLD = ['shapeOf', 'errBrief', 'typeOf', 'payloadShape']
+        let hits = []
+        for (let rel of listFiles(ROOT)) {
+            let code = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+            for (let [i, l] of code.split(/\r?\n/).entries()) {
+                if (/^\s*(\/\/|\*)/.test(l)) {
+                    continue //註解(說明文字可提舊名)
+                }
+                for (let n of OLD) {
+                    if (new RegExp(`\\b${n}\\b`).test(l)) {
+                        hits.push(`${rel}:${i + 1} ${n}`)
+                    }
+                }
+            }
+        }
+        assert.deepStrictEqual(hits, [], `伺服端不得再有本地摘要函數之定義、匯出或呼叫（改用 wsemi getDiagShape／getDiagBriefErr）:\n${hits.join('\n')}`)
+        let mask = fs.readFileSync(path.join(ROOT, 'server', 'maskLog.mjs'), 'utf8')
+        let exp = /export\s*\{([^}]*)\}/.exec(mask)
+        assert.ok(exp !== null, 'maskLog.mjs 應有 export { … }')
+        let names = exp[1].split(',').map((s) => s.trim()).filter((s) => s !== '')
+        assert.deepStrictEqual(names, ['maskTok', 'maskQuery', 'maskUrl', 'pickErrName', 'pickErrCode'])
+    })
+
+    //接線: 站點之 getDiagShape／getDiagBriefErr 皆自 wsemi 匯入（不得另匯他處或自寫）; 各檔呼叫數已盤點（變異: 一處改回舊寫法或漏改, 轉紅）
+    it('SITE-007 接線：伺服端使用 getDiagShape／getDiagBriefErr 之檔皆自 wsemi/src 匯入，呼叫數與盤點相同', function() {
+        let got = {}
+        for (let rel of listFiles(ROOT)) {
+            let code = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+            let body = code.split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n')
+            let nShape = (body.match(/\bgetDiagShape\(/g) || []).length
+            let nErr = (body.match(/\bgetDiagBriefErr\(/g) || []).length
+            if (nShape > 0) {
+                assert.ok(/^import getDiagShape from 'wsemi\/src\/getDiagShape\.mjs'\r?$/m.test(code), `${rel} 使用 getDiagShape( 但未自 wsemi/src/getDiagShape.mjs 匯入`)
+            }
+            if (nErr > 0) {
+                assert.ok(/^import getDiagBriefErr from 'wsemi\/src\/getDiagBriefErr\.mjs'\r?$/m.test(code), `${rel} 使用 getDiagBriefErr( 但未自 wsemi/src/getDiagBriefErr.mjs 匯入`)
+            }
+            if (nShape > 0 || nErr > 0) {
+                got[rel] = { shape: nShape, err: nErr }
+            }
+        }
+        assert.deepStrictEqual(got, WSEMI_CALLS, '各檔之 getDiagShape(／getDiagBriefErr( 呼叫數與盤點不符（新增或移除站點須先判定引數，再更新 WSEMI_CALLS）')
+    })
+
+    //srv.mjs 之 console 站點(SSO 查詢失敗、WWebApi error 事件)之錯誤多為 fetch 例外: undici 把系統錯誤碼放在 cause.code(unit-maskLog DIAG-007 以真實 fetch 失敗證明), 原 pickErrCode 即先取 cause.code;
+    //  改用 getDiagBriefErr 後須宣告 { nested: ['cause'] }, 否則代碼遺失(變異: 拿掉 nested, 本案轉紅)
+    it('SITE-008 srv.mjs 之 getDiagBriefErr 呼叫皆宣告 nested: [cause]', function() {
+        let code = fs.readFileSync(path.join(ROOT, 'srv.mjs'), 'utf8')
+        let calls = code.split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*)/.test(l) && /\bgetDiagBriefErr\(/.test(l))
+        assert.strictEqual(calls.length, 2, `srv.mjs 之 getDiagBriefErr( 呼叫應為 2 處, 實得 ${calls.length}`)
+        for (let l of calls) {
+            assert.ok(/getDiagBriefErr\(err, \{ nested: \['cause'\] \}\)/.test(l), `須宣告 nested: ['cause']: ${l.trim()}`)
         }
     })
 

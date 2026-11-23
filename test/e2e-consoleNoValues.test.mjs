@@ -72,8 +72,9 @@ describe('e2e-consoleNoValues (前端 console 不印資料值, 排程第 206 項
         }
     })
 
-    //E2E-CN-002: 失敗路徑——資料通道請求失敗時(以 page.route 中止 /api/main 之全部請求, 使 main.js 之 getWebInfor 失敗), catch 內之 console 只印錯誤類別(`(TypeError)` 等), 不含瀏覽器之錯誤訊息文字;
-    //  此案真正執行 describeErr(經 wsemi getDiagBriefErr, 於 webpack 打包後之瀏覽器環境), 證明該模組於瀏覽器可載入、可執行(E2E-CN-001 只走成功路徑, 不呼叫 describeErr)
+    //E2E-CN-002: 失敗路徑——資料通道請求失敗時(只中止 getWebInfor 之請求, 使 main.js 之 getWebInfor 失敗), catch 內之 console 只印錯誤摘要物件 { errType, errCode? }(如 { errType: 'TypeError' }), 不含瀏覽器之錯誤訊息文字;
+    //  此案真正執行 wsemi getDiagBriefErr(排程第 603 項起直接以物件作 console 引數, 於 webpack 打包後之瀏覽器環境), 證明該函數於瀏覽器可載入、可執行(E2E-CN-001 只走成功路徑, 不呼叫它);
+    //  msg.text() 對物件引數之表示依 Playwright 版本而異(JSHandle@object 或預覽字串), 故以 jsonValue() 取得之物件為判定, 不比對預覽字串
     it('E2E-CN-002 資料通道請求失敗時, getWebInfor 之 catch 於 console 只印錯誤類別, 不含錯誤訊息文字', async function() {
         let browser = await launchBrowser()
         try {
@@ -117,8 +118,12 @@ describe('e2e-consoleNoValues (前端 console 不印資料值, 排程第 206 項
                 }
             }
             A.ok(hit !== null, `應出現 getWebInfor failed 之 console 訊息(40 秒內), 實得 ${JSON.stringify(texts.slice(0, 6))}`)
-            //只印錯誤類別: `getWebInfor failed (TypeError)` 或 `(Error)` 等, 不含瀏覽器之錯誤訊息文字(如 Failed to fetch)與網址
-            A.match(hit, /^getWebInfor failed \([A-Za-z]+( [A-Z][A-Z0-9_]+)?\) \| "getWebInfor failed" \| "\([A-Za-z]+( [A-Z][A-Z0-9_]+)?\)"$/, `應只印錯誤類別, 實得 ${hit.slice(0, 200)}`)
+            //只印錯誤摘要物件: 第 2 個引數之 jsonValue 為 { errType: 'TypeError' } 或 { errType: 'Error' } 等(鍵只有 errType、errCode), 不含瀏覽器之錯誤訊息文字(如 Failed to fetch)與網址; 舊版之字串外殼 `(TypeError)` 不再出現
+            let m = /^getWebInfor failed .* \| "getWebInfor failed" \| (\{[^|]*\})$/.exec(hit)
+            A.ok(m !== null, `getWebInfor failed 之第 2 個引數應為物件(經 jsonValue), 實得 ${hit.slice(0, 200)}`)
+            let o = JSON.parse(m[1])
+            A.ok(/^[A-Za-z]+$/.test(o.errType) && Object.keys(o).every((k) => k === 'errType' || k === 'errCode'), `應只印錯誤摘要物件 { errType, errCode? }, 實得 ${m[1]}`)
+            A.ok(!/\(\s*[A-Za-z]+(\s+[A-Z][A-Z0-9_]+)?\s*\)/.test(m[1]), `不得為舊版之字串外殼 (TypeError): ${m[1]}`)
             A.ok(!/Failed to fetch|NetworkError|net::|127\.0\.0\.1|token=/i.test(hit), `getWebInfor 之訊息不得含錯誤訊息文字或網址: ${hit.slice(0, 200)}`)
         }
         finally {

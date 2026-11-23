@@ -250,13 +250,10 @@ describe('unit-ormDiagLog (w-serv-orm funLog → srLog: 接線測試，遮罩與
             }
         })
 
-        //2026-11-23(排程第 206 項): 前端 console 摘要 src/describeShape.mjs 之 describeErr 依規格 D1 經 wsemi getDiagBriefErr(單一實作, 不自寫); 此為本套件唯一核可之第二個診斷函數呼叫點(僅 getDiagBriefErr、僅該檔之 import 與一處呼叫),
-        //  其接線案為 unit-consoleNoValuesFront CNVF-004c(以共用語料 C01～C03 之輸入經 describeErr 驗證); 新增其他呼叫點仍轉紅
-        let ALLOWED_BRIEF = [
-            'src/describeShape.mjs: import getDiagBriefErr from \'wsemi/src/getDiagBriefErr.mjs\'',
-            'src/describeShape.mjs: let b = getDiagBriefErr(err)',
-        ]
-        it('ORMDIAG-021 本套件只用 genDiagFunLog：server／src／toolg／srv.mjs／g_*.mjs 無 getDiag(、getDiagSecrets、maskDiag*、getDiagBriefErr 呼叫（新增即轉紅，須補接線案並擴充語料子集）; 唯一例外為 src/describeShape.mjs 之 getDiagBriefErr（接線案 CNVF-004c）', function() {
+        //2026-11-24(排程第 603 項): console 之形狀與錯誤類別摘要依規格 D1 一律經 wsemi getDiagShape／getDiagBriefErr(單一實作, 不自寫; 取代本地 describeShape／describeErr／shapeOf／errBrief／typeOf／payloadShape),
+        //  此二函數為「console 摘要」用途之核可呼叫(各檔須自 wsemi/src 匯入、呼叫數已盤點: 前端 unit-consoleNoValuesFront CNVF-003、伺服端 unit-consoleSites SITE-007; 輸出契約由 CNVF-004、unit-maskLog DIAG-* 釘住);
+        //  「funLog／診斷物件」用途仍只准 genDiagFunLog——getDiag(、getDiagSecrets、maskDiag* 之呼叫新增即轉紅, 須補接線案並擴充語料子集
+        it('ORMDIAG-021 本套件之診斷物件用途只用 genDiagFunLog：server／src／toolg／srv.mjs／g_*.mjs 無 getDiag(、getDiagSecrets、maskDiag* 呼叫（新增即轉紅，須補接線案並擴充語料子集）; getDiagShape／getDiagBriefErr 為 console 摘要之核可呼叫，須自 wsemi/src 匯入', function() {
             let files = [...walk(path.join(fdRoot, 'server')), ...walk(path.join(fdRoot, 'src')), ...walk(path.join(fdRoot, 'toolg')), path.join(fdRoot, 'srv.mjs')]
             for (let f of fs.readdirSync(fdRoot)) {
                 if (/^g_.*\.mjs$/.test(f)) {
@@ -266,12 +263,20 @@ describe('unit-ormDiagLog (w-serv-orm funLog → srLog: 接線測試，遮罩與
             let hits = []
             for (let f of files) {
                 for (let l of readSrc(f).split(/\r?\n/)) {
-                    if (!/^\s*(\/\/|\*)/.test(l) && /\b(getDiag|getDiagSecrets|getDiagBriefErr|maskDiag[A-Za-z]*)\b/.test(l)) {
+                    if (!/^\s*(\/\/|\*)/.test(l) && /\b(getDiag|getDiagSecrets|maskDiag[A-Za-z]*)\b/.test(l)) {
+                        hits.push(`${path.relative(fdRoot, f).replace(/\\/g, '/')}: ${l.trim()}`)
+                    }
+                    //getDiagShape／getDiagBriefErr 之匯入只准自 wsemi/src（不得另匯他處或自寫同名）
+                    let mi = /^import\s+(getDiagShape|getDiagBriefErr)\s+from\s+'([^']+)'/.exec(l)
+                    if (mi !== null && mi[2] !== `wsemi/src/${mi[1]}.mjs`) {
+                        hits.push(`${path.relative(fdRoot, f).replace(/\\/g, '/')}: ${l.trim()}`)
+                    }
+                    if (/^\s*(?:function|let|const|var)\s+(getDiagShape|getDiagBriefErr)\b/.test(l)) {
                         hits.push(`${path.relative(fdRoot, f).replace(/\\/g, '/')}: ${l.trim()}`)
                     }
                 }
             }
-            assert.deepStrictEqual(hits, ALLOWED_BRIEF, '除 src/describeShape.mjs 之 getDiagBriefErr（import 與一處呼叫）外不得另有診斷函數之使用')
+            assert.deepStrictEqual(hits, [], '不得有 getDiag(／getDiagSecrets／maskDiag* 之使用, getDiagShape／getDiagBriefErr 須自 wsemi/src 匯入且不得另有本地定義')
         })
 
         it('ORMDIAG-022 建立 WServOrm 之站點全集 ＝ server/WWebApi.mjs（接 funLog）＋ g_mOrm.mjs（離線工具, 刻意不接: 無 srLog, console 即操作者終端機, 預設已不含個資）', function() {
