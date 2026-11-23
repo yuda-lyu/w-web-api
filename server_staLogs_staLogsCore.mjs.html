@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>server/staLogs/staLogsCore.mjs - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="WWebApi.html">WWebApi</a></li></ul><h3>Global</h3><ul><li><a href="global.html#applyDeletedRow">applyDeletedRow</a></li><li><a href="global.html#applySavedRow">applySavedRow</a></li><li><a href="global.html#checkRowIds">checkRowIds</a></li><li><a href="global.html#createGuardedLookup">createGuardedLookup</a></li><li><a href="global.html#createLockSave">createLockSave</a></li><li><a href="global.html#createRecentRows">createRecentRows</a></li><li><a href="global.html#createTargetPolicy">createTargetPolicy</a></li><li><a href="global.html#describeErr">describeErr</a></li><li><a href="global.html#describeShape">describeShape</a></li><li><a href="global.html#fmtVars">fmtVars</a></li><li><a href="global.html#getExternalChanged">getExternalChanged</a></li><li><a href="global.html#getExternalGroups">getExternalGroups</a></li><li><a href="global.html#getLockExternalRows">getLockExternalRows</a></li><li><a href="global.html#getOptDataChannel">getOptDataChannel</a></li><li><a href="global.html#isBlockedByExternalGroup">isBlockedByExternalGroup</a></li><li><a href="global.html#isBlockedTargetError">isBlockedTargetError</a></li><li><a href="global.html#isExternalRow">isExternalRow</a></li><li><a href="global.html#isInternalAddress">isInternalAddress</a></li><li><a href="global.html#isMixedRow">isMixedRow</a></li><li><a href="global.html#isValidGroupValue">isValidGroupValue</a></li><li><a href="global.html#normGroup">normGroup</a></li><li><a href="global.html#ormFail">ormFail</a></li><li><a href="global.html#parseAllowInternal">parseAllowInternal</a></li><li><a href="global.html#parseTimeLength">parseTimeLength</a></li><li><a href="global.html#pickLocalFields">pickLocalFields</a></li><li><a href="global.html#resolveShellWorker">resolveShellWorker</a></li><li><a href="global.html#safeCtl">safeCtl</a></li><li><a href="global.html#submitGuard">submitGuard</a></li><li><a href="global.html#summarizeExternal">summarizeExternal</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">server/staLogs/staLogsCore.mjs</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import fs from 'fs'
+import path from 'path'
+import readline from 'readline'
+import ot from 'dayjs'
+import get from 'lodash-es/get.js'
+import isfun from 'wsemi/src/isfun.mjs'
+import isestr from 'wsemi/src/isestr.mjs'
+import iseint from 'wsemi/src/iseint.mjs'
+import fsTreeFolder from 'wsemi/src/fsTreeFolder.mjs'
+import filterVpfsByWindow from './filterVpfsByWindow.mjs'
+
+
+//staLogsCore: staEvent (各 event 時序分桶) 之核心 (鏡像 w-web-sso server/staLogs/staLogsCore.mjs, ADR-051)
+//  1. 逐行先比 event 再算時間: time 為 epoch ms 數值 (pino) 直接數值比較, 桶鍵以分鐘整數 memo 查表, 不逐行 dayjs; 就地累加不建陣列
+//  2. 檔級彙總快取: w-syslog 依寫入當下時鐘切檔, 整點跨過後舊檔不再被寫入, 每檔彙總以 (name, size, mtimeMs) 為鍵快取;
+//     檔內最早可計入行 minTimeMs > tStartMs 時窗過濾為 no-op 才沿用, 否則 (邊界檔) 重掃; 當前小時檔 size 變動自然重掃; 快取依 fmt 分開
+//     彙總相依於掃描當下之窗 (窗外行不進 agg), 故 entry 另記 scanTStartMs, 沿用須同時滿足「掃描時無行被窗過濾 (minTimeMs > scanTStartMs)」
+//     與「整檔仍在新窗內 (minTimeMs > 新 tStartMs)」; 否則 timeLength 由小變大 (窗後退) 時會沿用以窄窗掃出之不完整彙總而靜默漏算
+//  3. single-flight: 同參數併發呼叫共用同一 in-flight promise
+//  4. 資料夾項目略過; 單檔讀取錯誤略過該檔 (不入快取、不整體失敗)
+//  輸出形狀與原 staEvent.mjs 一致 (golden test: test/unit-staEvent-golden.test.mjs 以改造前實作產出之 expected 深比較)
+//  刻意差異: 無 time (或 time 無法解析) 之行不計入任何桶 (原實作 ot(undefined) 視為 now 而計入當前桶)
+//  刻意差異 (R-STA-FUTURE-01, ADR-058): 輸出以「現在所屬桶」為上界, 晚於它之未來時間桶不輸出 (原實作無上界); 只在 buildOutput 過濾, 掃描與快取不動
+
+
+//快取: `${fdLog}|${fmt}` → Map(檔名 → { size, mtimeMs, minTimeMs, scanTStartMs, agg })
+let kpCache = new Map()
+
+//single-flight: key → promise
+let kpInflight = new Map()
+
+
+//timeLength 上限（天）：10 年。取此值之理由——超過此範圍之查詢無實務意義，且 kpTime 陣列長度為
+//timeLength×24（hr 粒度），10 年約 87600 筆仍可接受；再大則單是建陣列即造成長時間 CPU 阻塞。
+let MAX_TIME_LENGTH_DAY = 3650
+
+//opt.timeNow 之有效範圍(ms): 1970-01-01T00:00:00.000Z(epoch 0; log 之 time 為 epoch ms 非負數值) ～ 2100-01-01T00:00:00.000Z(含)；實務範圍，遠小於 Date 之 ±8.64e15，
+//使其後 subtract(3650 天)／逐桶 add 皆不溢位，且桶標籤年份恆為四位數(任何時區)。與 w-web-perm、w-web-sso 之同名核心相同。
+let TIME_NOW_MIN = 0
+let TIME_NOW_MAX = 4102444800000
+
+
+function normTimeInterval(timeInterval) {
+    //非 'day' 一律視同 'hr' (原以 ==='day' 決定 fmt、==='hr' 決定 unit, 傳其他值時兩者不一致, 此處收斂為單一判斷)
+    return timeInterval === 'day' ? 'day' : 'hr'
+}
+
+
+/**
+ * 檢測並轉換 timeLength (往回統計之天數；規格〈輸入參數之檢測機制〉: 個數類之必須參數，N2 非負整數，範圍 0～MAX_TIME_LENGTH_DAY；單一擁有者，genPlan 為其唯一呼叫點)
+ * - 有效: 0～3650 之整數，或其數字字串(含頭尾空白，如 '7'、' 7 '；其後只用轉換後之數值，K4)；回傳轉換後之 number
+ * - 無效(回傳 null): NaN、±Infinity、負數、小數、超過上限、非數字字串、null、布林、物件、陣列、包裝物件、BigInt 等
+ * - 為什麼須在 dayjs subtract 之前擋: dayjs 對 NaN、±Infinity、非數字字串、超出 Date 範圍之值回 Invalid Date，其 isAfter 恆為 false，
+ *   使 genPlan 之 `while (!tCurr.isAfter(tEnd))` 成為同步無窮迴圈(佔死主執行緒，整個後端停止回應)；過大之有效值(如 100000)則建出數百萬筆 kpTime 而長時間阻塞
+ * - 永不拋錯、不回顯輸入值；呼叫端依回傳 null 以固定鍵 errTimeLengthInvalid 失敗(K9)
+ * - 2026-11-23 起以 wsemi iseint 判定(原 Number.isInteger 拒數字字串 '7'，與 w-web-perm、w-web-sso 之寬嚴不一，依規格 K4／K7 收斂；前端固定送數字 7，無影響)
+ *
+ * @param {*} timeLength 輸入待檢測之值
+ * @returns {Number|null} 回傳有效之天數(number)，無效回傳 null
+ */
+function parseTimeLength(timeLength) {
+    try {
+        if (!iseint(timeLength, { min: 0, max: MAX_TIME_LENGTH_DAY })) {
+            return null
+        }
+        return (typeof timeLength === 'string' ? Number(timeLength.trim()) : timeLength) + 0 //+ 0: -0 與 '-0' 正規化為 +0(0 天)，使轉換後之值恆為規格 N2 之唯一表示(plan.timeLength 不為 -0)
+    }
+    catch (err) {
+        return null //讀取即拋錯之值(已撤銷之 Proxy 等)視為無效，本函數永不拋錯(規格 V11)
+    }
+}
+
+
+function genPlan(timeLength = 7, timeInterval = 'hr', opt = {}) {
+
+    //timeLength 驗證（必須在任何以之計算之前：下方 subtract 與 kpTime 迴圈）；其後一律用轉換後之 nDay（K4）。
+    //why：dayjs 對非數字、NaN、或超出 Date 可表示範圍之極大值會回 Invalid Date，而 Invalid Date 之 isAfter 恆為
+    //false，使下方 `while (!tCurr.isAfter(tEnd))` 成為**同步無窮迴圈**。該迴圈位於 staLogs 之第一行（早於 worker
+    //派工），會佔死主執行緒使整個伺服器停止回應、需重啟。getStaEvent 為對外 kpFunExt，資料通道雖只限系統管理者，
+    //參數仍由呼叫端傳入而可為任意型別，故此處為必要之輸入閘。允許 0（測試以 timeLength=0 取「現在起算」）至 MAX_TIME_LENGTH_DAY。
+    let nDay = parseTimeLength(timeLength)
+    if (nDay === null) {
+        throw new Error('errTimeLengthInvalid')
+    }
+
+    //fdLog
+    let fdLog = get(opt, 'fdLog')
+    if (!isestr(fdLog)) {
+        fdLog = './logs'
+    }
+
+    //timeInterval, fmt, unit
+    let ti = normTimeInterval(timeInterval)
+    let fmt = ti === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM-DDTHH'
+    let unit = ti === 'day' ? 'day' : 'hour'
+
+    //now, 測試可由 opt.timeNow (epoch ms) 釘住；須為 1970～2100 年內之有限毫秒時刻(TIME_NOW_MIN～TIME_NOW_MAX)，其餘(NaN、±Infinity、超出範圍、非 number)視為未給改用現在(規格 K3)。
+    //  why 範圍而非只檢 isValid: timeNow 本身為有效 Date(如 8.64e15)時，其後之 subtract(nDay)／add(1, unit) 仍會溢位成 Invalid Date，isAfter 恆為 false，使下方 kpTime 迴圈無窮
+    let timeNow = get(opt, 'timeNow')
+    let isNowOk = typeof timeNow === 'number' &amp;&amp; timeNow >= TIME_NOW_MIN &amp;&amp; timeNow &lt;= TIME_NOW_MAX
+    let now = isNowOk ? ot(timeNow) : ot()
+
+    //tStart
+    let tStart = now.subtract(nDay, 'day')
+    let tStartMs = tStart.valueOf()
+
+    //kpTime, 產生完整的時間區間 (無資料時段亦補 { count: 0 }, 圖表 x 軸不留空洞)
+    let tCurr = tStart.startOf(unit)
+    let tEnd = now.startOf(unit)
+    let kpTime = []
+    while (!tCurr.isAfter(tEnd)) {
+        kpTime.push(tCurr.format(fmt))
+        tCurr = tCurr.add(1, unit)
+    }
+
+    return { fdLog, timeInterval: ti, fmt, unit, tStart, tStartMs, kpTime, timeNow: now.valueOf(), timeNowPinned: isNowOk, timeLength: nDay }
+}
+
+
+function listFiles(fdLog, tStart, fmt) {
+
+    //vpfs
+    let vpfs = fsTreeFolder(fdLog)
+
+    //剔除資料夾項目 (fsTreeFolder 會列出子資料夾, 對其開讀取串流會 throw)
+    vpfs = vpfs.filter((vpf) => {
+        return !get(vpf, 'isFolder', false)
+    })
+
+    //開檔前剔除窗外檔, 見該模組註解
+    vpfs = filterVpfsByWindow(vpfs, tStart, fmt)
+
+    //stat
+    let files = []
+    for (let vpf of vpfs) {
+        try {
+            let st = fs.statSync(vpf.path)
+            if (!st.isFile()) {
+                continue
+            }
+            files.push({ path: vpf.path, name: vpf.name, size: st.size, mtimeMs: st.mtimeMs })
+        }
+        catch (err) {
+            //列出後即被移除 (cleanLogs) → 略過
+        }
+    }
+
+    return files
+}
+
+
+function createBucketLabeler(fmt) {
+    //以分鐘整數為 memo 鍵 (任何整分鐘偏移之時區皆與逐行 format 等價), 標籤仍由 dayjs 產生
+    let kp = new Map()
+    return (tms) => {
+        let k = Math.floor(tms / 60000)
+        let s = kp.get(k)
+        if (s === undefined) {
+            s = ot(k * 60000).format(fmt)
+            kp.set(k, s)
+        }
+        return s
+    }
+}
+
+
+function toMs(t) {
+    if (typeof t === 'number') {
+        return t
+    }
+    if (isestr(t)) {
+        return ot(t).valueOf() //ISO 字串 (非 w-syslog 之來源) 走慢路徑; 無法解析回 NaN
+    }
+    return NaN
+}
+
+
+function readLines(fp, onLine) {
+    return new Promise((resolve, reject) => {
+        let errTemp = null
+        let stream = fs.createReadStream(fp, { encoding: 'utf8' })
+        let rl = readline.createInterface({
+            input: stream,
+            crlfDelay: Infinity,
+        })
+        rl.on('line', onLine)
+        let onError = (err) => {
+            errTemp = err
+            rl.close()
+        }
+        stream.on('error', onError)
+        rl.on('error', onError) //readline Interface 會把 input 之 error 再拋一次, 未監聽即 unhandled
+        stream.on('close', () => {
+            if (errTemp) {
+                reject(errTemp)
+            }
+            else {
+                resolve()
+            }
+        })
+    })
+}
+
+
+//掃一檔: 各桶 { count, kp:{event:n} }, 任何帶 event 字串之行皆計入 (通用, 不鎖定單一 event)
+async function scanFile(fp, tStartMs, fmt, labeler = null) {
+    if (!isfun(labeler)) {
+        labeler = createBucketLabeler(fmt)
+    }
+
+    let agg = { minTimeMs: null, ev: {} }
+
+    await readLines(fp, (line) => {
+
+        //v
+        let v = null
+        try {
+            v = JSON.parse(line)
+        }
+        catch (err) {
+            return //略過非 JSON / 壞行
+        }
+        if (v === null || typeof v !== 'object') {
+            return
+        }
+
+        //event, 先比對再算時間
+        let e = v.event
+        if (!isestr(e)) {
+            return
+        }
+
+        //tms
+        let tms = toMs(v.time)
+        if (Number.isNaN(tms)) {
+            return //無 time 或無法解析: 不計入 (刻意差異, 見檔頭)
+        }
+
+        //minTimeMs, 對所有可計入之行取最小值 (不論是否在窗內), 供快取有效性判斷
+        if (agg.minTimeMs === null || tms &lt; agg.minTimeMs) {
+            agg.minTimeMs = tms
+        }
+
+        //窗判斷, 對齊原 t.isAfter(tStart)
+        if (!(tms > tStartMs)) {
+            return
+        }
+
+        //accumulate
+        let label = labeler(tms)
+        let b = agg.ev[label]
+        if (b === undefined) {
+            b = { count: 0, kp: {} }
+            agg.ev[label] = b
+        }
+        b.count += 1
+        b.kp[e] = (b.kp[e] || 0) + 1
+
+    })
+
+    return agg
+}
+
+
+//掃描一批檔案, 回傳 [{ name, ok, agg | err }]; 單檔失敗不影響其他檔 (worker 端亦呼叫此函式)
+async function scanFiles(files, tStartMs, fmt) {
+    let labeler = createBucketLabeler(fmt)
+    let rs = []
+    for (let f of files) {
+        try {
+            let agg = await scanFile(f.path, tStartMs, fmt, labeler)
+            rs.push({ name: f.name, ok: true, agg })
+        }
+        catch (err) {
+            rs.push({ name: f.name, ok: false, err: String(get(err, 'message', err)) })
+        }
+    }
+    return rs
+}
+
+
+function mergeAgg(target, agg) {
+    for (let label in agg.ev) {
+        let s = agg.ev[label]
+        let b = target[label]
+        if (b === undefined) {
+            b = { count: 0, kp: {} }
+            target[label] = b
+        }
+        b.count += s.count
+        for (let e in s.kp) {
+            b.kp[e] = (b.kp[e] || 0) + s.kp[e]
+        }
+    }
+    return target
+}
+
+
+//label 是否晚於上界桶 labelEnd: 標籤為定寬 YYYY-MM-DD[THH], 字典序即時間序, 故以字串比較;
+//  年份超過 4 位者 (log 之 time 荒謬大, 如 >= 253402300800000) 標籤較長, 字典序卻可能小於上界 ('10000-…' &lt; '2026-…'), 故先比長度;
+//  超出 Date 範圍者標籤為 'Invalid Date', 字典序大於數字開頭之標籤
+function isLaterLabel(label, labelEnd) {
+    return label.length > labelEnd.length || label > labelEnd
+}
+
+
+function buildOutput(merged, kpTime) {
+    //【R-STA-FUTURE-01, ADR-058, Gitea #58】窗內桶補零; 資料桶以「現在所屬桶」(kpTime 最末桶) 為上界, 晚於它之未來時間桶不輸出
+    //  紀錄之 time 取寫入當下之真實時鐘, 而「現在」可由 opt.timeNow 釘住 (或時鐘回撥), 兩者不一致時會有晚於現在之紀錄:
+    //  輸出若含其桶, 圖表多出一格未來刻度, 前端以 slice(-N) 取「最近 N 桶」(LayoutContentStats.vue eventRows) 亦隨之位移
+    //  上界為「桶」非「時刻」: 現在所屬桶內略晚於現在之紀錄 (統計執行期間新寫入者) 照計
+    //  只在輸出層過濾: 掃描 (scanFile) 與檔級快取不依 timeNow 之上界, 故 timeNow 後移至紀錄之後時該桶仍會出現
+    //  (原註解「對齊原 merge({}, kpTime, gsLog)」: legacy 無上界, 重構時連同此缺陷保留, 並非規格; 不得為「對齊 legacy」而恢復聯集)
+    let kp = {}
+    for (let label of kpTime) {
+        kp[label] = { count: 0 }
+    }
+    let labelEnd = kpTime.length > 0 ? kpTime[kpTime.length - 1] : null //空 kpTime (genPlan 不會產生) 不設上界
+    for (let label in merged) {
+        if (labelEnd !== null &amp;&amp; isLaterLabel(label, labelEnd)) {
+            continue
+        }
+        let b = merged[label]
+        kp[label] = { count: b.count, ...b.kp }
+    }
+    return Object.keys(kp)
+        .sort()
+        .map((time) => ({
+            time,
+            data: kp[time],
+        }))
+}
+
+
+function getCacheKey(fdLog, fmt) {
+    return `${path.resolve(fdLog)}|${fmt}`
+}
+
+
+function getCacheDir(key) {
+    let m = kpCache.get(key)
+    if (!m) {
+        m = new Map()
+        kpCache.set(key, m)
+    }
+    return m
+}
+
+
+function clearCache() {
+    kpCache.clear()
+}
+
+
+function getCacheSize(fdLog = './logs', timeInterval = 'hr') {
+    let fmt = normTimeInterval(timeInterval) === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM-DDTHH'
+    let m = kpCache.get(getCacheKey(fdLog, fmt))
+    return m ? m.size : 0
+}
+
+
+async function run(plan, opt = {}) {
+
+    //useCache
+    let useCache = get(opt, 'useCache') !== false
+
+    //scanFilesFn, callWorker 注入 worker 版
+    let scanFilesFn = get(opt, 'scanFiles')
+    if (!isfun(scanFilesFn)) {
+        scanFilesFn = scanFiles
+    }
+
+    //srLog
+    let srLog = get(opt, 'srLog', null)
+
+    //files
+    let files = listFiles(plan.fdLog, plan.tStart, plan.fmt)
+
+    //cacheDir
+    let cacheDir = getCacheDir(getCacheKey(plan.fdLog, plan.fmt))
+
+    //分流: 快取可沿用 vs 需重掃
+    let toScan = []
+    let kpAgg = {}
+    for (let f of files) {
+        let c = useCache ? cacheDir.get(f.name) : undefined
+        //沿用條件: 檔未變 + 彙總完整 (掃描時無行被窗過濾: minTimeMs > scanTStartMs) + 整檔仍在新窗內 (minTimeMs > 新 tStartMs)
+        //  只檢查後者時, timeLength 由小變大 (tStart 後退) 會沿用以窄窗掃出之不完整彙總 → 靜默漏算
+        let b = c !== undefined &amp;&amp;
+            c.size === f.size &amp;&amp;
+            c.mtimeMs === f.mtimeMs &amp;&amp;
+            (c.minTimeMs === null || (c.minTimeMs > c.scanTStartMs &amp;&amp; c.minTimeMs > plan.tStartMs))
+        if (b) {
+            kpAgg[f.name] = c.agg
+        }
+        else {
+            toScan.push(f)
+        }
+    }
+
+    //淘汰已不存在之檔 (cleanLogs 刪舊檔)
+    if (useCache) {
+        let kpName = new Set(files.map((f) => f.name))
+        for (let name of cacheDir.keys()) {
+            if (!kpName.has(name)) {
+                cacheDir.delete(name)
+            }
+        }
+    }
+
+    //scan
+    let errors = []
+    if (toScan.length > 0) {
+        let rs = await scanFilesFn(toScan.map((f) => ({ path: f.path, name: f.name })), plan.tStartMs, plan.fmt)
+        let kpRs = {}
+        for (let r of rs) {
+            kpRs[r.name] = r
+        }
+        for (let f of toScan) {
+            let r = kpRs[f.name]
+            if (r &amp;&amp; r.ok) {
+                kpAgg[f.name] = r.agg
+                if (useCache) {
+                    cacheDir.set(f.name, { size: f.size, mtimeMs: f.mtimeMs, minTimeMs: r.agg.minTimeMs, scanTStartMs: plan.tStartMs, agg: r.agg })
+                }
+            }
+            else {
+                let err = get(r, 'err', 'no result')
+                errors.push({ name: f.name, err })
+                if (useCache) {
+                    cacheDir.delete(f.name)
+                }
+                if (srLog &amp;&amp; isfun(srLog.warn)) {
+                    srLog.warn({ event: 'fun-staLogs', key: 'staLogsFileSkipped', name: f.name, err })
+                }
+            }
+        }
+    }
+
+    //merge
+    let merged = {}
+    for (let f of files) {
+        let agg = kpAgg[f.name]
+        if (agg) {
+            mergeAgg(merged, agg)
+        }
+    }
+
+    //output
+    let rs = buildOutput(merged, plan.kpTime)
+    return {
+        rs,
+        stat: {
+            nFiles: files.length,
+            nScanned: toScan.length,
+            nCached: files.length - toScan.length,
+            errors,
+        },
+    }
+}
+
+
+//staLogs: 核心入口, 回傳 { rs, stat }
+function staLogs(timeLength = 7, timeInterval = 'hr', opt = {}) {
+    //非 async: 併發呼叫須回傳同一個 promise 物件
+
+    //plan（genPlan 對無效 timeLength 同步 throw Error('errTimeLengthInvalid')；本入口回傳 Promise，依規格〈輸入參數之檢測機制〉§5.1 一律 reject 固定鍵字串，
+    //不同步 throw、不回顯值，使前端 $transErr 能依 lang 反查文字，並讓 wrapErrLog 記到的是 key 而非 Error 物件）
+    let plan
+    try {
+        plan = genPlan(timeLength, timeInterval, opt)
+    }
+    catch (err) {
+        return Promise.reject(get(err, 'message') === 'errTimeLengthInvalid' ? 'errTimeLengthInvalid' : err)
+    }
+
+    //single-flight（key 全用 genPlan 檢測並轉換後之值，K4: timeLength 之 7 與 '7' 為同一查詢；timeNow 只在被採用(timeNowPinned)時入鍵——
+    //  無效之 timeNow 已退回現在，與未給同鍵，且 BigInt、循環物件等原值不會使 JSON.stringify 同步拋錯）
+    let key = JSON.stringify([path.resolve(plan.fdLog), plan.timeLength, plan.timeInterval, plan.timeNowPinned ? plan.timeNow : null])
+    if (kpInflight.has(key)) {
+        return kpInflight.get(key)
+    }
+    let pm = run(plan, opt)
+        .finally(() => {
+            kpInflight.delete(key)
+        })
+    kpInflight.set(key, pm)
+
+    return pm
+}
+
+
+export { staLogs, genPlan, parseTimeLength, MAX_TIME_LENGTH_DAY, listFiles, scanFile, scanFiles, mergeAgg, buildOutput, clearCache, getCacheSize, normTimeInterval }
+export default staLogs
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Mon Nov 23 2026 09:57:23 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>
