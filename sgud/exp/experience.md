@@ -2,6 +2,11 @@
 
 本檔為執行工作時特有之累積經驗,留給後續之嘗試、執行與判斷,由agent自行編列、擴充與維護.
 
+## m667c3(2026-11-26; 排程第 667 項 w-web-api 部分; R-FS-LEVEL-01)之經驗
+
+- **省略第 2 參數之站點於 wsemi 1.9.80 靜默變窮舉**: 無拋錯、無警告, 全套不一定紅; 唯一攔截法是以呼叫形盤點(`git grep` 之呼叫式正規式, 含 md 與範例)加「子資料夾夾具」之測試. 本庫之核心 `listFiles` 已有 GOLD-020(子資料夾內放一檔), 實測對「省略 opt」「`levelLimit: 2`」兩變異皆紅, 故未另補測試; 反之 `test/staLogs-golden/legacy/` 為 golden 產生器, 夾具無子資料夾, 無層數鑑別力, 只能以「鏡像根重產 `expected.json` 逐位相同」證不退化(勿誤記為已驗層數).
+- **舊版 wsemi 遇物件之第 2 參數視為無效層數而取 1 層**: `{ levelLimit: 1 }` 於 1.9.79 以前與 1.9.80 以後皆為第 1 層; 唯一不安全的是「只升版不改寫」.
+
 ## e2e toast 造成整頁 1px 偏移(2026-08)
 
 成功訊息原用自動消失 toast, 其 insert / remove 在新版 headless Chromium 偶發使整頁偏移 1px(edit-002 等 baseline 間歇失敗); 改為停留 confirm modal 後消失. 引申原則: 量測工具(紅框、遮罩)也不該注入 / 移除被測頁 DOM — 本專案 `captureStableWithBox` 仍為 DOM 注入, 列於 `CLAUDE_settings.md` 已知缺口. w-web-api WTree 亦曾出現「內容剛好 6px 溢出虛擬渲染邊界 → 偶發整棵樹 ~6px 位移」, 為 perm 1px 案之同族先例(位移量＝懸出量), 六旗標確定性渲染組使 self-consistency 由 2/4 提至 5/5.
@@ -365,7 +370,7 @@
 ## 排測試鎖與長鏈之補遺(2026-09～11-03 各輪; 2026-11-22 自自動記憶提取)
 
 - **背景指令之 `timeout` 一律給 7200000**: 排鎖等待時間亦計入背景上限, 曾給 3600000 而於等鎖滿 1 小時時被系統終止, 工作白排.
-- **不要 `TaskStop` 已取得鎖之 `quiet-run` 工作**: 其鎖目錄(`C:/opensrcOper/tmp/locks/web-tests` 或 `-b`)會留下已死 pid 之殘留鎖, `quiet-run` 不自動清; 須先確認 owner pid 已死且為自己所有才可移除, 並於報告揭露(他人之殘留鎖不動, 報告主控). 尚在排隊(未取得鎖)者 `TaskStop` 無此問題, 但失去排隊位置.
+- **不要 `TaskStop` 已取得鎖之 `quiet-run` 工作**: 其鎖目錄(`tmp/locks/web-tests` 或 `-b`)會留下已死 pid 之殘留鎖, `quiet-run` 不自動清; 須先確認 owner pid 已死且為自己所有才可移除, 並於報告揭露(他人之殘留鎖不動, 報告主控). 尚在排隊(未取得鎖)者 `TaskStop` 無此問題, 但失去排隊位置.
 - **變異腳本之 find 字串於 CRLF 檔不可含 `\n`**(如 `server/staLogs/staLogsCore.mjs` 為 CRLF); 變異清單先 dry-run 命中數(每項須恰 1 次)再排鎖——wa58 因未 dry-run 而重排一次鎖, 多等 38 分.
 - **自己多排一個 `--lock` 指令不會搶到第二槽**, 會在前一個釋放後依先進先出續排; 想一次取鎖就寫成單一鏈(前幾步結果不符預期即 `break` 以立即釋放鎖).
 - **守門 hook 誤擋**(2026-11-03 觀察): Bash 指令同一行同時出現 `rmdir`／`rm` 與 `tmp/locks` 字樣會被誤擋(`lock-rm`), 兩者分開下.

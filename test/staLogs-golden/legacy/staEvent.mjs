@@ -55,7 +55,7 @@ async function staEvent(timeLength = 7, timeInterval = 'hr', opt = {}) {
     }
 
     //vpfs
-    let vpfs = fsTreeFolder(fdLog)
+    let vpfs = fsTreeFolder(fdLog, { levelLimit: 1 }) //wsemi 1.9.80 起須明給第 1 層(未給即窮舉), 保留原只掃第 1 層之語意
     vpfs = filterVpfsByWindow(vpfs, tStart, fmt) //開檔前剔除窗外檔, 見該模組註解
 
     //logs（逐檔逐行 stream parse，挑出 tStart 之後、且帶 event 字串者）
